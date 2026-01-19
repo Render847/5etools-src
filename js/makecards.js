@@ -200,18 +200,21 @@ class MakeCards extends BaseComponent {
 		// endregion
 	}
 
-	_render_getContextMenuOptions () {
+	_render_getContextMenuOptions (singleType = null) {
 		return [
-			...this._render_getContextMenuOptionsSearch(),
+			...this._render_getContextMenuOptionsSearch(singleType),
 			null,
-			...this._render_getContextMenuOptionsFilter(),
+			...this._render_getContextMenuOptionsFilter(singleType),
 			null,
-			...this._render_getContextMenuOptionsSublist(),
+			...this._render_getContextMenuOptionsSublist(singleType),
 		];
 	}
 
-	_render_getContextMenuOptionsSearch () {
-		return Object.entries(MakeCards._AVAILABLE_TYPES).map(([entityType, it]) => new ContextUtil.Action(
+	_render_getContextMenuOptionsSearch (singleType = null) {
+		const entries = Object.entries(MakeCards._AVAILABLE_TYPES);
+		const entryTypes = singleType ? entries.filter(([entityType]) => entityType === singleType) : entries;
+
+		return entryTypes.map(([entityType, it]) => new ContextUtil.Action(
 			`Search for ${it.searchTitle}`,
 			async () => {
 				const fromSearch = await it.pFnSearch();
@@ -232,8 +235,11 @@ class MakeCards extends BaseComponent {
 		));
 	}
 
-	_render_getContextMenuOptionsFilter () {
-		return Object.entries(MakeCards._AVAILABLE_TYPES).map(([entityType, type]) => new ContextUtil.Action(
+	_render_getContextMenuOptionsFilter (singleType = null) {
+		const entries = Object.entries(MakeCards._AVAILABLE_TYPES);
+		const entryTypes = singleType ? entries.filter(([entityType]) => entityType === singleType) : entries;
+
+		return entryTypes.map(([entityType, type]) => new ContextUtil.Action(
 			`Filter for ${type.searchTitle}`,
 			async () => {
 				const modalFilter = (() => {
@@ -264,8 +270,11 @@ class MakeCards extends BaseComponent {
 		));
 	}
 
-	_render_getContextMenuOptionsSublist () {
-		return Object.entries(MakeCards._AVAILABLE_TYPES).map(([entityType, type]) => new ContextUtil.Action(
+	_render_getContextMenuOptionsSublist (singleType = null) {
+		const entries = Object.entries(MakeCards._AVAILABLE_TYPES);
+		const entryTypes = singleType ? entries.filter(([entityType]) => entityType === singleType) : entries;
+
+		return entryTypes.map(([entityType, type]) => new ContextUtil.Action(
 			`Load from ${type.pageTitle}${type.isPageTitleSkipSuffix ? "" : " Page"} Pinned List`,
 			async () => {
 				const storageKey = StorageUtil.getPageKey("sublist", type.page);
