@@ -270,11 +270,12 @@ export class CharacterBuilder extends BuilderBase {
 	_getInitialState() {
 		return {
 			...super._getInitialState(),
-			name: "New Creature",
+			name: "New Character",
+			race: "Aasimar",
 			size: [
 				"M",
 			],
-			type: "aberration",
+			type: "huminoid",
 			source: this._ui ? this._ui.source : "",
 			alignment: ["N"],
 			ac: [10],
@@ -447,7 +448,7 @@ export class CharacterBuilder extends BuilderBase {
 		const tabs = this._renderTabs(
 			[
 				new TabUiUtil.TabMeta({ name: "Info", hasBorder: true }),
-				new TabUiUtil.TabMeta({ name: "Species", hasBorder: true }),
+				new TabUiUtil.TabMeta({ name: "Origin", hasBorder: true }),
 				new TabUiUtil.TabMeta({ name: "Core", hasBorder: true }),
 				new TabUiUtil.TabMeta({ name: "Defenses", hasBorder: true }),
 				new TabUiUtil.TabMeta({ name: "Abilities", hasBorder: true }),
@@ -458,7 +459,7 @@ export class CharacterBuilder extends BuilderBase {
 				cbTabChange: this.doUiSave.bind(this),
 			},
 		);
-		const [infoTab, speciesTab, coreTab, defenseTab, abilTab, miscTab] = tabs;
+		const [infoTab, originTab, coreTab, defenseTab, abilTab, miscTab] = tabs;
 		ee`<div class="ve-flex-v-center w-100 no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
 
@@ -474,12 +475,12 @@ export class CharacterBuilder extends BuilderBase {
 		this.__getProfBonusInput(cb).appendTo(infoTab.wrpTab);
 		BuilderUi.getStateIptNumber("Level", cb, this._state, { title: "Used for Sidekicks only" }, "level").appendTo(infoTab.wrpTab);
 
-		// SPECIES
-		this.__getSizeInput(cb).appendTo(speciesTab.wrpTab);
-		this.__getTypeInput(cb).appendTo(speciesTab.wrpTab);
-		this.__getSpeedInput(cb).appendTo(speciesTab.wrpTab);
-		this.__getSenseInput(cb).appendTo(speciesTab.wrpTab);
-		this.__getLanguageInput(cb).appendTo(speciesTab.wrpTab);
+		// Origin
+		this.__getSizeInput(cb).appendTo(originTab.wrpTab);
+		this.__getTypeInput(cb).appendTo(originTab.wrpTab);
+		this.__getSpeedInput(cb).appendTo(originTab.wrpTab);
+		this.__getSenseInput(cb).appendTo(originTab.wrpTab);
+		this.__getLanguageInput(cb).appendTo(originTab.wrpTab);
 
 		// CORE
 		this.__getAbilityScoreInput(cb).appendTo(coreTab.wrpTab);
