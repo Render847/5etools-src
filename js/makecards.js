@@ -254,7 +254,7 @@ class MakeCards extends BaseComponent {
 						default: throw new Error(`Unhandled branch!`);
 					}
 				})();
-				const selected = await modalFilter.pGetUserSelection();
+				const selected = await modalFilter.pGetUserSelection({filterExpression: "level=0;1|class=cleric"});
 				if (selected == null || !selected.length) return;
 
 				// do this in serial to avoid bombarding the hover cache

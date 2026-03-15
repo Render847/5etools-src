@@ -618,7 +618,6 @@ class ModalFilterSpells extends ModalFilterBase {
 	 */
 	constructor (opts) {
 		opts = opts || {};
-		console.log("filterSpell opts: ", opts);
 		super({
 			...opts,
 			modalTitle: `Spell${opts.isRadio ? "" : "s"}`,
