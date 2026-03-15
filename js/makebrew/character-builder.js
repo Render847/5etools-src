@@ -106,6 +106,8 @@ export class CharacterBuilder extends BuilderBase {
 		this._modalFilterRaces       = null;
 		this._modalFilterBackgrounds = null;
 		this._modalFilterFeats       = null;
+		this._modalFilterSpells      = null;
+		this._rebuildSpellsTab       = null;
 		this._onEditionChange        = null; // set by _buildClassInput; called when edition toggle fires
 
 		// cached data for dropdowns
@@ -268,8 +270,7 @@ export class CharacterBuilder extends BuilderBase {
 			featWeaponProfs: [],
 			featSavingThrowProfs: [],
 			featExpertise: [],
-			featSpells: [],
-			// spells
+				// spells
 			spellcastingAbility: "",
 			spellSlots: [0,0,0,0,0,0,0,0,0],
 			spellSlotsUsed: [0,0,0,0,0,0,0,0,0],
@@ -860,6 +861,19 @@ export class CharacterBuilder extends BuilderBase {
 		return lines;
 	}
 
+	// ── Shared spell-collection helper ───────────────────────────────────────
+	// Recursively collects concrete spell name strings from an additionalSpells
+	// group value (innate / known / prepared / expanded).  Skips choose objects.
+	static _collectSpells (obj) {
+		if (typeof obj === "string") return [obj.split("|")[0].replace(/#[a-z]$/, "").trim()];
+		if (Array.isArray(obj))      return obj.flatMap(CharacterBuilder._collectSpells);
+		if (obj && typeof obj === "object") {
+			if (obj.choose !== undefined) return [];
+			return Object.values(obj).flatMap(CharacterBuilder._collectSpells);
+		}
+		return [];
+	}
+
 	// ── Background automation ─────────────────────────────────────────────────
 	_applyBackgroundData () {
 		if (!this._state) return;
@@ -920,6 +934,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.bgFeat = "";
 		}
 
+		this._syncGrantedSpells();
 		this._sg_syncAbilityScores();
 	}
 
@@ -981,6 +996,7 @@ export class CharacterBuilder extends BuilderBase {
 			}
 		}
 
+		this._syncGrantedSpells();
 		this._sg_syncAbilityScores();
 	}
 
@@ -999,7 +1015,6 @@ export class CharacterBuilder extends BuilderBase {
 		this._state.featWeaponProfs     = [];
 		this._state.featSavingThrowProfs = [];
 		this._state.featExpertise       = [];
-		this._state.featSpells          = [];
 
 		const allChoices = this._state.featChoices || {};
 		const featNames  = [
@@ -1012,18 +1027,6 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Helper: add to a state array, deduplicating
 		const push = (arr, val) => { if (val && !arr.includes(val)) arr.push(val); };
-
-		// Recursively collect concrete spell name strings from additionalSpells data.
-		// Skips {"choose":"..."} objects and plain scalars that aren't strings.
-		const collectSpells = (obj) => {
-			if (typeof obj === "string") return [obj.split("|")[0]];
-			if (Array.isArray(obj))      return obj.flatMap(collectSpells);
-			if (obj && typeof obj === "object") {
-				if (obj.choose !== undefined) return []; // skip choose-from objects
-				return Object.values(obj).flatMap(collectSpells);
-			}
-			return [];
-		};
 
 		for (const featName of featNames) {
 			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
@@ -1118,26 +1121,72 @@ export class CharacterBuilder extends BuilderBase {
 				});
 			});
 
-			// ── Additional spells ─────────────────────────────────────────
-			const spellGroups = feat.additionalSpells || [];
-			// If multiple named groups, use the user's spellList choice
-			const activeGroups = (spellGroups.length > 1 && spellGroups.every(g => g.name))
-				? (chosen.spellList
-					? spellGroups.filter(g => g.name === chosen.spellList)
-					: [])
-				: spellGroups;
+			}
 
-			activeGroups.forEach(grp => {
-				// Walk innate / known / prepared / expanded — skip "ability" and "name"
+		this._syncGrantedSpells();
+		this._sg_syncAbilityScores();
+	}
+
+	// ── Auto-granted spell sync ───────────────────────────────────────────────
+	// Single source of truth for spells granted by feats, species, and background.
+	// Removes all previously auto-granted entries from this._state.spells then
+	// re-adds the current set with {autoGranted:true, notes:"from <source>"}.
+	// Called at the end of every apply method so all sources are always in sync.
+	_syncGrantedSpells () {
+		if (!this._state) return;
+
+		// Strip previously auto-granted spells, keep user-added ones
+		this._state.spells = (this._state.spells || []).filter(sp => !sp.autoGranted);
+
+		const cs = CharacterBuilder._collectSpells;
+		const push = (name, source) => {
+			if (!name) return;
+			// Use the canonical cased name from spell data if available
+			const canonical = this._getSpellEntry(name)?.name || name;
+			if (this._state.spells.some(sp => sp.name.toLowerCase() === canonical.toLowerCase())) return;
+			this._state.spells.push({name: canonical, notes: `from ${source}`, autoGranted: true, prepared: false});
+		};
+
+		// Feat-granted spells
+		const allChoices = this._state.featChoices || {};
+		const featNames  = [...(this._state.bgFeat ? [this._state.bgFeat] : []), ...(this._state.feats || [])].filter(Boolean);
+		for (const featName of featNames) {
+			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+			if (!feat?.additionalSpells) continue;
+			const chosen = allChoices[featName] || {};
+			const groups = feat.additionalSpells;
+			const active = (groups.length > 1 && groups.every(g => g.name))
+				? (chosen.spellList ? groups.filter(g => g.name === chosen.spellList) : [])
+				: groups;
+			active.forEach(grp => {
 				["innate", "known", "prepared", "expanded"].forEach(prop => {
-					if (grp[prop]) {
-						collectSpells(grp[prop]).forEach(name => push(this._state.featSpells, name));
-					}
+					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, featName));
 				});
 			});
 		}
 
-		this._sg_syncAbilityScores();
+		// Species-granted spells
+		const speciesEntry = this._sg_getSpeciesEntry();
+		if (speciesEntry?.additionalSpells) {
+			speciesEntry.additionalSpells.forEach(grp => {
+				["innate", "known", "prepared", "expanded"].forEach(prop => {
+					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, speciesEntry.name));
+				});
+			});
+		}
+
+		// Background-granted spells (direct additionalSpells, not via feat)
+		const bgEntry = this._sg_getBgEntry();
+		if (bgEntry?.additionalSpells) {
+			bgEntry.additionalSpells.forEach(grp => {
+				["innate", "known", "prepared", "expanded"].forEach(prop => {
+					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, bgEntry.name));
+				});
+			});
+		}
+
+		// Rebuild the spells tab UI if already rendered
+		this._rebuildSpellsTab?.();
 	}
 
 	// ── Feats automation ──────────────────────────────────────────────────────
@@ -2149,96 +2198,137 @@ export class CharacterBuilder extends BuilderBase {
 		wrp.append(eqRow);
 	}
 
+	// ── Spell data helpers ────────────────────────────────────────────────────
+
+	_getSpellEntry (name) {
+		if (!this._allSpells || !name) return null;
+		return this._allSpells.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
+	}
+
+	_fmtSpellCastingTime (spell) {
+		if (!spell?.time?.length) return "";
+		const t = spell.time[0];
+		let unit = t.unit;
+		if (unit === "bonus action") unit = "BA";
+		return `${t.number} ${unit}`;
+	}
+
+	_fmtSpellRange (spell) {
+		if (!spell?.range) return "";
+		const r = spell.range;
+		if (r.type === "special") return "Special";
+		if (!r.distance) return r.type || "";
+		const d = r.distance;
+		if (d.type === "self")      return "Self";
+		if (d.type === "touch")     return "Touch";
+		if (d.type === "sight")     return "Sight";
+		if (d.type === "unlimited") return "Unlimited";
+		if (d.type === "feet")      return `${d.amount} ft.`;
+		if (d.type === "miles")     return `${d.amount} mi.`;
+		return `${d.amount} ${d.type}`;
+	}
+
+	_isSpellConcentration (spell) {
+		return (spell?.duration || []).some(d => d.concentration);
+	}
+
 	// ── Spells tab ────────────────────────────────────────────────────────────
 
 	_buildSpellsTab (wrp, cb) {
-		BuilderUi.getStateIptEnum(
-			"Spellcasting Ability", cb, this._state,
-			{nullable: true, vals: _ABILITIES, fnDisplay: abl => String(_ABILITY_FULL[abl] || abl)},
-			"spellcastingAbility",
-		).appendTo(wrp);
+		const buildContent = () => {
+			const spellsArr = () => this._state.spells || [];
+			const spellRows = [];
 
-		// Spell slots per level
-		const [ssRow, ssRowInner] = BuilderUi.getLabelledRowTuple("Spell Slots", {isMarked: true});
-		const autoSlots = _SPELL_SLOTS_BY_LEVEL[this._state.level || 1] || Array(9).fill(0);
+			const doUpdateState = () => {
+				this._state.spells = spellRows.map(r => r.getState()).filter(it => it.name);
+				cb();
+			};
 
-		ee`<div class="ve-muted italic" style="font-size:.8em;margin-bottom:4px">Max / Used per spell level</div>`.appendTo(ssRowInner);
+			const wrpRows = ee`<div class="ve-flex-col mb-2"></div>`.appendTo(wrp);
 
-		const slotEles = Array(9).fill(null).map((_, i) => {
-			const maxIpt  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="0" max="9" style="width:45px">`.val(this._state.spellSlots?.[i] ?? autoSlots[i]).onn("change", () => { this._state.spellSlots[i] = UiUtil.strToInt(maxIpt.val(), 0, {fallbackOnNaN:0}); cb(); });
-			const usedIpt = ee`<input class="form-control input-xs form-control--minimal mr-2" type="number" min="0" max="9" style="width:45px">`.val(this._state.spellSlotsUsed?.[i] ?? 0).onn("change", () => { this._state.spellSlotsUsed[i] = UiUtil.strToInt(usedIpt.val(), 0, {fallbackOnNaN:0}); cb(); });
-			return ee`<div class="ve-flex-v-center mb-1 mr-2"><span class="ve-muted mr-1" style="font-size:.75em;width:16px">${i+1}</span>${maxIpt}<span class="ve-muted mr-1">/</span>${usedIpt}</div>`;
-		});
+			const addRow = (initial) => {
+				const name = typeof initial === "string" ? initial : (initial?.name || "");
+				if (!name) return;
+				const isAuto   = !!initial?.autoGranted;
+				const spellData = this._getSpellEntry(name);
 
-		ee`<div class="ve-flex ve-flex-wrap">${slotEles}</div>`.appendTo(ssRowInner);
-		wrp.append(ssRow);
+				const card = ee`<div class="mb-2 p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
+				const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
+				ee`<span class="bold mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
 
-		// Spell list
-		const [spRow, spRowInner] = BuilderUi.getLabelledRowTuple("Known / Prepared Spells", {isMarked: true});
+				if (spellData != null) {
+					const levelStr = spellData.level === 0 ? "Cantrip" : `L${spellData.level}`;
+					ee`<span class="ve-muted mr-2" style="font-size:.8em">${levelStr}</span>`.appendTo(nameRow);
+				}
+				if (spellData && this._isSpellConcentration(spellData))
+					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Concentration">C</span>`.appendTo(nameRow);
+				if (spellData?.meta?.ritual)
+					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Ritual">R</span>`.appendTo(nameRow);
+				if (spellData?.components?.m)
+					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Material component">M</span>`.appendTo(nameRow);
 
-		const spellList = () => this._state.spells || [];
-		const spellRows = [];
-		const doUpdateSpellState = () => {
-			this._state.spells = spellRows.map(r => r.getState()).filter(it => it.name);
-			cb();
+				ee`<span class="ve-muted mr-1" style="font-size:.8em">Prep</span>`.appendTo(nameRow);
+				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(nameRow);
+
+				if (!isAuto) {
+					ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
+						.onn("click", () => {
+							spellRows.splice(spellRows.indexOf(rowMeta), 1);
+							card.remove();
+							doUpdateState();
+						})
+						.appendTo(nameRow);
+				}
+
+				if (spellData) {
+					const castStr  = this._fmtSpellCastingTime(spellData);
+					const rangeStr = this._fmtSpellRange(spellData);
+					if (castStr || rangeStr) {
+						const statsRow = ee`<div class="ve-flex-v-center mt-1 ml-2"></div>`.appendTo(card);
+						if (castStr) {
+							ee`<span class="ve-muted mr-1" style="font-size:.8em">Cast:</span>`.appendTo(statsRow);
+							ee`<span class="mr-3" style="font-size:.8em">${castStr}</span>`.appendTo(statsRow);
+						}
+						if (rangeStr) {
+							ee`<span class="ve-muted mr-1" style="font-size:.8em">Range:</span>`.appendTo(statsRow);
+							ee`<span style="font-size:.8em">${rangeStr}</span>`.appendTo(statsRow);
+						}
+					}
+				}
+
+				const iptNotes = ee`<input class="form-control input-xs form-control--minimal mt-1" placeholder="Notes..." style="width:100%">`.val(initial?.notes || "").onn("change", doUpdateState).appendTo(card);
+
+				const rowMeta = {
+					getState: () => ({
+						name,
+						prepared: !!cbPrep.prop("checked"),
+						notes: iptNotes.val().trim(),
+						...(isAuto ? {autoGranted: true} : {}),
+					}),
+				};
+				spellRows.push(rowMeta);
+			};
+
+			spellsArr().forEach(sp => addRow(sp));
+
+			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Spell</button>`
+				.appendTo(wrp)
+				.onn("click", async () => {
+					if (!this._modalFilterSpells) {
+						this._modalFilterSpells = new ModalFilterSpells({
+							namespace: "charBuilder.spells",
+							allData: this._allSpells,
+						});
+					}
+					const selected = await this._modalFilterSpells.pGetUserSelection();
+					if (!selected?.length) return;
+					selected.forEach(item => { if (item.name) addRow(item.name); });
+					doUpdateState();
+				});
 		};
 
-		const wrpSpellRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(spRowInner);
-		spellList().forEach(sp => addSpellRow(sp));
-
-		const spellNames = this._allSpells.map(s => s.name);
-
-		function addSpellRow (initial) {
-			const iptName = ee`<input class="form-control input-xs form-control--minimal mr-1" list="char-builder__spell-datalist" placeholder="Spell name" style="flex:2">`.val(initial?.name || "").onn("change", doUpdateSpellState);
-			const iptLvl  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="0" max="9" placeholder="Lvl" style="width:45px">`.val(initial?.level ?? "").onn("change", doUpdateSpellState);
-			const iptCast = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Cast time" style="width:80px">`.val(initial?.castingTime || "").onn("change", doUpdateSpellState);
-			const iptRng  = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Range" style="width:60px">`.val(initial?.range || "").onn("change", doUpdateSpellState);
-			const cbConc  = ee`<input type="checkbox" class="mkbru__ipt-cb mr-1" title="Concentration">`.prop("checked", !!initial?.concentration).onn("change", doUpdateSpellState);
-			const cbRit   = ee`<input type="checkbox" class="mkbru__ipt-cb mr-1" title="Ritual">`.prop("checked", !!initial?.ritual).onn("change", doUpdateSpellState);
-			const cbMat   = ee`<input type="checkbox" class="mkbru__ipt-cb mr-1" title="Material component">`.prop("checked", !!initial?.material).onn("change", doUpdateSpellState);
-			const iptNotes= ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="width:80px">`.val(initial?.notes || "").onn("change", doUpdateSpellState);
-			const cbPrep  = ee`<input type="checkbox" class="mkbru__ipt-cb mr-1" title="Prepared">`.prop("checked", !!initial?.prepared).onn("change", doUpdateSpellState);
-			const btnRm   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
-				spellRows.splice(spellRows.indexOf(rowMeta), 1);
-				rowEle.empty().remove();
-				doUpdateSpellState();
-			});
-			const rowEle = ee`<div class="ve-flex-col mb-1">
-				<div class="ve-flex-v-center mb-1">${iptName}${iptLvl}<span class="ve-muted mr-1" style="font-size:.75em">Prep</span>${cbPrep}${btnRm}</div>
-				<div class="ve-flex-v-center ml-2 mb-1">
-					<span class="ve-muted mr-1" style="font-size:.75em">Cast</span>${iptCast}
-					<span class="ve-muted mr-1" style="font-size:.75em">Range</span>${iptRng}
-					<span class="ve-muted mr-1" style="font-size:.75em">C</span>${cbConc}
-					<span class="ve-muted mr-1" style="font-size:.75em">R</span>${cbRit}
-					<span class="ve-muted mr-1" style="font-size:.75em">M</span>${cbMat}
-					<span class="ve-muted mr-1" style="font-size:.75em">Notes</span>${iptNotes}
-				</div>
-			</div>`.appendTo(wrpSpellRows);
-			const rowMeta = {getState: () => ({
-				name: iptName.val().trim(),
-				level: UiUtil.strToInt(iptLvl.val(), 0, {fallbackOnNaN:0}),
-				castingTime: iptCast.val().trim(),
-				range: iptRng.val().trim(),
-				concentration: !!cbConc.prop("checked"),
-				ritual: !!cbRit.prop("checked"),
-				material: !!cbMat.prop("checked"),
-				notes: iptNotes.val().trim(),
-				prepared: !!cbPrep.prop("checked"),
-			})};
-			spellRows.push(rowMeta);
-		}
-
-		// Datalist for spell name autocomplete
-		if (!document.getElementById("char-builder__spell-datalist")) {
-			const dl = ee`<datalist id="char-builder__spell-datalist">${spellNames.slice(0, 500).map(n => `<option value="${n.qq()}">`).join("")}</datalist>`;
-			document.body.appendChild(dl);
-		}
-
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Spell</button>`
-			.appendTo(ee`<div></div>`.appendTo(spRowInner))
-			.onn("click", () => { addSpellRow(null); doUpdateSpellState(); });
-
-		wrp.append(spRow);
+		this._rebuildSpellsTab = () => { wrp.empty(); buildContent(); };
+		buildContent();
 	}
 
 	// ── Personality tab ───────────────────────────────────────────────────────
@@ -2606,16 +2696,28 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Prepared spells (30 rows; level x0=17.7, name x0=42.9, cast x0=157, range x0=191.6, notes x0=309.2)
 		// Row 1: top=182.7 (level "0" field), pitch=19.8
-		const featSpellEntries = (s.featSpells||[]).map(name => ({name, level: null}));
-		const spellsSorted = [...(s.spells||[]), ...featSpellEntries].sort((a,b)=>(a.level||0)-(b.level||0));
+		// Spell properties (level, cast time, range, C/R/M) come from the spell data lookup.
+		const spellsSorted = (s.spells||[]).map(sp => {
+			const data = this._getSpellEntry(sp.name);
+			return {
+				name:          sp.name,
+				notes:         sp.notes || "",
+				level:         data?.level ?? null,
+				castingTime:   data ? this._fmtSpellCastingTime(data) : "",
+				range:         data ? this._fmtSpellRange(data) : "",
+				concentration: data ? this._isSpellConcentration(data) : false,
+				ritual:        data ? !!(data.meta?.ritual)  : false,
+				material:      data ? !!(data.components?.m) : false,
+			};
+		}).sort((a,b) => (a.level ?? 99) - (b.level ?? 99));
 		spellsSorted.slice(0,29).forEach((sp,i) => {
 			const top=182.7+i*19.8, bot=top+16.2;
 			if (top>770) return;
 			inField(sp.level!=null?(sp.level===0?"C":String(sp.level)):"",  17.7,top, 38.1,bot, 7);
-			inFieldL(v(sp.name).slice(0,28),      42.9,top,152.4,bot, 7);
-			inFieldL(v(sp.castingTime).slice(0,10),157.0,top,186.9,bot, 6.5);
-			inFieldL(v(sp.range).slice(0,10),     191.6,top,233.5,bot, 6.5);
-			inFieldL(v(sp.notes).slice(0,20),     309.2,top,396.7,bot, 6.5);
+			inFieldL(v(sp.name).slice(0,28),           42.9,top,152.4,bot, 7);
+			inFieldL(v(sp.castingTime).slice(0,10),   157.0,top,186.9,bot, 6.5);
+			inFieldL(v(sp.range).slice(0,10),         191.6,top,233.5,bot, 6.5);
+			inFieldL(v(sp.notes).slice(0,20),         309.2,top,396.7,bot, 6.5);
 		});
 
 		// Spell C/R/M pips — exact per-column cy values from PDF form fields
