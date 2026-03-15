@@ -105,6 +105,7 @@ export class CharacterBuilder extends BuilderBase {
 		// yet have run when the constructor fires).
 		this._modalFilterRaces       = null;
 		this._modalFilterBackgrounds = null;
+		this._onEditionChange        = null; // set by _buildClassInput; called when edition toggle fires
 
 		// cached data for dropdowns
 		this._allClasses     = [];
@@ -459,8 +460,8 @@ export class CharacterBuilder extends BuilderBase {
 			btnNew.toggleClass("ve-btn-primary", using2024).toggleClass("ve-btn-default", !using2024);
 		};
 
-		btnClassic.onn("click", () => { this._state.styleHint = SITE_STYLE__CLASSIC; doUpdate(); cb(); });
-		btnNew.onn("click",     () => { this._state.styleHint = SITE_STYLE__ONE;     doUpdate(); cb(); });
+		btnClassic.onn("click", () => { this._state.styleHint = SITE_STYLE__CLASSIC; doUpdate(); this._onEditionChange?.(); cb(); });
+		btnNew.onn("click",     () => { this._state.styleHint = SITE_STYLE__ONE;     doUpdate(); this._onEditionChange?.(); cb(); });
 
 		ee`<div class="ve-flex">${btnClassic}${btnNew}</div>`.appendTo(rowInner);
 		return row;
@@ -469,23 +470,86 @@ export class CharacterBuilder extends BuilderBase {
 	_buildClassInput (wrp, cb) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Class");
 
-		const classNames = this._allClasses.map(c => c.name);
-		const selClass = ee`<select class="form-control input-xs form-control--minimal mr-2">
-			<option value="">(None)</option>
-			${classNames.map(n => `<option value="${n.qq()}">${n.qq()}</option>`).join("")}
-		</select>`
-			.val(this._state.class || "")
-			.onn("change", () => {
-				this._state.class = selClass.val() || "";
-				this._refreshSubclassDropdown(selSubclass, cb);
-				this._onLevelOrClassChange({resetClass: true});
-				cb();
+		const getFilteredClasses = () => {
+			const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+			const seen = new Set();
+			return this._allClasses.filter(c => {
+				const edOk = isNew ? c.edition === "one" : c.edition === "classic";
+				if (!edOk || seen.has(c.name)) return false;
+				seen.add(c.name);
+				return true;
 			});
+		};
 
-		const selSubclass = ee`<select class="form-control input-xs form-control--minimal"></select>`;
-		this._refreshSubclassDropdown(selSubclass, cb);
+		const getFilteredSubclasses = (className) => {
+			if (!className) return [];
+			const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+			const key = className.toLowerCase();
+			const all = this._allSubclasses[key] || [];
+			const seen = new Set();
+			return all.filter(sc => {
+				const edOk = isNew ? sc.edition === "one" : sc.edition === "classic";
+				if (!edOk || seen.has(sc.name)) return false;
+				seen.add(sc.name);
+				return true;
+			});
+		};
 
-		ee`<div class="ve-flex w-100">${selClass}${selSubclass}</div>`.appendTo(rowInner);
+		const selClass    = ee`<select class="form-control input-xs form-control--minimal mr-2" style="flex:1"></select>`;
+		const selSubclass = ee`<select class="form-control input-xs form-control--minimal" style="flex:1"></select>`;
+
+		const rebuildSubclassOptions = () => {
+			selSubclass.innerHTML = '<option value="">(No Subclass)</option>';
+			getFilteredSubclasses(this._state.class || "").forEach(sc => {
+				const opt = document.createElement("option");
+				opt.value = sc.name;
+				opt.textContent = sc.name;
+				if (sc.name === (this._state.subclass || "")) opt.selected = true;
+				selSubclass.appendChild(opt);
+			});
+		};
+
+		const rebuildClassOptions = () => {
+			selClass.innerHTML = '<option value="">(None)</option>';
+			getFilteredClasses().forEach(c => {
+				const opt = document.createElement("option");
+				opt.value = c.name;
+				opt.textContent = c.name;
+				if (c.name === (this._state.class || "")) opt.selected = true;
+				selClass.appendChild(opt);
+			});
+			rebuildSubclassOptions();
+		};
+
+		const doApplySubclass = (name) => {
+			if (name === this._state.subclass) return;
+			this._state.subclass = name;
+			cb();
+		};
+
+		const doApplyClass = (name) => {
+			if (name === this._state.class) return;
+			this._state.class    = name;
+			this._state.subclass = "";
+			rebuildSubclassOptions();
+			this._onLevelOrClassChange({resetClass: true});
+		};
+
+		selClass.onn("change",    () => doApplyClass(selClass.val()));
+		selSubclass.onn("change", () => doApplySubclass(selSubclass.val()));
+
+		// When the edition toggle fires, rebuild both lists; clear state if no longer valid.
+		this._onEditionChange = () => {
+			const availableClasses = getFilteredClasses().map(c => c.name);
+			if (this._state.class && !availableClasses.includes(this._state.class)) {
+				doApplyClass("");
+			}
+			rebuildClassOptions();
+		};
+
+		rebuildClassOptions();
+
+		ee`<div class="ve-flex w-100 ve-flex-v-center">${selClass}${selSubclass}</div>`.appendTo(rowInner);
 		wrp.append(row);
 	}
 
@@ -596,15 +660,6 @@ export class CharacterBuilder extends BuilderBase {
 		wrp.append(row);
 	}
 
-	_refreshSubclassDropdown (selSubclass, cb) {
-		selSubclass.empty();
-		const key = (this._state.class || "").toLowerCase();
-		const subs = this._allSubclasses[key] || [];
-		selSubclass.appends(`<option value="">(No Subclass)</option>`);
-		subs.forEach(sc => selSubclass.appends(`<option value="${sc.name.qq()}">${sc.name.qq()}</option>`));
-		selSubclass.val(this._state.subclass || "");
-		selSubclass.onn("change", () => { this._state.subclass = selSubclass.val() || ""; cb(); });
-	}
 
 	_autoSetSpellcastingAbility () {
 		const cls = this._state.class || "";
