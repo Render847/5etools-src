@@ -101,6 +101,11 @@ export class CharacterBuilder extends BuilderBase {
 		this._pdfBlobUrl = null;
 		this._pdfGenId   = 0;
 
+		// Modal filters — lazily instantiated on first use (defer scripts may not
+		// yet have run when the constructor fires).
+		this._modalFilterRaces       = null;
+		this._modalFilterBackgrounds = null;
+
 		// cached data for dropdowns
 		this._allClasses     = [];
 		this._allSubclasses  = {};
@@ -261,6 +266,13 @@ export class CharacterBuilder extends BuilderBase {
 			sg_arr_int: null,  sg_arr_wis: null,  sg_arr_cha: null,
 			sg_pb_str: 8, sg_pb_dex: 8, sg_pb_con: 8,
 			sg_pb_int: 8, sg_pb_wis: 8, sg_pb_cha: 8,
+			// entity ability choices (for choose.from / choose.weighted / multiple ability sets)
+			race_ixAbilitySet: 0,
+			race_choice_from: [],     // [{ability, amount}]
+			race_choice_weighted: [], // [{ability, amount, ix}]
+			bg_ixAbilitySet: 0,
+			bg_choice_from: [],
+			bg_choice_weighted: [],
 		};
 	}
 
@@ -383,47 +395,10 @@ export class CharacterBuilder extends BuilderBase {
 		).appendTo(wrp);
 
 		// Background
-		BuilderUi.getStateIptEnum(
-			"Background", cb, this._state,
-			{
-				nullable: true,
-				vals: this._allBackgrounds.map(b => b.name),
-				fnDisplay: v => String(v),
-				callback: () => {
-					// Reset all background-derived fields, then class re-applies its own, then background re-applies
-					this._state.skillProfs     = [];
-					this._state.skillExpertise = [];
-					this._state.toolProfs   = [];
-					this._state.languages   = [];
-					this._state.feats       = [];
-					this._applyClassData();      // re-add class saving throw profs etc.
-					this._applyBackgroundData(); // add background skills/tools/langs/feat
-					this._applySpeciesData();    // re-add species languages
-					this.renderInput();
-				},
-			},
-			"background",
-		).appendTo(wrp);
+		this._buildBackgroundInput(wrp, cb);
 
 		// Species / Race
-		BuilderUi.getStateIptEnum(
-			"Species / Race", cb, this._state,
-			{
-				nullable: true,
-				vals: this._allSpecies.map(s => s.name),
-				fnDisplay: v => String(v),
-				callback: () => {
-					this._state.speciesTraits = "";
-					this._state.size          = "Medium";
-					this._state.speed         = 30;
-					this._state.languages     = [];
-					this._applyBackgroundData(); // re-add background languages first
-					this._applySpeciesData();    // then add species languages + traits
-					this.renderInput();
-				},
-			},
-			"species",
-		).appendTo(wrp);
+		this._buildSpeciesInput(wrp, cb);
 
 		// Alignment
 		BuilderUi.getStateIptEnum(
@@ -511,6 +486,113 @@ export class CharacterBuilder extends BuilderBase {
 		this._refreshSubclassDropdown(selSubclass, cb);
 
 		ee`<div class="ve-flex w-100">${selClass}${selSubclass}</div>`.appendTo(rowInner);
+		wrp.append(row);
+	}
+
+	// ── Background + Species filter inputs ────────────────────────────────────
+
+	_buildBackgroundInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Background");
+
+		const dlId = "cb-bg-dl";
+		if (!document.getElementById(dlId)) {
+			const dl = document.createElement("datalist");
+			dl.id = dlId;
+			this._allBackgrounds.forEach(b => {
+				const opt = document.createElement("option");
+				opt.value = b.name;
+				dl.appendChild(opt);
+			});
+			document.body.appendChild(dl);
+		}
+
+		const ipt = ee`<input class="form-control input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.background || "");
+
+		const doApply = (name) => {
+			const trimmed = (name || "").trim();
+			// Prefer the canonical casing from our loaded list, fall back to whatever was typed/selected
+			const match = this._allBackgrounds.find(b => b.name.toLowerCase() === trimmed.toLowerCase());
+			const newVal = match ? match.name : trimmed;
+			ipt.val(newVal);
+			if (newVal === this._state.background) return;
+			this._state.background   = newVal;
+			this._state.skillProfs     = [];
+			this._state.skillExpertise = [];
+			this._state.toolProfs      = [];
+			this._state.languages      = [];
+			this._state.feats          = [];
+			this._state.bg_choice_from     = [];
+			this._state.bg_choice_weighted = [];
+			this._state.bg_ixAbilitySet    = 0;
+			this._applyClassData();
+			this._applyBackgroundData();
+			this._applySpeciesData();
+			this.renderInput();
+		};
+
+		ipt.onn("change", () => doApply(ipt.val()));
+
+		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Filter backgrounds"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
+			.onn("click", async () => {
+				this._modalFilterBackgrounds = this._modalFilterBackgrounds
+					|| new ModalFilterBackgrounds({namespace: "charBuilder.backgrounds", isRadio: true});
+				const selected = await this._modalFilterBackgrounds.pGetUserSelection();
+				if (!selected?.length) return;
+				doApply(selected[0].name);
+			});
+
+		ee`<div class="ve-flex w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
+		wrp.append(row);
+	}
+
+	_buildSpeciesInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Species / Race");
+
+		const dlId = "cb-species-dl";
+		if (!document.getElementById(dlId)) {
+			const dl = document.createElement("datalist");
+			dl.id = dlId;
+			this._allSpecies.forEach(s => {
+				const opt = document.createElement("option");
+				opt.value = s.name;
+				dl.appendChild(opt);
+			});
+			document.body.appendChild(dl);
+		}
+
+		const ipt = ee`<input class="form-control input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.species || "");
+
+		const doApply = (name) => {
+			const trimmed = (name || "").trim();
+			const match = this._allSpecies.find(s => s.name.toLowerCase() === trimmed.toLowerCase());
+			const newVal = match ? match.name : trimmed;
+			ipt.val(newVal);
+			if (newVal === this._state.species) return;
+			this._state.species       = newVal;
+			this._state.speciesTraits = "";
+			this._state.size          = "Medium";
+			this._state.speed         = 30;
+			this._state.languages     = [];
+			this._state.race_choice_from     = [];
+			this._state.race_choice_weighted = [];
+			this._state.race_ixAbilitySet    = 0;
+			this._applyBackgroundData();
+			this._applySpeciesData();
+			this.renderInput();
+		};
+
+		ipt.onn("change", () => doApply(ipt.val()));
+
+		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Filter species"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
+			.onn("click", async () => {
+				this._modalFilterRaces = this._modalFilterRaces
+					|| new ModalFilterRaces({namespace: "charBuilder.races", isRadio: true});
+				const selected = await this._modalFilterRaces.pGetUserSelection();
+				if (!selected?.length) return;
+				doApply(selected[0].name);
+			});
+
+		ee`<div class="ve-flex w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
 		wrp.append(row);
 	}
 
@@ -912,43 +994,22 @@ export class CharacterBuilder extends BuilderBase {
 			{key: "array",    label: "Std. Array"},
 			{key: "pointbuy", label: "Point Buy"},
 		];
-
-		const rebuildGrid = () => {
-			gridWrp.empty();
-			this._sg_buildGrid(gridWrp, cb);
-			pbRow.toggleVe(this._state.sg_mode === "pointbuy");
-			rollRow.toggleVe(this._state.sg_mode === "roll");
-		};
-
-		modeList.forEach(({key, label}) => {
-			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1">${label}</button>`
-				.onn("click", () => {
-					if (this._state.sg_mode === key) return;
-					this._state.sg_mode = key;
-					this._sg_updateModeBtns(modeBtns);
-					rebuildGrid();
-				});
-			modeBtns[key] = btn;
-			modeRowInner.appends(btn);
-		});
 		wrp.append(modeRow);
 
 		// ── Roll controls (visible only in roll mode) ─────────────────────
 		const rollRow = ee`<div class="ve-flex-v-center mb-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
 		const rollsDisp = ee`<span class="ve-muted" style="font-size:.85em"></span>`;
-		const btnRollAll = ee`<button class="ve-btn ve-btn-xs ve-btn-success mr-2">Roll 4d6×6</button>`
+		rollRow.appends(ee`<button class="ve-btn ve-btn-xs ve-btn-success mr-2">Roll 4d6×6</button>`
 			.onn("click", () => {
 				const rolls = Array.from({length: 6}, () => {
 					const d = Array.from({length: 4}, () => Math.ceil(Math.random() * 6)).sort((a, b) => b - a);
-					return d[0] + d[1] + d[2]; // drop lowest
+					return d[0] + d[1] + d[2];
 				}).sort((a, b) => b - a);
 				this._state.sg_rolls = rolls;
 				_ABILITIES.forEach(abl => { this._state[`sg_roll_${abl}`] = null; });
 				rollsDisp.txt(`Rolled: ${rolls.join(", ")}`);
-				gridWrp.empty();
-				this._sg_buildGrid(gridWrp, cb);
-			});
-		rollRow.appends(btnRollAll).appends(rollsDisp);
+				doRebuild();
+			})).appends(rollsDisp);
 		wrp.append(rollRow);
 
 		// ── Point buy info (visible only in pointbuy mode) ────────────────
@@ -957,18 +1018,41 @@ export class CharacterBuilder extends BuilderBase {
 		pbRow.appends(ee`<span class="ve-muted" style="font-size:.85em">Points spent: ${this._sg_pbSpentDisp} / ${_SG_PB_BUDGET}</span>`);
 		wrp.append(pbRow);
 
-		// ── Grid ─────────────────────────────────────────────────────────
+		// ── Grid + choice containers ──────────────────────────────────────
 		this._sg_rollsDisp = rollsDisp;
-		const gridWrp = ee`<div class="mb-2"></div>`.appendTo(wrp);
+		const gridWrp   = ee`<div class="mb-2"></div>`.appendTo(wrp);
+		const choiceWrp = ee`<div></div>`.appendTo(wrp);
+
+		// Single rebuild function used by mode buttons, roll, and choice changes
+		const doRebuild = () => {
+			gridWrp.empty();
+			this._sg_buildGrid(gridWrp, cb);
+			pbRow.toggleVe(this._state.sg_mode === "pointbuy");
+			rollRow.toggleVe(this._state.sg_mode === "roll");
+			choiceWrp.empty();
+			this._sg_buildAbilityChoices(choiceWrp, cb, doRebuild);
+		};
+
+		modeList.forEach(({key, label}) => {
+			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1">${label}</button>`
+				.onn("click", () => {
+					if (this._state.sg_mode === key) return;
+					this._state.sg_mode = key;
+					this._sg_updateModeBtns(modeBtns);
+					doRebuild();
+				});
+			modeBtns[key] = btn;
+			modeRowInner.appends(btn);
+		});
 
 		this._sg_updateModeBtns(modeBtns);
 
-		// Restore roll display if already rolled
 		if (this._state.sg_mode === "roll" && (this._state.sg_rolls || []).length) {
 			rollsDisp.txt(`Rolled: ${this._state.sg_rolls.join(", ")}`);
 		}
 
 		this._sg_buildGrid(gridWrp, cb);
+		this._sg_buildAbilityChoices(choiceWrp, cb, doRebuild);
 	}
 
 	_sg_updateModeBtns (btns) {
@@ -978,18 +1062,35 @@ export class CharacterBuilder extends BuilderBase {
 		});
 	}
 
+	// Returns the active ability object for an entity, honouring the ixAbilitySet selection.
+	_sg_getEntityAbilityObj (entity, ixSetProp) {
+		if (!entity?.ability) return null;
+		const arr = Array.isArray(entity.ability) ? entity.ability : [entity.ability];
+		const ix  = Math.min(this._state[ixSetProp] || 0, arr.length - 1);
+		return arr[ix] || null;
+	}
+
+	// Sum fixed + chosen bonuses for one entity.
+	_sg_calcEntityBonus (abl, abilObj, choiceFromProp, choiceWeightedProp) {
+		if (!abilObj) return 0;
+		let total = typeof abilObj[abl] === "number" ? abilObj[abl] : 0;
+		if (abilObj.choose?.from)
+			total += (this._state[choiceFromProp] || []).filter(c => c.ability === abl).reduce((s, c) => s + c.amount, 0);
+		if (abilObj.choose?.weighted?.weights)
+			total += (this._state[choiceWeightedProp] || []).filter(c => c.ability === abl).reduce((s, c) => s + c.amount, 0);
+		return total;
+	}
+
 	_sg_getRaceBonus (abl) {
 		const species = (this._allSpecies || []).find(s => s.name === this._state.species);
-		if (!species?.ability) return 0;
-		const arr = Array.isArray(species.ability) ? species.ability : [species.ability];
-		return arr.reduce((sum, obj) => sum + (typeof obj[abl] === "number" ? obj[abl] : 0), 0);
+		const obj = this._sg_getEntityAbilityObj(species, "race_ixAbilitySet");
+		return this._sg_calcEntityBonus(abl, obj, "race_choice_from", "race_choice_weighted");
 	}
 
 	_sg_getBgBonus (abl) {
 		const bg = (this._allBackgrounds || []).find(b => b.name === this._state.background);
-		if (!bg?.ability) return 0;
-		const arr = Array.isArray(bg.ability) ? bg.ability : [bg.ability];
-		return arr.reduce((sum, obj) => sum + (typeof obj[abl] === "number" ? obj[abl] : 0), 0);
+		const obj = this._sg_getEntityAbilityObj(bg, "bg_ixAbilitySet");
+		return this._sg_calcEntityBonus(abl, obj, "bg_choice_from", "bg_choice_weighted");
 	}
 
 	_sg_getBase (abl) {
@@ -1136,6 +1237,130 @@ export class CharacterBuilder extends BuilderBase {
 		if (mode === "pointbuy" && this._sg_pbSpentDisp) {
 			this._sg_pbSpentDisp.txt(String(this._sg_getPbSpent()));
 		}
+	}
+
+	// ── Ability choice UI (choose.from / choose.weighted / multiple sets) ─────
+
+	_sg_buildAbilityChoices (wrp, cb, onChoiceChange) {
+		const entities = [
+			{
+				label:        "Species",
+				data:         (this._allSpecies || []).find(s => s.name === this._state.species),
+				ixSetProp:    "race_ixAbilitySet",
+				choiceFrom:   "race_choice_from",
+				choiceWeight: "race_choice_weighted",
+			},
+			{
+				label:        "Background",
+				data:         (this._allBackgrounds || []).find(b => b.name === this._state.background),
+				ixSetProp:    "bg_ixAbilitySet",
+				choiceFrom:   "bg_choice_from",
+				choiceWeight: "bg_choice_weighted",
+			},
+		];
+
+		entities.forEach(({label, data, ixSetProp, choiceFrom, choiceWeight}) => {
+			if (!data?.ability) return;
+			const abilArr = Array.isArray(data.ability) ? data.ability : [data.ability];
+
+			const [secRow, secRowInner] = BuilderUi.getLabelledRowTuple(`${label} Ability Increase`, {isMarked: true});
+
+			// ── Multiple ability-set selector (e.g. Human: (a) or (b)) ────
+			if (abilArr.length > 1) {
+				const optLabels = abilArr.map((obj, i) => {
+					const parts = [];
+					_ABILITIES.forEach(a => { if (typeof obj[a] === "number" && obj[a]) parts.push(`${a.toUpperCase()} +${obj[a]}`); });
+					if (obj.choose?.from)     parts.push(`choose +${obj.choose.amount||1} from ${(obj.choose.from).map(a=>a.toUpperCase()).join("/")}`);
+					if (obj.choose?.weighted) parts.push(`choose ${obj.choose.weighted.weights.map(w=>`+${w}`).join("/")} from ${obj.choose.weighted.from.map(a=>a.toUpperCase()).join("/")}`);
+					return `(${String.fromCharCode(97 + i)}) ${parts.join(", ") || "(none)"}`;
+				});
+				const sel = ee`<select class="form-control input-xs form-control--minimal mb-1">
+					${optLabels.map((l, i) => `<option value="${i}">${l.qq()}</option>`).join("")}
+				</select>`;
+				sel.val(String(this._state[ixSetProp] || 0));
+				sel.onn("change", () => {
+					this._state[ixSetProp]    = Number(sel.val());
+					this._state[choiceFrom]   = [];
+					this._state[choiceWeight] = [];
+					onChoiceChange();
+				});
+				secRowInner.appends(sel);
+			}
+
+			const ixSet = Math.min(this._state[ixSetProp] || 0, abilArr.length - 1);
+			const abilObj = abilArr[ixSet];
+			if (!abilObj) { wrp.append(secRow); return; }
+
+			// Static bonuses summary (read-only info line)
+			const staticParts = _ABILITIES.filter(a => typeof abilObj[a] === "number" && abilObj[a]).map(a => `${a.toUpperCase()} +${abilObj[a]}`);
+			if (staticParts.length) {
+				secRowInner.appends(ee`<div class="ve-muted mb-1" style="font-size:.85em">${staticParts.join(", ")}</div>`);
+			}
+
+			// ── choose.from (pick N abilities each getting +amount) ───────
+			if (abilObj.choose?.from) {
+				const from   = abilObj.choose.from;
+				const amount = abilObj.choose.amount ?? 1;
+				const count  = abilObj.choose.count  ?? 1;
+				const stored = () => this._state[choiceFrom] || [];
+
+				secRowInner.appends(ee`<div class="ve-muted mb-1" style="font-size:.85em">Choose ${count} ×+${amount} from: ${from.map(a=>a.toUpperCase()).join(", ")}</div>`);
+
+				const sels = Array.from({length: count}, (_, slotIx) => {
+					const sel = ee`<select class="form-control input-xs form-control--minimal mr-1 mb-1" style="width:90px">
+						<option value="">—</option>
+						${from.map(a => `<option value="${a}">${a.toUpperCase()}</option>`).join("")}
+					</select>`;
+					// Restore saved choice for this slot
+					const saved = stored().filter(c => c._slot === slotIx)[0];
+					if (saved) sel.val(saved.ability);
+					sel.onn("change", () => {
+						// Replace this slot's entry
+						const next = stored().filter(c => c._slot !== slotIx);
+						if (sel.val()) next.push({ability: sel.val(), amount, _slot: slotIx});
+						this._state[choiceFrom] = next;
+						onChoiceChange();
+					});
+					return sel;
+				});
+				const slotWrp = ee`<div class="ve-flex ve-flex-wrap mb-1">`;
+				sels.forEach(s => slotWrp.appends(s));
+				secRowInner.appends(slotWrp);
+			}
+
+			// ── choose.weighted (one ability per weight column) ───────────
+			if (abilObj.choose?.weighted?.weights) {
+				const {from, weights} = abilObj.choose.weighted;
+				const stored = () => this._state[choiceWeight] || [];
+
+				secRowInner.appends(ee`<div class="ve-muted mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
+
+				const slotWrp = ee`<div class="ve-flex ve-flex-wrap mb-1">`;
+				weights.forEach((weight, slotIx) => {
+					const sel = ee`<select class="form-control input-xs form-control--minimal mr-1 mb-1" style="width:110px">
+						<option value="">+${weight}: —</option>
+						${from.map(a => `<option value="${a}">+${weight}: ${a.toUpperCase()}</option>`).join("")}
+					</select>`;
+					const saved = stored().filter(c => c.ix === slotIx)[0];
+					if (saved) sel.val(saved.ability);
+					sel.onn("change", () => {
+						// Clear same ability chosen in other slots + this slot
+						const next = stored().filter(c => c.ix !== slotIx && (sel.val() ? c.ability !== sel.val() : true));
+						if (sel.val()) next.push({ability: sel.val(), amount: weight, ix: slotIx});
+						this._state[choiceWeight] = next;
+						// Deselect any sibling that had the same ability
+						slotWrp.findAll("select").forEach(other => {
+							if (other !== sel && other.value === sel.val() && sel.val()) other.value = "";
+						});
+						onChoiceChange();
+					});
+					slotWrp.appends(sel);
+				});
+				secRowInner.appends(slotWrp);
+			}
+
+			wrp.append(secRow);
+		});
 	}
 
 	_buildSavingThrowsInput (wrp, cb) {
