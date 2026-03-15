@@ -143,9 +143,10 @@ export class CharacterBuilder extends BuilderBase {
 		// where classFeatures is a 2D array of resolved feature objects, not string refs.
 		const pLoadClasses = () => DataUtil.class.loadJSON().catch(() => ({class: [], subclass: []}));
 
-		const [classData, raceData, bgData, featData, spellData, items] = await Promise.all([
+		const [classData, raceDataAll, bgData, featData, spellData, items] = await Promise.all([
 			pLoadClasses(),
-			DataUtil.race.loadJSON({isAddBaseRaces: true}).catch(() => ({})),
+			// Use DataLoader so that _versions (subspecies like "Dragonborn (Black)") are expanded
+			DataLoader.pCacheAndGetAllSite(UrlUtil.PG_RACES).catch(() => []),
 			DataUtil.background.loadJSON().catch(() => ({})),
 			DataUtil.feat.loadJSON().catch(() => ({})),
 			DataUtil.spell.pLoadAll().catch(() => []),
@@ -159,7 +160,7 @@ export class CharacterBuilder extends BuilderBase {
 			const key = (sc.className || "").toLowerCase();
 			(this._allSubclasses[key] = this._allSubclasses[key] || []).push(sc);
 		});
-		this._allSpecies     = (raceData.race || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
+		this._allSpecies     = (raceDataAll || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allBackgrounds = (bgData.background || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allFeats       = (featData.feat || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allSpells      = (spellData || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
@@ -847,7 +848,9 @@ export class CharacterBuilder extends BuilderBase {
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 		const matches = this._allBackgrounds.filter(b => b.name === bgName);
 		if (!matches.length) return;
-		const bg = matches.find(b => isNew ? b.edition === "one" : b.edition !== "one") || matches[0];
+		const bg = isNew
+			? (matches.find(b => b.edition === "one") || matches[0])
+			: (matches.find(b => b.edition === "classic") || matches.find(b => b.edition !== "one") || matches[0]);
 
 		// Skill proficiencies — keys are skill names (lowercase), value true means proficient
 		const bgSkills = [];
@@ -906,7 +909,9 @@ export class CharacterBuilder extends BuilderBase {
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 		const matches = this._allSpecies.filter(r => r.name === raceName);
 		if (!matches.length) return;
-		const race = matches.find(r => isNew ? r.edition === "one" : r.edition !== "one") || matches[0];
+		const race = isNew
+			? (matches.find(r => r.edition === "one") || matches[0])
+			: (matches.find(r => r.edition === "classic") || matches.find(r => r.edition !== "one") || matches[0]);
 
 		// Size
 		if (race.size?.length) {
