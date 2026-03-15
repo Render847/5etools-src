@@ -158,7 +158,8 @@ class NavBar {
 		this._addElement_divider({keyPath: [NavBar._CAT_UTILITIES]});
 		this._addElement_li({keyPath: [NavBar._CAT_UTILITIES], page: "renderdemo.html", aText: "Renderer Demo"});
 		this._addElement_li({keyPath: [NavBar._CAT_UTILITIES], page: "makebrew.html", aText: "Homebrew Builder"});
-		this._addElement_li({keyPath: [NavBar._CAT_UTILITIES], page: "makecards.html", aText: "RPG Cards JSON Builder"});
+		this._addElement_li({ keyPath: [NavBar._CAT_UTILITIES], page: "makecards.html", aText: "RPG Cards JSON Builder" });
+		this._addElement_li({ keyPath: [NavBar._CAT_UTILITIES], page: "makecharacter.html", aText: "Character Builder" });
 		this._addElement_li({keyPath: [NavBar._CAT_UTILITIES], page: "converter.html", aText: "Text Converter"});
 		this._addElement_divider({keyPath: [NavBar._CAT_UTILITIES]});
 		this._addElement_li({keyPath: [NavBar._CAT_UTILITIES], page: "plutonium.html", aText: "Plutonium (Foundry Module) Features"});

@@ -1,0 +1,101 @@
+/* =============================================================================
+   Character Builder — 2024 D&D Official Sheet styles
+   Add to css/makebrew.css or import separately
+   ============================================================================= */
+
+.cs24-page {
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	font-size: 0.78rem;
+	color: #1a1a1a;
+	background: #fff;
+	border: 1.5px solid #3c3228;
+	padding: 6px;
+	margin-bottom: 12px;
+}
+.cs24-page--break { margin-top: 8px; border-top: 2px solid #3c3228; }
+
+/* Banner */
+.cs24-banner { display:flex; align-items:stretch; gap:6px; background:#e6e3de; border:1px solid #3c3228; padding:5px 6px; margin-bottom:8px; }
+.cs24-banner-left  { flex:1 1 auto; display:flex; flex-direction:column; gap:3px; }
+.cs24-banner-center { flex:0 0 58px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.cs24-banner-right { flex:0 0 auto; display:flex; gap:5px; align-items:stretch; }
+.cs24-banner-row   { display:flex; gap:8px; }
+.cs24-banner-field { display:flex; flex-direction:column; }
+.cs24-banner-field--wide { width:100%; }
+.cs24-banner-hp    { display:flex; flex-direction:column; }
+.cs24-banner-stat-box { display:flex; flex-direction:column; align-items:center; justify-content:center; background:#fff; border:1px solid #3c3228; padding:3px 6px; min-width:54px; }
+.cs24-level-bubble { width:34px; height:34px; border-radius:50%; border:2px solid #3c3228; background:#fff; display:flex; align-items:center; justify-content:center; font-size:1.1rem; font-weight:700; }
+
+/* Labels */
+.cs24-field-label { font-size:0.5rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#666; line-height:1.2; }
+.cs24-field-value { font-size:0.8rem; font-weight:500; }
+.cs24-field-value--lg { font-size:1.0rem; font-weight:700; }
+.cs24-big-num { font-size:1.1rem; font-weight:700; text-align:center; line-height:1.1; }
+
+/* Body columns */
+.cs24-body { display:flex; gap:6px; align-items:flex-start; }
+.cs24-col { display:flex; flex-direction:column; }
+.cs24-col--left        { flex:0 0 100px; }
+.cs24-col--center-left { flex:0 0 116px; }
+.cs24-col--right       { flex:1 1 auto; }
+.cs24-col--spell-left  { flex:0 0 110px; }
+.cs24-col--spell-center{ flex:1 1 auto; overflow:hidden; }
+.cs24-col--info-right  { flex:0 0 130px; }
+
+/* Box */
+.cs24-box { background:#e8e5e0; border:1px solid #3c3228; overflow:hidden; }
+.cs24-box--sm { min-width:60px; }
+.cs24-box--half { flex:1 1 0; }
+.cs24-box--scroll { overflow:auto; }
+.cs24-box-title { background:#3c3228; color:#fff; font-size:0.52rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; padding:2px 5px; text-align:center; }
+
+/* Ability blocks */
+.cs24-abl-inner { display:flex; align-items:center; justify-content:center; gap:6px; padding:3px 4px 2px; }
+.cs24-abl-mod  { font-size:1rem; font-weight:700; min-width:28px; text-align:center; }
+.cs24-abl-score { font-size:0.7rem; color:#555; }
+.cs24-pos { color:#1a6b2a; }
+.cs24-neg { color:#8b0f0f; }
+
+/* Skill rows */
+.cs24-skill-row { display:flex; align-items:center; gap:4px; padding:1px 4px; font-size:0.7rem; border-bottom:1px solid #ccc8c0; }
+.cs24-skill-row:last-child { border-bottom:none; }
+.cs24-save-row { font-weight:700; font-size:0.72rem; background:rgba(0,0,0,.04); }
+.cs24-pip { width:9px; height:9px; border-radius:50%; flex-shrink:0; border:1.5px solid #3c3228; background:transparent; display:inline-block; }
+.cs24-pip--filled { background:#3c3228; }
+.cs24-skill-bonus { min-width:22px; font-weight:600; font-size:0.72rem; }
+
+/* Combat row */
+.cs24-combat-row { display:flex; gap:4px; margin-top:6px; }
+
+/* Prof */
+.cs24-prof-section { padding:3px 5px; border-bottom:1px solid #ccc8c0; font-size:0.72rem; }
+.cs24-prof-section:last-child { border-bottom:none; }
+.cs24-prof-label { font-weight:700; font-size:0.62rem; text-transform:uppercase; color:#666; margin-right:4px; }
+
+/* Weapons */
+.cs24-weapons-table { width:100%; border-collapse:collapse; font-size:0.7rem; }
+.cs24-weapons-table th { font-size:0.55rem; font-weight:700; text-transform:uppercase; color:#666; padding:1px 3px; border-bottom:1px solid #aaa; text-align:left; }
+.cs24-weapons-table td { padding:1px 3px; border-bottom:1px solid #ddd; }
+
+/* Notes */
+.cs24-notes-area { padding:4px 5px; font-size:0.72rem; line-height:1.5; min-height:30px; white-space:pre-wrap; }
+.cs24-notes-area--sm { min-height:16px; }
+
+/* Spells */
+.cs24-spell-stats { padding:3px 5px; }
+.cs24-spell-stat-row { display:flex; justify-content:space-between; align-items:center; padding:2px 0; border-bottom:1px solid #ccc8c0; font-size:0.7rem; }
+.cs24-spell-stat-row:last-child { border-bottom:none; }
+.cs24-spell-stat-val { font-weight:700; font-size:0.82rem; }
+.cs24-slots-table { width:100%; border-collapse:collapse; font-size:0.7rem; }
+.cs24-slots-table th { font-size:0.55rem; font-weight:700; text-transform:uppercase; color:#666; padding:2px 4px; }
+.cs24-slots-table td { padding:2px 4px; border-bottom:1px solid #ddd; text-align:center; }
+.cs24-slots-table td:first-child { text-align:left; }
+.cs24-spells-table { width:100%; border-collapse:collapse; font-size:0.68rem; }
+.cs24-spells-table th { font-size:0.55rem; font-weight:700; text-transform:uppercase; color:#666; padding:1px 2px; border-bottom:1px solid #aaa; text-align:left; }
+.cs24-spells-table td { padding:1px 2px; border-bottom:1px solid #e8e5e0; }
+
+/* Coins */
+.cs24-coins-row { display:flex; }
+.cs24-coin { flex:1; display:flex; flex-direction:column; align-items:center; padding:3px 1px; border-right:1px solid #ccc8c0; }
+.cs24-coin:last-child { border-right:none; }
+.cs24-coin-val { font-size:0.85rem; font-weight:700; }
