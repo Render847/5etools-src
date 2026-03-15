@@ -114,6 +114,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._allSpecies     = [];
 		this._allBackgrounds = [];
 		this._allFeats       = [];
+		this._allOptFeatures = [];
 		this._allSpells      = [];
 		this._allItems       = [];
 
@@ -143,12 +144,14 @@ export class CharacterBuilder extends BuilderBase {
 		// where classFeatures is a 2D array of resolved feature objects, not string refs.
 		const pLoadClasses = () => DataUtil.class.loadJSON().catch(() => ({class: [], subclass: []}));
 
-		const [classData, raceDataAll, bgData, featData, spellData, items] = await Promise.all([
+		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, items] = await Promise.all([
 			pLoadClasses(),
 			// Use DataLoader so that _versions (subspecies like "Dragonborn (Black)") are expanded
 			DataLoader.pCacheAndGetAllSite(UrlUtil.PG_RACES).catch(() => []),
 			DataUtil.background.loadJSON().catch(() => ({})),
-			DataUtil.feat.loadJSON().catch(() => ({})),
+			// Use DataLoader so that _versions (e.g. "Magic Initiate; Cleric") are expanded
+			DataLoader.pCacheAndGetAllSite(UrlUtil.PG_FEATS).catch(() => []),
+			DataUtil.loadJSON("data/optionalfeatures.json").catch(() => ({})),
 			DataUtil.spell.pLoadAll().catch(() => []),
 			Renderer.item.pBuildList().catch(() => []),
 		]);
@@ -162,7 +165,8 @@ export class CharacterBuilder extends BuilderBase {
 		});
 		this._allSpecies     = (raceDataAll || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allBackgrounds = (bgData.background || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
-		this._allFeats       = (featData.feat || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
+		this._allFeats       = (featDataAll || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
+		this._allOptFeatures = (optFeatData.optionalfeature || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allSpells      = (spellData || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allItems       = (items || []).filter(it => it.name).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 
@@ -253,6 +257,8 @@ export class CharacterBuilder extends BuilderBase {
 			weapons: [],
 			// feats
 			feats: [],
+			bgFeat: "",
+			featChoices: {},
 			// spells
 			spellcastingAbility: "",
 			spellSlots: [0,0,0,0,0,0,0,0,0],
@@ -586,7 +592,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.skillExpertise = [];
 			this._state.toolProfs      = [];
 			this._state.languages      = [];
-			this._state.feats          = [];
+			this._state.bgFeat         = "";
 			this._state.bg_choice_from     = [];
 			this._state.bg_choice_weighted = [];
 			this._state.bg_ixAbilitySet    = 0;
@@ -892,12 +898,12 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.languages = [...new Set([...existing, ...bgLangs])];
 		}
 
-		// Granted feat from background (2024)
+		// Granted feat from background (2024) — stored separately so user feats are unaffected
 		if (bg.feats?.length) {
 			const featKey = Object.keys(bg.feats[0])[0];
-			const featName = featKey.split("|")[0].replace(/\b\w/g, c => c.toUpperCase());
-			const existing = this._state.feats || [];
-			if (!existing.includes(featName)) this._state.feats = [...existing, featName];
+			this._state.bgFeat = featKey.split("|")[0].replace(/\b\w/g, c => c.toUpperCase());
+		} else {
+			this._state.bgFeat = "";
 		}
 	}
 
@@ -966,16 +972,166 @@ export class CharacterBuilder extends BuilderBase {
 	// builds a rich class-features2-style description block.
 	_buildFeatsDescription () {
 		if (!this._state) return "";
-		const featNames = (this._state.feats || []).filter(Boolean);
+		const featNames = [
+			...(this._state.bgFeat ? [this._state.bgFeat] : []),
+			...(this._state.feats || []),
+		].filter(Boolean);
 		if (!featNames.length) return "";
 		const lines = [];
+		const allChoices = this._state.featChoices || {};
 		featNames.forEach(name => {
 			const feat = this._allFeats.find(f => f.name.toLowerCase() === name.toLowerCase());
-			if (!feat) { lines.push(`• ${name}`); return; }
+			const chosen = allChoices[name] || {};
+			const chosenParts = [...new Set(Object.values(chosen).filter(Boolean))];
+			const chosenSuffix = chosenParts.length ? ` (${chosenParts.join(", ")})` : "";
+			if (!feat) { lines.push(`• ${name}${chosenSuffix}`); return; }
 			const desc = CharacterBuilder._entriesToPlainText(feat.entries || []).join(" ");
-			lines.push(`• ${feat.name}: ${desc.slice(0, 400)}`);
+			lines.push(`• ${feat.name}${chosenSuffix}: ${desc.slice(0, 400)}`);
 		});
 		return lines.join("\n");
+	}
+
+	// ── Feat choice helpers ───────────────────────────────────────────────────
+	// Returns an array of choice descriptors for a feat.
+	// Each: {key, label, options: [{value,label}]|null, placeholder?}
+	//   key         – stable identifier used in featChoices[featName][key]
+	//   options     – fixed list for a <select>, or null for a free-text <input>
+	//   placeholder – hint text for free-text inputs
+	//
+	// A single recursive walker scans ALL feat properties for "choose" keys and
+	// implicit-choice keys (any, anyMusicalInstrument, etc.). A metadata table
+	// keyed by feat-property name maps each found pattern to display info, so
+	// new feat properties only require adding one entry to PROP_META.
+	_getFeatChoices (featName) {
+		const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+		if (!feat) return [];
+
+		const toTitle  = s => s.charAt(0).toUpperCase() + s.slice(1);
+		const ABIL_FULL = {str:"Strength",dex:"Dexterity",con:"Constitution",int:"Intelligence",wis:"Wisdom",cha:"Charisma"};
+		const abilOpts  = from => (from || []).map(a => ({value: a, label: ABIL_FULL[a] || toTitle(a)}));
+		const ANY_LABELS = {anySkill:"any skill", anyTool:"any tool", anyLanguage:"any language",
+			anyMusicalInstrument:"any instrument", anyProficientSkill:"any proficient skill"};
+
+		// ── Metadata per feat property ──────────────────────────────────────
+		// label(from, count, amount) → display string
+		// options(from)              → [{value,label}] or null (null = text input)
+		// placeholder(from, count)   → hint for text inputs
+		const PROP_META = {
+			ability: {
+				label:       (from, cnt, amt) => cnt > 1 ? `Ability Scores (×${cnt}, +${amt ?? 1} ea.)` : `Ability Score (+${amt ?? 1})`,
+				options:     abilOpts,
+			},
+			savingThrowProficiencies: {
+				label:       () => "Saving Throw",
+				options:     abilOpts,
+			},
+			skillProficiencies: {
+				label:       (from, cnt) => cnt > 1 ? `Skills (×${cnt})` : "Skill",
+				options:     from => from?.every(f => !ANY_LABELS[f]) ? from.map(s => ({value: s, label: toTitle(s)})) : null,
+				placeholder: (from, cnt) => `Pick ${cnt} skill(s)`,
+			},
+			skillToolLanguageProficiencies: {
+				label:       (from, cnt) => `Proficiency (×${cnt})`,
+				options:     null,
+				placeholder: (from, cnt) => `Pick ${cnt} from: ${[...new Set((from||[]).map(f => ANY_LABELS[f] || toTitle(f)))].join(", ")}`,
+			},
+			toolProficiencies: {
+				label:       (from, cnt) => cnt > 1 ? `Tools (×${cnt})` : "Tool",
+				options:     from => from?.every(f => !ANY_LABELS[f]) ? from.map(t => ({value: t, label: toTitle(t)})) : null,
+				placeholder: (from, cnt) => from ? `e.g. ${from.slice(0,2).map(toTitle).join(", ")}` : "Tool name",
+			},
+			languageProficiencies: {
+				label:       (from, cnt) => cnt > 1 ? `Languages (×${cnt})` : "Language",
+				options:     null,
+				placeholder: () => "e.g. Elvish, Dwarvish",
+			},
+			resist: {
+				label:       (from, cnt) => cnt > 1 ? `Damage Resistances (×${cnt})` : "Damage Resistance",
+				options:     from => from?.map(t => ({value: t, label: toTitle(t)})),
+			},
+			weaponProficiencies: {
+				label:       (from, cnt) => cnt > 1 ? `Weapons (×${cnt})` : "Weapon",
+				options:     null,
+				placeholder: () => "Weapon type",
+			},
+			expertise: {
+				label:       (from, cnt) => cnt > 1 ? `Expertise Skills (×${cnt})` : "Expertise Skill",
+				options:     null,
+				placeholder: () => "Skill you're proficient in",
+			},
+			// Virtual key for additionalSpells[].ability.choose
+			spellcastingAbility: {
+				label:       () => "Spellcasting Ability",
+				options:     abilOpts,
+			},
+		};
+
+		// ── Recursive walker ────────────────────────────────────────────────
+		const choices   = [];
+		const addedKeys = new Set();
+
+		const emit = (propKey, from, count, amount) => {
+			if (addedKeys.has(propKey)) return; // one descriptor per property root
+			addedKeys.add(propKey);
+			const meta = PROP_META[propKey];
+			if (!meta) return;
+
+			const cnt = count || 1;
+			const label   = meta.label(from, cnt, amount);
+			let   options = typeof meta.options === "function" ? meta.options(from) : null;
+			const phFn    = meta.placeholder;
+			let   placeholder = phFn ? phFn(from, cnt) : null;
+
+			// If count > 1 and we have a fixed list, collapse to a text input
+			if (options && cnt > 1) {
+				placeholder = placeholder || `e.g. ${options.slice(0,2).map(o => o.label).join(", ")}`;
+				options = null;
+			}
+			choices.push({key: propKey, label, options, placeholder});
+		};
+
+		const walk = (val, propKey) => {
+			if (!val || typeof val !== "object") return;
+			if (Array.isArray(val)) { val.forEach(v => walk(v, propKey)); return; }
+			for (const [k, v] of Object.entries(val)) {
+				if (k === "choose") {
+					// v may be an object {from,count,amount}, an array of blocks
+					// [{from,count}], or the shorthand array ["str","dex",...].
+					const blocks = Array.isArray(v)
+						? (v.length && typeof v[0] === "string" ? [{from: v}] : v)
+						: [v];
+					for (const blk of blocks) emit(propKey, blk.from, blk.count, blk.amount);
+				} else if ((k === "any" || k in ANY_LABELS) && typeof v === "number") {
+					emit(propKey, null, v, null);
+				} else {
+					walk(v, propKey);
+				}
+			}
+		};
+
+		// ── Main scan ───────────────────────────────────────────────────────
+		const SKIP = new Set(["entries", "_versions", "reprintedAs", "prerequisite",
+			"hasFluff", "hasFluffImages", "page", "source", "name", "category",
+			"srd52", "basicRules2024", "repeatable", "repeatableHidden", "hidden"]);
+
+		for (const [k, v] of Object.entries(feat)) {
+			if (SKIP.has(k)) continue;
+			if (k === "additionalSpells") {
+				// Multiple named groups → spell-list choice (pick one group)
+				if (v.length > 1 && v.every(g => g.name)) {
+					choices.push({key: "spellList", label: "Spell List",
+						options: v.map(g => ({value: g.name, label: g.name}))});
+					addedKeys.add("spellList");
+				}
+				// Any group's spellcasting ability may itself be a choice
+				const abilGroup = v.find(g => Array.isArray(g.ability?.choose));
+				if (abilGroup) emit("spellcastingAbility", abilGroup.ability.choose, 1, null);
+			} else {
+				walk(v, k);
+			}
+		}
+
+		return choices;
 	}
 
 	// Convert a classFeature entry object to plain text, stripping 5etools tags
@@ -989,6 +1145,80 @@ export class CharacterBuilder extends BuilderBase {
 		const featsArr = () => this._state.feats || [];
 		const featRows = [];
 		const wrpRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(rowInner);
+
+		// Appends choice inputs (select or text) for each choice a feat requires.
+		// State stored as featChoices[featName][choiceKey].
+		const appendChoiceInputs = (featName, rowEle) => {
+			const choiceList = this._getFeatChoices(featName);
+			if (!choiceList.length) return;
+			const stored = () => (this._state.featChoices || {})[featName] || {};
+
+			for (const choice of choiceList) {
+				const lbl = document.createElement("span");
+				lbl.className = "cb-feat-choice-lbl mr-1 ve-muted";
+				lbl.style.cssText = "font-size:.82em;white-space:nowrap";
+				lbl.textContent = choice.label + ":";
+				rowEle.appendChild(lbl);
+
+				if (choice.options) {
+					// Fixed list → <select>
+					const sel = document.createElement("select");
+					sel.className = "cb-feat-choice-sel form-control input-xs form-control--minimal mr-2";
+					sel.style.flex = "1";
+					const blank = document.createElement("option");
+					blank.value = ""; blank.textContent = "(choose)";
+					sel.appendChild(blank);
+					choice.options.forEach(o => {
+						const opt = document.createElement("option");
+						opt.value = o.value; opt.textContent = o.label;
+						sel.appendChild(opt);
+					});
+					sel.value = stored()[choice.key] || "";
+					sel.addEventListener("change", () => {
+						if (!this._state.featChoices) this._state.featChoices = {};
+						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
+						this._state.featChoices[featName][choice.key] = sel.value;
+						cb();
+					});
+					rowEle.appendChild(sel);
+				} else {
+					// Open / multi-pick → <input type="text">
+					const ipt = document.createElement("input");
+					ipt.type = "text";
+					ipt.className = "cb-feat-choice-sel form-control input-xs form-control--minimal mr-2";
+					ipt.style.flex = "1";
+					ipt.placeholder = choice.placeholder || "(type here)";
+					ipt.value = stored()[choice.key] || "";
+					ipt.addEventListener("change", () => {
+						if (!this._state.featChoices) this._state.featChoices = {};
+						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
+						this._state.featChoices[featName][choice.key] = ipt.value;
+						cb();
+					});
+					rowEle.appendChild(ipt);
+				}
+			}
+		};
+
+		// Background-granted feat: read-only row at the top
+		const bgFeatRow = ee`<div class="ve-flex-v-center mb-1 ve-hidden"></div>`.appendTo(wrpRows);
+		const bgFeatSpan = ee`<span class="form-control input-xs form-control--minimal mr-2 ve-muted italic" style="flex:1"></span>`;
+		const bgFeatLabel = document.createElement("span");
+		bgFeatLabel.className = "mr-1 ve-muted";
+		bgFeatLabel.style.cssText = "font-size:.8em;white-space:nowrap";
+		bgFeatLabel.textContent = "(from background)";
+		bgFeatRow.appendChild(bgFeatLabel);
+		bgFeatSpan.appendTo(bgFeatRow);
+
+		const refreshBgFeatRow = () => {
+			const name = this._state.bgFeat || "";
+			bgFeatRow.toggleVe(!!name);
+			bgFeatSpan.textContent = name;
+			// Remove any old choice inputs, then add fresh ones
+			Array.from(bgFeatRow.querySelectorAll(".cb-feat-choice-lbl, .cb-feat-choice-sel")).forEach(n => n.remove());
+			if (name) appendChoiceInputs(name, bgFeatRow);
+		};
+		refreshBgFeatRow();
 
 		const doUpdateState = () => {
 			this._state.feats = featRows.map(r => r.name).filter(Boolean);
@@ -1006,7 +1236,9 @@ export class CharacterBuilder extends BuilderBase {
 					doUpdateState();
 				});
 
-			const rowEle = ee`<div class="ve-flex-v-center mb-1">${nameSpan}${btnRemove}</div>`.appendTo(wrpRows);
+			const rowEle = ee`<div class="ve-flex-v-center mb-1">${nameSpan}</div>`.appendTo(wrpRows);
+			appendChoiceInputs(name, rowEle);
+			btnRemove.appendTo(rowEle);
 			const rowMeta = {name};
 			featRows.push(rowMeta);
 		};
