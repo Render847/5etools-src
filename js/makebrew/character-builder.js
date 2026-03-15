@@ -105,6 +105,7 @@ export class CharacterBuilder extends BuilderBase {
 		// yet have run when the constructor fires).
 		this._modalFilterRaces       = null;
 		this._modalFilterBackgrounds = null;
+		this._modalFilterFeats       = null;
 		this._onEditionChange        = null; // set by _buildClassInput; called when edition toggle fires
 
 		// cached data for dropdowns
@@ -980,32 +981,28 @@ export class CharacterBuilder extends BuilderBase {
 	_buildFeatsInput (wrp, cb) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Feats", {isMarked: true});
 
-		const featNames = this._allFeats.map(f => f.name);
 		const featsArr = () => this._state.feats || [];
-
-		const doUpdateState = () => {
-			this._state.feats = featRows.map(r => r.getState()).filter(Boolean);
-			cb();
-		};
-
 		const featRows = [];
 		const wrpRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(rowInner);
 
-		const addRow = (initialVal) => {
-			const sel = ee`<select class="form-control input-xs form-control--minimal mr-2">
-				<option value="">(Select Feat)</option>
-				${featNames.map(n => `<option value="${n.qq()}">${n.qq()}</option>`).join("")}
-			</select>`.val(initialVal || "").onn("change", doUpdateState);
+		const doUpdateState = () => {
+			this._state.feats = featRows.map(r => r.name).filter(Boolean);
+			cb();
+		};
+
+		const addRow = (name) => {
+			const nameSpan = ee`<span class="form-control input-xs form-control--minimal mr-2" style="flex:1"></span>`;
+			nameSpan.textContent = name;
 
 			const btnRemove = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Feat"><span class="glyphicon glyphicon-trash"></span></button>`
 				.onn("click", () => {
 					featRows.splice(featRows.indexOf(rowMeta), 1);
-					rowEle.empty().remove();
+					rowEle.remove();
 					doUpdateState();
 				});
 
-			const rowEle = ee`<div class="ve-flex-v-center mb-1">${sel}${btnRemove}</div>`.appendTo(wrpRows);
-			const rowMeta = {getState: () => sel.val() || null};
+			const rowEle = ee`<div class="ve-flex-v-center mb-1">${nameSpan}${btnRemove}</div>`.appendTo(wrpRows);
+			const rowMeta = {name};
 			featRows.push(rowMeta);
 		};
 
@@ -1013,7 +1010,18 @@ export class CharacterBuilder extends BuilderBase {
 
 		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Feat</button>`
 			.appendTo(ee`<div></div>`.appendTo(rowInner))
-			.onn("click", () => { addRow(null); doUpdateState(); });
+			.onn("click", async () => {
+				if (!this._modalFilterFeats) {
+					this._modalFilterFeats = new ModalFilterFeats({
+						namespace: "charBuilder.feats",
+						allData: this._allFeats,
+					});
+				}
+				const selected = await this._modalFilterFeats.pGetUserSelection();
+				if (!selected?.length) return;
+				selected.forEach(item => { if (item.name) addRow(item.name); });
+				doUpdateState();
+			});
 
 		wrp.append(row);
 	}
