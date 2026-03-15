@@ -181,6 +181,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._applyClassData();
 			this._applyBackgroundData();
 			this._applySpeciesData();
+			this._applyFeatData();
 			if (this._ui.activeBuilder === "characterBuilder") {
 				this.renderInput();
 				this.renderOutput();
@@ -259,6 +260,15 @@ export class CharacterBuilder extends BuilderBase {
 			feats: [],
 			bgFeat: "",
 			featChoices: {},
+			// feat-granted proficiencies (auto-managed by _applyFeatData)
+			featSkillProfs: [],
+			featToolProfs: [],
+			featLanguages: [],
+			featArmorProfs: [],
+			featWeaponProfs: [],
+			featSavingThrowProfs: [],
+			featExpertise: [],
+			featSpells: [],
 			// spells
 			spellcastingAbility: "",
 			spellSlots: [0,0,0,0,0,0,0,0,0],
@@ -350,13 +360,14 @@ export class CharacterBuilder extends BuilderBase {
 				new TabUiUtil.TabMeta({name: "Abilities",  hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Combat",     hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Equipment",  hasBorder: true}),
+				new TabUiUtil.TabMeta({name: "Feats",      hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Spells",     hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Personality",hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Appearance", hasBorder: true}),
 			],
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
-		const [identityTab, abilitiesTab, combatTab, equipTab, spellsTab, personalityTab, appearanceTab] = tabs;
+		const [identityTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab, appearanceTab] = tabs;
 		ee`<div class="ve-flex-v-center w-100 no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
 
@@ -371,6 +382,9 @@ export class CharacterBuilder extends BuilderBase {
 
 		// ── EQUIPMENT ─────────────────────────────────────────────────────────
 		this._buildEquipmentTab(equipTab.wrpTab, cb);
+
+		// ── FEATS ─────────────────────────────────────────────────────────────
+		this._buildFeatsTab(featsTab.wrpTab, cb);
 
 		// ── SPELLS ────────────────────────────────────────────────────────────
 		this._buildSpellsTab(spellsTab.wrpTab, cb);
@@ -442,9 +456,6 @@ export class CharacterBuilder extends BuilderBase {
 			this._applyClassData();
 			this.renderInput();
 		});
-
-		// Feats
-		this._buildFeatsInput(wrp, cb);
 
 		// Class Features (two columns, matching PDF Text54/Text55)
 		BuilderUi.getStateIptEntries("Class Features (Col 1)", cb, this._state, {placeholder: "Auto-filled from class data. Edit as needed."}, "classFeatures").appendTo(wrp);
@@ -599,6 +610,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._applyClassData();
 			this._applyBackgroundData();
 			this._applySpeciesData();
+			this._applyFeatData();
 			this.renderInput();
 		};
 
@@ -650,6 +662,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.race_ixAbilitySet    = 0;
 			this._applyBackgroundData();
 			this._applySpeciesData();
+			this._applyFeatData();
 			this.renderInput();
 		};
 
@@ -702,6 +715,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._applyClassData();
 		this._applyBackgroundData();
 		this._applySpeciesData();
+		this._applyFeatData();
 		this.renderInput();
 	}
 
@@ -966,6 +980,160 @@ export class CharacterBuilder extends BuilderBase {
 		}
 	}
 
+	// ── Feat grants automation ────────────────────────────────────────────────
+	// Resets and re-populates all feat-granted proficiency/spell buckets from
+	// current feat selections and user choices.  Keeps feat data separate from
+	// manually-entered proficiencies so the two can be merged in the PDF.
+	_applyFeatData () {
+		if (!this._state) return;
+
+		// Reset feat-granted buckets
+		this._state.featSkillProfs      = [];
+		this._state.featToolProfs       = [];
+		this._state.featLanguages       = [];
+		this._state.featArmorProfs      = [];
+		this._state.featWeaponProfs     = [];
+		this._state.featSavingThrowProfs = [];
+		this._state.featExpertise       = [];
+		this._state.featSpells          = [];
+
+		const allChoices = this._state.featChoices || {};
+		const featNames  = [
+			...(this._state.bgFeat ? [this._state.bgFeat] : []),
+			...(this._state.feats || []),
+		].filter(Boolean);
+
+		const toTitle    = s => s.charAt(0).toUpperCase() + s.slice(1);
+		const ARMOR_MAP  = {light: "Light Armor", medium: "Medium Armor", heavy: "Heavy Armor", shield: "Shields"};
+
+		// Helper: add to a state array, deduplicating
+		const push = (arr, val) => { if (val && !arr.includes(val)) arr.push(val); };
+
+		// Recursively collect concrete spell name strings from additionalSpells data.
+		// Skips {"choose":"..."} objects and plain scalars that aren't strings.
+		const collectSpells = (obj) => {
+			if (typeof obj === "string") return [obj.split("|")[0]];
+			if (Array.isArray(obj))      return obj.flatMap(collectSpells);
+			if (obj && typeof obj === "object") {
+				if (obj.choose !== undefined) return []; // skip choose-from objects
+				return Object.values(obj).flatMap(collectSpells);
+			}
+			return [];
+		};
+
+		for (const featName of featNames) {
+			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+			if (!feat) continue;
+			const chosen = allChoices[featName] || {};
+
+			// ── Skill proficiencies ──────────────────────────────────────
+			(feat.skillProficiencies || []).forEach(sp => {
+				Object.keys(sp).forEach(k => {
+					if (k === "choose") {
+						const val = chosen.skillProficiencies;
+						const mapped = val && _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
+						if (mapped) push(this._state.featSkillProfs, mapped);
+					} else if (k !== "any" && k !== "anyProficientSkill") {
+						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
+						if (mapped) push(this._state.featSkillProfs, mapped);
+					}
+				});
+			});
+
+			// ── Skill/Tool/Language combined block (e.g. Skilled) ────────
+			(feat.skillToolLanguageProficiencies || []).forEach(block => {
+				// Only concrete keys (not choose/any)
+				Object.keys(block).forEach(k => {
+					if (k === "choose") return; // user picks via text input
+					const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
+					if (mapped) push(this._state.featSkillProfs, mapped);
+				});
+			});
+
+			// ── Tool proficiencies ───────────────────────────────────────
+			(feat.toolProficiencies || []).forEach(tp => {
+				Object.keys(tp).forEach(k => {
+					if (k === "choose" || k === "any" || k === "anyMusicalInstrument") {
+						const val = chosen.toolProficiencies;
+						if (val) push(this._state.featToolProfs, val);
+					} else {
+						push(this._state.featToolProfs, k.split("|")[0]);
+					}
+				});
+			});
+
+			// ── Language proficiencies ───────────────────────────────────
+			(feat.languageProficiencies || []).forEach(lp => {
+				Object.keys(lp).forEach(k => {
+					if (k === "anyStandard" || k === "any" || k === "choose") {
+						const val = chosen.languageProficiencies;
+						if (val) push(this._state.featLanguages, val);
+					} else {
+						push(this._state.featLanguages, toTitle(k));
+					}
+				});
+			});
+
+			// ── Armor proficiencies ──────────────────────────────────────
+			(feat.armorProficiencies || []).forEach(ap => {
+				Object.keys(ap).forEach(k => {
+					if (k === "choose") return;
+					const disp = ARMOR_MAP[k.toLowerCase()] || toTitle(k);
+					push(this._state.featArmorProfs, disp);
+				});
+			});
+
+			// ── Weapon proficiencies ─────────────────────────────────────
+			(feat.weaponProficiencies || []).forEach(wp => {
+				Object.keys(wp).forEach(k => {
+					if (k === "choose") return;
+					push(this._state.featWeaponProfs, toTitle(k));
+				});
+			});
+
+			// ── Saving throw proficiencies (e.g. Resilient) ───────────────
+			(feat.savingThrowProficiencies || []).forEach(sp => {
+				if (sp.choose) {
+					const val = chosen.savingThrowProficiencies;
+					if (val) push(this._state.featSavingThrowProfs, _ABILITY_FULL[val] || toTitle(val));
+				} else {
+					Object.keys(sp).forEach(k => push(this._state.featSavingThrowProfs, _ABILITY_FULL[k] || toTitle(k)));
+				}
+			});
+
+			// ── Expertise (e.g. Skill Expert, Prodigy) ───────────────────
+			(feat.expertise || []).forEach(ex => {
+				Object.keys(ex).forEach(k => {
+					if (k === "anyProficientSkill" || k === "choose" || k === "any") {
+						const val = chosen.expertise;
+						if (val) push(this._state.featExpertise, val);
+					} else {
+						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
+						if (mapped) push(this._state.featExpertise, mapped);
+					}
+				});
+			});
+
+			// ── Additional spells ─────────────────────────────────────────
+			const spellGroups = feat.additionalSpells || [];
+			// If multiple named groups, use the user's spellList choice
+			const activeGroups = (spellGroups.length > 1 && spellGroups.every(g => g.name))
+				? (chosen.spellList
+					? spellGroups.filter(g => g.name === chosen.spellList)
+					: [])
+				: spellGroups;
+
+			activeGroups.forEach(grp => {
+				// Walk innate / known / prepared / expanded — skip "ability" and "name"
+				["innate", "known", "prepared", "expanded"].forEach(prop => {
+					if (grp[prop]) {
+						collectSpells(grp[prop]).forEach(name => push(this._state.featSpells, name));
+					}
+				});
+			});
+		}
+	}
+
 	// ── Feats automation ──────────────────────────────────────────────────────
 	// Called to enrich the feats text area with descriptions from loaded feat data.
 	// Feats are already stored as name strings in state.feats[]; this method
@@ -1120,7 +1288,7 @@ export class CharacterBuilder extends BuilderBase {
 				// Multiple named groups → spell-list choice (pick one group)
 				if (v.length > 1 && v.every(g => g.name)) {
 					choices.push({key: "spellList", label: "Spell List",
-						options: v.map(g => ({value: g.name, label: g.name}))});
+						options: v.map(g => ({value: g.name, label: g.name})), placeholder: null});
 					addedKeys.add("spellList");
 				}
 				// Any group's spellcasting ability may itself be a choice
@@ -1139,31 +1307,35 @@ export class CharacterBuilder extends BuilderBase {
 		return CharacterBuilder._entriesToPlainText(feature.entries || []).join("\n");
 	}
 
-	_buildFeatsInput (wrp, cb) {
-		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Feats", {isMarked: true});
+	_buildFeatsTab (wrp, cb) {
+		this._buildFeatsInput(wrp, cb);
+	}
 
+	_buildFeatsInput (wrp, cb) {
 		const featsArr = () => this._state.feats || [];
 		const featRows = [];
-		const wrpRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(rowInner);
+		const wrpRows = ee`<div class="ve-flex-col mb-2"></div>`.appendTo(wrp);
 
 		// Appends choice inputs (select or text) for each choice a feat requires.
-		// State stored as featChoices[featName][choiceKey].
-		const appendChoiceInputs = (featName, rowEle) => {
+		// Each choice gets its own indented row. State stored as featChoices[featName][choiceKey].
+		const appendChoiceInputs = (featName, container) => {
 			const choiceList = this._getFeatChoices(featName);
 			if (!choiceList.length) return;
 			const stored = () => (this._state.featChoices || {})[featName] || {};
 
 			for (const choice of choiceList) {
+				const choiceRow = ee`<div class="ve-flex-v-center mt-1 pl-3 cb-feat-choice-lbl"></div>`.appendTo(container);
+
 				const lbl = document.createElement("span");
-				lbl.className = "cb-feat-choice-lbl mr-1 ve-muted";
-				lbl.style.cssText = "font-size:.82em;white-space:nowrap";
+				lbl.className = "mr-2 ve-muted";
+				lbl.style.cssText = "font-size:.85em;white-space:nowrap;min-width:8em";
 				lbl.textContent = choice.label + ":";
-				rowEle.appendChild(lbl);
+				choiceRow.appendChild(lbl);
 
 				if (choice.options) {
 					// Fixed list → <select>
 					const sel = document.createElement("select");
-					sel.className = "cb-feat-choice-sel form-control input-xs form-control--minimal mr-2";
+					sel.className = "cb-feat-choice-sel form-control input-xs form-control--minimal";
 					sel.style.flex = "1";
 					const blank = document.createElement("option");
 					blank.value = ""; blank.textContent = "(choose)";
@@ -1178,14 +1350,15 @@ export class CharacterBuilder extends BuilderBase {
 						if (!this._state.featChoices) this._state.featChoices = {};
 						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
 						this._state.featChoices[featName][choice.key] = sel.value;
+						this._applyFeatData();
 						cb();
 					});
-					rowEle.appendChild(sel);
+					choiceRow.appendChild(sel);
 				} else {
 					// Open / multi-pick → <input type="text">
 					const ipt = document.createElement("input");
 					ipt.type = "text";
-					ipt.className = "cb-feat-choice-sel form-control input-xs form-control--minimal mr-2";
+					ipt.className = "cb-feat-choice-sel form-control input-xs form-control--minimal";
 					ipt.style.flex = "1";
 					ipt.placeholder = choice.placeholder || "(type here)";
 					ipt.value = stored()[choice.key] || "";
@@ -1193,52 +1366,51 @@ export class CharacterBuilder extends BuilderBase {
 						if (!this._state.featChoices) this._state.featChoices = {};
 						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
 						this._state.featChoices[featName][choice.key] = ipt.value;
+						this._applyFeatData();
 						cb();
 					});
-					rowEle.appendChild(ipt);
+					choiceRow.appendChild(ipt);
 				}
 			}
 		};
 
-		// Background-granted feat: read-only row at the top
-		const bgFeatRow = ee`<div class="ve-flex-v-center mb-1 ve-hidden"></div>`.appendTo(wrpRows);
-		const bgFeatSpan = ee`<span class="form-control input-xs form-control--minimal mr-2 ve-muted italic" style="flex:1"></span>`;
-		const bgFeatLabel = document.createElement("span");
-		bgFeatLabel.className = "mr-1 ve-muted";
-		bgFeatLabel.style.cssText = "font-size:.8em;white-space:nowrap";
-		bgFeatLabel.textContent = "(from background)";
-		bgFeatRow.appendChild(bgFeatLabel);
-		bgFeatSpan.appendTo(bgFeatRow);
+		// Background-granted feat: card at the top, hidden when no bgFeat
+		const bgFeatCard = ee`<div class="mb-2 p-2 ve-hidden" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
+		const bgFeatNameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(bgFeatCard);
+		const bgFeatSpan = ee`<span class="mr-2 bold" style="flex:1"></span>`.appendTo(bgFeatNameRow);
+		ee`<span class="ve-muted italic" style="font-size:.85em">(from background)</span>`.appendTo(bgFeatNameRow);
 
 		const refreshBgFeatRow = () => {
 			const name = this._state.bgFeat || "";
-			bgFeatRow.toggleVe(!!name);
+			bgFeatCard.toggleVe(!!name);
 			bgFeatSpan.textContent = name;
-			// Remove any old choice inputs, then add fresh ones
-			Array.from(bgFeatRow.querySelectorAll(".cb-feat-choice-lbl, .cb-feat-choice-sel")).forEach(n => n.remove());
-			if (name) appendChoiceInputs(name, bgFeatRow);
+			// Remove any old choice rows, then add fresh ones
+			Array.from(bgFeatCard.querySelectorAll(".cb-feat-choice-lbl, .cb-feat-choice-sel")).forEach(n => n.remove());
+			if (name) appendChoiceInputs(name, bgFeatCard);
 		};
 		refreshBgFeatRow();
 
 		const doUpdateState = () => {
 			this._state.feats = featRows.map(r => r.name).filter(Boolean);
+			this._applyFeatData();
 			cb();
 		};
 
 		const addRow = (name) => {
-			const nameSpan = ee`<span class="form-control input-xs form-control--minimal mr-2" style="flex:1"></span>`;
-			nameSpan.textContent = name;
+			const card = ee`<div class="mb-2 p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
 
+			const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
+			ee`<span class="bold mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
 			const btnRemove = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Feat"><span class="glyphicon glyphicon-trash"></span></button>`
 				.onn("click", () => {
 					featRows.splice(featRows.indexOf(rowMeta), 1);
-					rowEle.remove();
+					card.remove();
 					doUpdateState();
-				});
+				})
+				.appendTo(nameRow);
 
-			const rowEle = ee`<div class="ve-flex-v-center mb-1">${nameSpan}</div>`.appendTo(wrpRows);
-			appendChoiceInputs(name, rowEle);
-			btnRemove.appendTo(rowEle);
+			appendChoiceInputs(name, card);
+
 			const rowMeta = {name};
 			featRows.push(rowMeta);
 		};
@@ -1246,7 +1418,7 @@ export class CharacterBuilder extends BuilderBase {
 		featsArr().forEach(f => addRow(f));
 
 		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Feat</button>`
-			.appendTo(ee`<div></div>`.appendTo(rowInner))
+			.appendTo(wrp)
 			.onn("click", async () => {
 				if (!this._modalFilterFeats) {
 					this._modalFilterFeats = new ModalFilterFeats({
@@ -1259,8 +1431,6 @@ export class CharacterBuilder extends BuilderBase {
 				selected.forEach(item => { if (item.name) addRow(item.name); });
 				doUpdateState();
 			});
-
-		wrp.append(row);
 	}
 
 	// ── Abilities tab ─────────────────────────────────────────────────────────
@@ -2152,9 +2322,9 @@ export class CharacterBuilder extends BuilderBase {
 		const spellMod   = s.spellcastingAbility ? abilMods[s.spellcastingAbility] : null;
 		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
 		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
-		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl);
-		const hasSkill   = sk  => (s.skillProfs||[]).includes(sk);
-		const hasExpert  = sk  => (s.skillExpertise||[]).includes(sk);
+		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
+		const hasSkill   = sk  => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk);
+		const hasExpert  = sk  => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
 		const saveBonus  = abl => abilMods[abl] + (hasSave(abl) ? profBonus : 0);
 		const skillBonus = sk  => { const a=_SKILLS.find(x=>x.name===sk)?.ability||"str"; const mult=hasExpert(sk)?2:hasSkill(sk)?1:0; return abilMods[a]+profBonus*mult; };
 		const fmod = n => n >= 0 ? `+${n}` : `${n}`;
@@ -2300,13 +2470,17 @@ export class CharacterBuilder extends BuilderBase {
 			"Heavy":   [143.5, 661.7],
 			"Shields": [181.4, 661.3],
 		};
-		(s.armorProfs||[]).forEach(p => { if (armorPips[p]) pip(...armorPips[p]); });
+		const allArmorProfs   = [...new Set([...(s.armorProfs||[]),   ...(s.featArmorProfs||[])])];
+		const allWeaponProfs  = [...new Set([...(s.weaponProfs||[]),  ...(s.featWeaponProfs||[])])];
+		const allToolProfs    = [...new Set([...(s.toolProfs||[]),    ...(s.featToolProfs||[])])];
+		const allLanguages    = [...new Set([...(s.languages||[]),    ...(s.featLanguages||[])])];
+		allArmorProfs.forEach(p => { if (armorPips[p]) pip(...armorPips[p]); });
 
 		// Heroic inspiration — left blank for player
 
 		// Proficiencies
-		inFieldML((s.weaponProfs||[]).join(", ")||(s.armorProfs||[]).join(", "),  17.8,682.2,208.9,732.4, 6.5);
-		inFieldML((s.toolProfs||[]).join(", "),   16.8,741.8,209.2,762.5, 6.5);
+		inFieldML(allWeaponProfs.join(", ")||allArmorProfs.join(", "),  17.8,682.2,208.9,732.4, 6.5);
+		inFieldML(allToolProfs.join(", "),   16.8,741.8,209.2,762.5, 6.5);
 
 		// Weapons table
 		const wpnFields = [
@@ -2358,7 +2532,8 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Prepared spells (30 rows; level x0=17.7, name x0=42.9, cast x0=157, range x0=191.6, notes x0=309.2)
 		// Row 1: top=182.7 (level "0" field), pitch=19.8
-		const spellsSorted = [...(s.spells||[])].sort((a,b)=>(a.level||0)-(b.level||0));
+		const featSpellEntries = (s.featSpells||[]).map(name => ({name, level: null}));
+		const spellsSorted = [...(s.spells||[]), ...featSpellEntries].sort((a,b)=>(a.level||0)-(b.level||0));
 		spellsSorted.slice(0,29).forEach((sp,i) => {
 			const top=182.7+i*19.8, bot=top+16.2;
 			if (top>770) return;
@@ -2394,7 +2569,7 @@ export class CharacterBuilder extends BuilderBase {
 		inFieldML(v(s.appearance)||([ s.age&&`Age: ${s.age}`, s.height&&`Ht: ${s.height}`, s.weight&&`Wt: ${s.weight}`, s.eyes&&`Eyes: ${s.eyes}`, s.skin&&`Skin: ${s.skin}`, s.hair&&`Hair: ${s.hair}`].filter(Boolean).join(", ")),  417.9, 38.4,593.7,105.9, 6.5);
 		inFieldML([s.personalityTraits&&`Traits: ${s.personalityTraits}`, s.ideals&&`Ideals: ${s.ideals}`, s.bonds&&`Bonds: ${s.bonds}`, s.flaws&&`Flaws: ${s.flaws}`, s.backstory].filter(Boolean).join(" | "), 418.5,146.4,594.3,283.6, 6.5);
 		inFieldL (v(s.alignment),  419.2,294.2,594.0,310.4, 8);
-		inFieldML((s.languages||[]).join(", "), 418.5,351.7,595.7,383.7, 6.5);
+		inFieldML(allLanguages.join(", "), 418.5,351.7,595.7,383.7, 6.5);
 		inFieldML((s.equipment||[]).map(it=>`${it.name||"?"}${it.qty&&it.qty!==1?` x${it.qty}`:""}`).join(", "), 418.9,421.4,594.3,597.5, 6.5);
 
 		// Coins
