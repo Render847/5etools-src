@@ -231,6 +231,7 @@ export class CharacterBuilder extends BuilderBase {
 			savingThrowProfs: [],
 			skillProfs: [],
 			skillExpertise: [],
+			skillHalfProfs: [],
 			languages: [],
 			armorProfs: [],
 			weaponProfs: [],
@@ -616,6 +617,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.background   = newVal;
 			this._state.skillProfs     = [];
 			this._state.skillExpertise = [];
+			this._state.skillHalfProfs = [];
 			this._state.toolProfs      = [];
 			this._state.languages      = [];
 			this._state.bgFeat         = "";
@@ -1725,10 +1727,10 @@ export class CharacterBuilder extends BuilderBase {
 		if (!this._state) return;
 		if ((this._state.sg_mode || "manual") === "manual") return;
 		_ABILITIES.forEach(abl => {
-			this._state[abl] = this._sg_getBase(abl)
+			this._state[abl] = Math.min(20, this._sg_getBase(abl)
 				+ this._sg_getRaceBonus(abl)
 				+ this._sg_getBgBonus(abl)
-				+ this._sg_getFeatBonus(abl);
+				+ this._sg_getFeatBonus(abl));
 		});
 	}
 
@@ -2089,22 +2091,27 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Skills", {isMarked: true});
+		const halfProfBtns = [];
 
 		_SKILLS.forEach(({name, ability}) => {
 			const isProficient = () => (this._state.skillProfs     || []).includes(name);
 			const isExpert     = () => (this._state.skillExpertise || []).includes(name);
+			const isHalfProf   = () => (this._state.skillHalfProfs || []).includes(name);
 
 			const getBonus = () => {
-				const pb   = this._state.profBonusOverride ?? _profBonus(this._state.level || 1);
-				const mod  = _abilMod(this._state[ability] || 10);
-				const mult = isExpert() ? 2 : isProficient() ? 1 : 0;
-				return mod + pb * mult;
+				const pb  = this._state.profBonusOverride ?? _profBonus(this._state.level || 1);
+				const mod = _abilMod(this._state[ability] || 10);
+				if (isExpert())     return mod + pb * 2;
+				if (isProficient()) return mod + pb;
+				if (isHalfProf())   return mod + Math.floor(pb / 2);
+				return mod;
 			};
 
 			const dispBonus = ee`<span class="ve-muted mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
 			const updateBonus = () => dispBonus.txt(_fmtMod(getBonus()));
-			this._addHook("state", ability,  updateBonus);
-			this._addHook("state", "level",  updateBonus);
+			this._addHook("state", ability,          updateBonus);
+			this._addHook("state", "level",          updateBonus);
+			this._addHook("state", "skillHalfProfs", updateBonus);
 
 			const btnProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Proficient">Prof.</button>`
 				.onn("click", () => {
@@ -2112,7 +2119,8 @@ export class CharacterBuilder extends BuilderBase {
 						this._state.skillProfs     = (this._state.skillProfs     || []).filter(s => s !== name);
 						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 					} else {
-						this._state.skillProfs = [...new Set([...(this._state.skillProfs || []), name])];
+						this._state.skillProfs     = [...new Set([...(this._state.skillProfs || []), name])];
+						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
 					btnProf.toggleClass("active",   isProficient());
 					btnExpert.toggleClass("active", isExpert());
@@ -2128,6 +2136,7 @@ export class CharacterBuilder extends BuilderBase {
 					} else {
 						this._state.skillExpertise = [...new Set([...(this._state.skillExpertise || []), name])];
 						this._state.skillProfs     = [...new Set([...(this._state.skillProfs     || []), name])];
+						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
 					btnProf.toggleClass("active",   isProficient());
 					btnExpert.toggleClass("active", isExpert());
@@ -2135,12 +2144,35 @@ export class CharacterBuilder extends BuilderBase {
 					cb();
 				});
 			if (isExpert()) btnExpert.addClass("active");
+			const btnHalfProf = $('<button class="ve-btn ve-btn-xs ve-btn-default ml-1" title="Half Proficiency">Half.</button>');
+			if (isHalfProf()) btnHalfProf.addClass("active");
+			halfProfBtns.push({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus});
 
 			ee`<div class="ve-flex-v-center mb-1">
 				<span class="mr-2 mkbru__sub-name--33">${name}</span>
 				<span class="ve-muted mr-2" style="font-size:.8em;width:28px">(${ability.toUpperCase()})</span>
 				${dispBonus}${btnProf}${btnExpert}
 			</div>`.appendTo(rowInner);
+		});
+
+		// Insert half-prof buttons into DOM and wire up click handlers
+		halfProfBtns.forEach(({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus}) => {
+			btnHalfProf.insertAfter(btnProf);
+			btnHalfProf.on("click", () => {
+				if (isHalfProf()) {
+					this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
+				} else {
+					this._state.skillHalfProfs = [...new Set([...(this._state.skillHalfProfs || []), name])];
+					this._state.skillProfs     = (this._state.skillProfs || []).filter(s => s !== name);
+					this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
+				}
+				btnHalfProf.toggleClass("active", isHalfProf());
+				btnProf.toggleClass("active",     isProficient());
+				btnExpert.toggleClass("active",   isExpert());
+				updateBonus();
+				cb();
+			});
+			this._addHook("state", "skillHalfProfs", () => btnHalfProf.toggleClass("active", isHalfProf()));
 		});
 
 		wrp.append(row);
@@ -2898,23 +2930,24 @@ export class CharacterBuilder extends BuilderBase {
 		// For manual mode the raw state value is the base score; add race/bg/feat
 		// bonuses so the PDF reflects the true total.  For other modes _sg_syncAbilityScores
 		// already wrote the total into state, so we just read it directly.
-		const totalAbl   = (abl) => (s.sg_mode || "manual") === "manual"
+		const totalAbl   = (abl) => Math.min(20, (s.sg_mode || "manual") === "manual"
 			? (s[abl] || 10) + this._sg_getRaceBonus(abl) + this._sg_getBgBonus(abl) + this._sg_getFeatBonus(abl)
-			: (s[abl] || 10);
+			: (s[abl] || 10));
 		const profBonus  = s.profBonusOverride ?? _profBonus(s.level || 1);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
 		const initiative = s.initiative ?? abilMods.dex;
-		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : (s.skillProfs||[]).includes("Perception") ? 1 : 0;
+		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : (s.skillProfs||[]).includes("Perception") ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
 		const passPer    = 10 + abilMods.wis + profBonus * _percMult;
 		const spellMod   = s.spellcastingAbility ? abilMods[s.spellcastingAbility] : null;
 		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
 		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
 
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
-		const hasSkill   = sk  => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk);
-		const hasExpert  = sk  => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
+		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk);
+		const hasExpert   = sk => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
+		const hasHalfProf = sk => (s.skillHalfProfs||[]).includes(sk);
 		const saveBonus  = abl => abilMods[abl] + (hasSave(abl) ? profBonus : 0);
-		const skillBonus = sk  => { const a=_SKILLS.find(x=>x.name===sk)?.ability||"str"; const mult=hasExpert(sk)?2:hasSkill(sk)?1:0; return abilMods[a]+profBonus*mult; };
+		const skillBonus = sk  => { const a=_SKILLS.find(x=>x.name===sk)?.ability||"str"; if (hasExpert(sk)) return abilMods[a]+profBonus*2; if (hasSkill(sk)) return abilMods[a]+profBonus; if (hasHalfProf(sk)) return abilMods[a]+Math.floor(profBonus/2); return abilMods[a]; };
 		const fmod = n => n >= 0 ? `+${n}` : `${n}`;
 		const v = (x,fb="") => (x!==undefined&&x!==null&&x!=="") ? String(x) : fb;
 
