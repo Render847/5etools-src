@@ -1877,6 +1877,45 @@ export class CharacterBuilder extends BuilderBase {
 		if (mode === "pointbuy" && this._sg_pbSpentDisp) {
 			this._sg_pbSpentDisp.txt(String(this._sg_getPbSpent()));
 		}
+
+		// Cross-validate: prevent duplicate picks and enforce PB budget
+		if (mode === "roll" || mode === "array") {
+			const containerEl = container[0] || container;
+			const selEls = Array.from(containerEl.querySelectorAll("select"));
+			const getVal = (a) => mode === "roll" ? this._state[`sg_roll_${a}`] : this._state[`sg_arr_${a}`];
+			const refresh = () => {
+				const used = new Set(_ABILITIES.map(a => getVal(a)).filter(v => v != null));
+				selEls.forEach((el, idx) => {
+					const a = _ABILITIES[idx];
+					const cur = getVal(a);
+					for (const opt of el.options) {
+						if (!opt.value) continue;
+						const val = Number(opt.value);
+						opt.disabled = used.has(val) && val !== cur;
+					}
+				});
+			};
+			selEls.forEach(el => el.addEventListener("change", refresh));
+			refresh();
+		} else if (mode === "pointbuy") {
+			const containerEl = container[0] || container;
+			const selEls = Array.from(containerEl.querySelectorAll("select"));
+			const refresh = () => {
+				const totalSpent = this._sg_getPbSpent();
+				selEls.forEach((el, idx) => {
+					const a = _ABILITIES[idx];
+					const curScore = this._state[`sg_pb_${a}`] ?? 8;
+					const curCost = _SG_PB_COSTS[curScore] ?? 0;
+					const remaining = _SG_PB_BUDGET - (totalSpent - curCost);
+					for (const opt of el.options) {
+						const cost = _SG_PB_COSTS[Number(opt.value)] ?? 0;
+						opt.disabled = cost > remaining && Number(opt.value) !== curScore;
+					}
+				});
+			};
+			selEls.forEach(el => el.addEventListener("change", refresh));
+			refresh();
+		}
 	}
 
 	// ── Ability choice UI (choose.from / choose.weighted / multiple sets) ─────
