@@ -806,11 +806,32 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		// ── Spell slots ─────────────────────────────────────────────────────
-		// Find the spell progression table group
 		const slotGroup = (cls.classTableGroups || []).find(g => g.rowsSpellProgression);
+		const pactGroup = (cls.classTableGroups || []).find(g => {
+			const labels = g.colLabels || [];
+			return !g.rowsSpellProgression
+				&& labels.some(l => l === "Spell Slots")
+				&& labels.some(l => l === "Slot Level");
+		});
 		if (slotGroup) {
 			const row = slotGroup.rowsSpellProgression[lvl - 1];
 			if (row) this._state.spellSlots = [...row];
+		} else if (pactGroup) {
+			// Pact Magic (e.g. Warlock): all slots are at a single level
+			const labels  = pactGroup.colLabels;
+			const iCount  = labels.indexOf("Spell Slots");
+			const iLevel  = labels.indexOf("Slot Level");
+			const row     = (pactGroup.rows || [])[lvl - 1];
+			if (row) {
+				const count     = parseInt(row[iCount]) || 0;
+				// Slot level encoded as "{@filter Nth|...|level=N|...}" or plain number
+				const levelCell = String(row[iLevel]);
+				const match     = levelCell.match(/\blevel=(\d+)/i);
+				const slotLvl   = match ? parseInt(match[1]) : parseInt(levelCell);
+				const slots     = [0,0,0,0,0,0,0,0,0];
+				if (slotLvl >= 1 && slotLvl <= 9) slots[slotLvl - 1] = count;
+				this._state.spellSlots = slots;
+			}
 		} else {
 			// No spell slots for non-casters
 			this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
@@ -3206,7 +3227,7 @@ ${text}`);
 			if (e) _push(e, UrlUtil.PG_BACKGROUNDS, "background", "#a74b8d", "farmer");
 		}
 
-		const _TYPE_ORDER = ["background", "race", "feat", "item", "spell"];
+		const _TYPE_ORDER = ["race", "background", "optionalfeature", "feat", "creature", "spell", "item"];
 		listItems.sort((a, b) => {
 			const oa = _TYPE_ORDER.indexOf(a.entityType);
 			const ob = _TYPE_ORDER.indexOf(b.entityType);
