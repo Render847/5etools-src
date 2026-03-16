@@ -111,6 +111,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._modalFilterItems       = null;
 		this._modalFilterItemsMagic  = null;
 		this._rebuildEquipmentTab    = null;
+		this._rebuildHpSection       = null;
 		this._onEditionChange        = null; // set by _buildClassInput; called when edition toggle fires
 
 		// cached data for dropdowns
@@ -285,6 +286,9 @@ export class CharacterBuilder extends BuilderBase {
 			spellSlots: [0,0,0,0,0,0,0,0,0],
 			spellSlotsUsed: [0,0,0,0,0,0,0,0,0],
 			spells: [], // [{name, source, level, prepared}]
+			hpMode:        "auto", // "auto" | "rolled"
+			hpRolls:       [],     // [number|null] — rolled die values for levels 2..level
+			hpMaxOverride: null,   // number|null — user override; null = use calculated
 			// proficiency bonus override
 			profBonusOverride: null,
 			// stat generation
@@ -831,6 +835,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._state.classFeatures2 = featureLines.slice(half).join("\n\n");
 
 		this._syncGrantedEquipment();
+		this._rebuildHpSection?.();
 	}
 
 	// ── Shared tag-stripping helper ─────────────────────────────────────────
@@ -2148,19 +2153,91 @@ export class CharacterBuilder extends BuilderBase {
 	// ── Combat tab ────────────────────────────────────────────────────────────
 
 	_buildCombatTab (wrp, cb) {
-		// HP
+		// HP — dynamic section that rebuilds when class/level changes
 		const [hpRow, hpRowInner] = BuilderUi.getLabelledRowTuple("Hit Points");
-		const iptHpMax = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="0" style="width:70px" placeholder="Max">`.val(this._state.hpMax || 0).onn("change", () => { this._state.hpMax = UiUtil.strToInt(iptHpMax.val(), 0, {fallbackOnNaN:0}); cb(); });
-		const iptHpCur = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" style="width:70px" placeholder="Current">`.val(this._state.hp || 0).onn("change", () => { this._state.hp = UiUtil.strToInt(iptHpCur.val(), 0, {fallbackOnNaN:0}); cb(); });
-		const iptHpTmp = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:70px" placeholder="Temp">`.val(this._state.tempHp || 0).onn("change", () => { this._state.tempHp = UiUtil.strToInt(iptHpTmp.val(), 0, {fallbackOnNaN:0}); cb(); });
-		ee`<div class="ve-flex-v-center w-100">
-			<span class="mr-1 ve-muted" style="font-size:.8em">Max</span>${iptHpMax}
-			<span class="mr-1 ve-muted" style="font-size:.8em">Cur</span>${iptHpCur}
-			<span class="mr-1 ve-muted" style="font-size:.8em">Tmp</span>${iptHpTmp}
-		</div>`.appendTo(hpRowInner);
+		const wrpHpContent = ee`<div class="ve-flex-col w-100"></div>`.appendTo(hpRowInner);
+
+		const buildHpSection = () => {
+			wrpHpContent.empty();
+			const faces   = this._getClassHitDie();
+			const level   = this._state.level || 1;
+			const conMod  = _abilMod(this._state.con || 10);
+			const isAuto  = (this._state.hpMode || "auto") === "auto";
+			const conStr  = conMod >= 0 ? `+${conMod}` : `${conMod}`;
+
+			// Mode toggle
+			const btnAuto   = ee`<button class="ve-btn ve-btn-xs ${isAuto  ? "ve-btn-primary" : "ve-btn-default"} mr-1">Auto</button>`;
+			const btnRolled = ee`<button class="ve-btn ve-btn-xs ${!isAuto ? "ve-btn-primary" : "ve-btn-default"}">Rolled</button>`;
+			btnAuto  .onn("click", () => { this._state.hpMode = "auto";   buildHpSection(); cb(); });
+			btnRolled.onn("click", () => { this._state.hpMode = "rolled"; buildHpSection(); cb(); });
+			ee`<div class="ve-btn-group mb-1">${btnAuto}${btnRolled}</div>`.appendTo(wrpHpContent);
+
+			let calcMax = 0;
+
+			if (isAuto) {
+				const avgPerLvl = faces ? Math.floor(faces / 2) + 1 : 0;
+				calcMax = faces ? faces + (level - 1) * avgPerLvl + conMod * level : 0;
+				if (faces) {
+					const parts = [`(${faces}${conStr})`];
+					for (let i = 1; i < level; i++) parts.push(`(${avgPerLvl}${conStr})`);
+					ee`<div class="ve-muted mb-1" style="font-size:.8em">${parts.join("+")}</div>`.appendTo(wrpHpContent);
+				} else {
+					ee`<div class="ve-muted mb-1" style="font-size:.8em">Select a class first</div>`.appendTo(wrpHpContent);
+				}
+			} else {
+				// Rolled — level 1 is always max; levels 2..N get individual inputs
+				if (!Array.isArray(this._state.hpRolls)) this._state.hpRolls = [];
+				const hpRolls = this._state.hpRolls;
+				const lvl1Max = faces || 0;
+
+				const wrpRolls = ee`<div class="ve-flex ve-flex-wrap ve-flex-v-center mb-1"></div>`.appendTo(wrpHpContent);
+				ee`<span class="ve-muted mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.appendTo(wrpRolls);
+
+				const dispBreakdown = ee`<div class="ve-muted mb-1" style="font-size:.8em"></div>`.appendTo(wrpHpContent);
+				const recalc = () => {
+					calcMax = lvl1Max + hpRolls.slice(0, level - 1).reduce((s, v) => s + (v || 0), 0) + conMod * level;
+					const parts = [`(${lvl1Max}${conStr})`];
+					for (let i = 0; i < level - 1; i++) parts.push(`(${hpRolls[i] ?? "?"}${conStr})`);
+					dispBreakdown.txt(parts.join("+"));
+					applyMax();
+				};
+
+				for (let i = 0; i < level - 1; i++) {
+					const ipt = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" max="${faces || 20}" style="width:42px" placeholder="${faces ? Math.floor(faces / 2) + 1 : "?"}">`;
+					if (hpRolls[i] != null) ipt.val(hpRolls[i]);
+					ipt.onn("change", () => { hpRolls[i] = UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN: 0}) || null; recalc(); cb(); });
+					ee`<span class="ve-muted" style="font-size:.75em;margin-right:1px">L${i + 2}</span>`.appendTo(wrpRolls);
+					ipt.appendTo(wrpRolls);
+				}
+				recalc();
+			}
+
+			// Max HP display + manual override
+			const applyMax = () => {
+				const override = this._state.hpMaxOverride;
+				this._state.hpMax = (override != null) ? override : calcMax;
+				iptOverride.attr("placeholder", String(calcMax));
+			};
+			const iptOverride = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Override Max HP">`;
+			if (this._state.hpMaxOverride != null) iptOverride.val(this._state.hpMaxOverride);
+			iptOverride.onn("change", () => {
+				const raw = iptOverride.val().trim();
+				this._state.hpMaxOverride = raw === "" ? null : UiUtil.strToInt(raw, 0, {fallbackOnNaN: 0});
+				applyMax(); cb();
+			});
+			ee`<div class="ve-flex-v-center mt-1">
+				<span class="ve-muted mr-1" style="font-size:.8em">Max HP</span>
+				<b class="mr-2">${calcMax}</b>
+				<span class="ve-muted mr-1" style="font-size:.75em">Override</span>
+				${iptOverride}
+			</div>`.appendTo(wrpHpContent);
+			applyMax();
+		};
+
+		this._rebuildHpSection = buildHpSection;
+		buildHpSection();
 		wrp.append(hpRow);
 
-		BuilderUi.getStateIptString("Hit Dice",    cb, this._state, {placeholder: "e.g. 5d8+10"}, "hitDice").appendTo(wrp);
 		BuilderUi.getStateIptNumber("Armor Class", cb, this._state, {nullable: false, placeholder: "10"}, "ac").appendTo(wrp);
 		BuilderUi.getStateIptNumber("Speed (ft.)", cb, this._state, {nullable: false, placeholder: "30"}, "speed").appendTo(wrp);
 		BuilderUi.getStateIptNumber("Initiative Override", cb, this._state, {nullable: true, placeholder: "Auto (Dex mod)"}, "initiative").appendTo(wrp);
@@ -2442,6 +2519,10 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	// ── Spell data helpers ────────────────────────────────────────────────────
+
+	_getClassHitDie () {
+		return this._getClassEntry()?.hd?.faces || null;
+	}
 
 	_getSpellEntry (name) {
 		if (!this._allSpells || !name) return null;
@@ -2892,7 +2973,9 @@ export class CharacterBuilder extends BuilderBase {
 		inField (v(s.level||1),               266.2, 28.7, 293.5, 51.0, 14, true);
 		inField (String(effectiveAC),         325.5, 40.4, 362.8, 63.2, 14, true);
 		inField (v(s.hpMax,"0"),              444.9, 61.7, 488.2, 75.6, 10, true);
-		inField (v(s.hitDice,""),             499.8, 61.7, 537.5, 75.8,  8);
+		const _hitDiceFaces = this._getClassHitDie();
+		const _hitDiceStr   = _hitDiceFaces ? `${s.level || 1}d${_hitDiceFaces}` : v(s.hitDice, "");
+		inField (v(_hitDiceStr,""),           499.8, 61.7, 537.5, 75.8,  8);
 
 		// Death saves — left blank for player to fill in
 
