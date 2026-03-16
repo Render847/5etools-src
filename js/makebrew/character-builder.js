@@ -253,10 +253,9 @@ export class CharacterBuilder extends BuilderBase {
 			// equipment
 			cp: 0, sp: 0, ep: 0, gp: 0, pp: 0,
 			equipment: [],
-			// class features (two columns matching the PDF's Text54/Text55 fields)
-			classFeatures: "",
-			classFeatures2: "",
-			speciesTraits: "",
+			// class features / species traits — per-item arrays with exclude flag
+			classFeatureItems: [],   // [{text, excluded}] — auto-filled from class data
+			speciesTraitItems: [],   // [{text, excluded}] — auto-filled from species data
 			// shield (toggled in Combat tab)
 			shield: false,
 			// magic item attunement slots
@@ -452,8 +451,7 @@ export class CharacterBuilder extends BuilderBase {
 		// State hooks — fire whenever level or class changes via the proxy
 		// (getStateIptEnum uses __setProp which triggers these hooks)
 		this._addHook("state", "level", () => {
-			this._state.classFeatures  = "";
-			this._state.classFeatures2 = "";
+			this._state.classFeatureItems = [];
 			this._state.hitDice        = "";
 			this._state.spellSlots     = [0,0,0,0,0,0,0,0,0];
 			this._applyClassData();
@@ -462,8 +460,7 @@ export class CharacterBuilder extends BuilderBase {
 		});
 
 		this._addHook("state", "class", () => {
-			this._state.classFeatures     = "";
-			this._state.classFeatures2    = "";
+			this._state.classFeatureItems = [];
 			this._state.hitDice           = "";
 			this._state.spellSlots        = [0,0,0,0,0,0,0,0,0];
 			this._state.armorProfs        = [];
@@ -475,12 +472,54 @@ export class CharacterBuilder extends BuilderBase {
 			this.renderOutput();
 		});
 
-		// Class Features (two columns, matching PDF Text54/Text55)
-		BuilderUi.getStateIptEntries("Class Features (Col 1)", cb, this._state, {placeholder: "Auto-filled from class data. Edit as needed."}, "classFeatures").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Class Features (Col 2)", cb, this._state, {placeholder: "Overflow column for additional features."}, "classFeatures2").appendTo(wrp);
+		// Per-item feature list builder — renders each item as a row with an Exclude button
+		const buildItemList = (label, stateKey, emptyMsg) => {
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple(label);
+			const listWrp = $('<div class="ve-flex-col w-100"></div>');
+			let _skipRefresh = false;
+
+			const refresh = () => {
+				if (_skipRefresh) return;
+				listWrp.empty();
+				const items = this._state[stateKey] || [];
+				if (!items.length) {
+					listWrp.append($(`<div class="ve-muted ve-small italic">${emptyMsg}</div>`));
+					return;
+				}
+				items.forEach((item, ix) => {
+					const itemRow = $('<div class="ve-flex mb-1" style="align-items:flex-start"></div>');
+					const btnExcl = $('<button class="ve-btn ve-btn-xs ve-btn-default mr-1 mt-1" title="Exclude from PDF" style="min-width:42px;flex-shrink:0">Excl.</button>');
+					if (item.excluded) btnExcl.addClass("active");
+					const ta = $('<textarea class="form-control input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>');
+					ta.val(item.text);
+					btnExcl.on("click", () => {
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, excluded: !it.excluded} : it);
+						this._state[stateKey] = cur;
+						cb();
+					});
+					ta.on("input", () => {
+						_skipRefresh = true;
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val()} : it);
+						this._state[stateKey] = cur;
+						_skipRefresh = false;
+						cb();
+					});
+					itemRow.append(btnExcl, ta);
+					listWrp.append(itemRow);
+				});
+			};
+
+			refresh();
+			this._addHook("state", stateKey, refresh);
+			listWrp.appendTo(rowInner);
+			return row;
+		};
+
+		// Class Features
+		buildItemList("Class Features", "classFeatureItems", "Auto-filled when a class is selected.").appendTo(wrp);
 
 		// Species Traits
-		BuilderUi.getStateIptEntries("Species Traits", cb, this._state, {placeholder: "Traits from your species/race..."}, "speciesTraits").appendTo(wrp);
+		buildItemList("Species Traits", "speciesTraitItems", "Auto-filled when a species is selected.").appendTo(wrp);
 	}
 
 	_buildEditionToggle (cb) {
@@ -672,8 +711,8 @@ export class CharacterBuilder extends BuilderBase {
 			const newVal = match ? match.name : trimmed;
 			ipt.val(newVal);
 			if (newVal === this._state.species) return;
-			this._state.species       = newVal;
-			this._state.speciesTraits = "";
+			this._state.species          = newVal;
+			this._state.speciesTraitItems = [];
 			this._state.size          = "Medium";
 			this._state.speed         = 30;
 			this._state.languages     = [];
@@ -837,9 +876,10 @@ export class CharacterBuilder extends BuilderBase {
 				featureLines.push(`[L${featureLvl}] ${name}\n${text}`);
 			});
 		});
-		const half = Math.ceil(featureLines.length / 2);
-		this._state.classFeatures  = featureLines.slice(0, half).join("\n\n");
-		this._state.classFeatures2 = featureLines.slice(half).join("\n\n");
+		// Preserve user-set exclusions across level changes
+		const oldItems = this._state.classFeatureItems || [];
+		const oldExcluded = new Set(oldItems.filter(i => i.excluded).map(i => i.text));
+		this._state.classFeatureItems = featureLines.map(text => ({text, excluded: oldExcluded.has(text)}));
 
 		this._syncGrantedEquipment();
 		this._rebuildHpSection?.();
@@ -1036,24 +1076,24 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.languages = [...new Set([...existing, ...raceLangs])];
 		}
 
-		// Species traits text
+		// Species traits — build per-item array
 		const traitLines = [];
 		(race.entries || []).forEach(entry => {
 			const name = entry.name ? CharacterBuilder._stripTags(entry.name) : "";
 			const text = CharacterBuilder._entriesToPlainText(
 				typeof entry === "string" ? [entry] : (entry.entries || [])
 			).join(" ");
-			if (name) traitLines.push(`${name}: ${text}`);
+			if (name) traitLines.push(name + (text ? ": " + text : ""));
 			else if (text) traitLines.push(text);
 		});
-		if (traitLines.length) this._state.speciesTraits = traitLines.join("\n");
 
-		// Darkvision note
-		if (race.darkvision) {
-			const dvNote = `Darkvision ${race.darkvision}ft.`;
-			if (!(this._state.speciesTraits || "").includes("Darkvision")) {
-				this._state.speciesTraits = dvNote + (this._state.speciesTraits ? "\n" + this._state.speciesTraits : "");
-			}
+		// Prepend darkvision note if not already present
+		if (race.darkvision && !traitLines.some(l => l.includes("Darkvision"))) {
+			traitLines.unshift(`Darkvision ${race.darkvision}ft.`);
+		}
+
+		if (traitLines.length) {
+			this._state.speciesTraitItems = traitLines.map(text => ({text, excluded: false}));
 		}
 
 		this._syncGrantedSpells();
@@ -3186,9 +3226,11 @@ export class CharacterBuilder extends BuilderBase {
 		});
 
 		// Class features (two columns), species traits, feats
-		inFieldML(v(s.classFeatures),                          232.1,361.2,407.9,563.8, 6.5);
-		inFieldML(v(s.classFeatures2),                         418.5,361.2,593.7,563.4, 6.5);
-		inFieldML(v(s.speciesTraits),                          232.4,606.2,395.9,770.3, 6.5);
+		const _cfTexts = (s.classFeatureItems || []).filter(i => !i.excluded).map(i => i.text);
+		const _cfHalf  = Math.ceil(_cfTexts.length / 2);
+		inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),     232.1,361.2,407.9,563.8, 6.5);
+		inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),        418.5,361.2,593.7,563.4, 6.5);
+		inFieldML((s.speciesTraitItems || []).filter(i => !i.excluded).map(i => i.text).join("\n"), 232.4,606.2,395.9,770.3, 6.5);
 		inFieldML(this._buildFeatsDescription(),              419.1,605.5,595.3,770.9, 6.5);
 
 		// ═══════════════════ PAGE 2 ═══════════════════
