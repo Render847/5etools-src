@@ -3167,10 +3167,12 @@ ${text}`);
 
 		const _push = (entity, page, entityType, color, icon) => {
 			if (!entity?.name || !entity?.source) return;
+			const hashBuilder = UrlUtil.URL_TO_HASH_BUILDER[page];
+			if (!hashBuilder) return;
 			listItems.push({
 				page,
 				source: entity.source,
-				hash: UrlUtil.URL_TO_HASH_BUILDER[page](entity),
+				hash: hashBuilder(entity),
 				color,
 				icon,
 				count: 1,
@@ -3204,8 +3206,21 @@ ${text}`);
 			if (e) _push(e, UrlUtil.PG_BACKGROUNDS, "background", "#a74b8d", "farmer");
 		}
 
-		await StorageUtil["pSetForPage"]("cardState", {state: {}, listItems}, {page: "makecards.html"});
-		JqueryUtil.doToast({content: `${listItems.length} card${listItems.length === 1 ? "" : "s"} sent to Card Builder`, type: "success"});
+		const _TYPE_ORDER = ["background", "race", "feat", "item", "spell"];
+		listItems.sort((a, b) => {
+			const oa = _TYPE_ORDER.indexOf(a.entityType);
+			const ob = _TYPE_ORDER.indexOf(b.entityType);
+			if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
+			return a.hash.localeCompare(b.hash);
+		});
+
+		try {
+			await StorageUtil["pSetForPage"]("cardState", {state: {state: {}}, listItems}, {page: "makecards.html"});
+			window.open("makecards.html", "_blank");
+		} catch (e) {
+			JqueryUtil.doToast({content: `Card export failed: ${e.message}`, type: "danger"});
+			throw e;
+		}
 	}
 
 	async _pBuildPdf () {
