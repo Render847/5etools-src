@@ -2574,15 +2574,14 @@ ${text}`);
 			const [eqRow, eqRowInner] = BuilderUi.getLabelledRowTuple("Equipment", {isMarked: true});
 			const eqRows = [];
 			const doUpdateEqState = () => {
-				const auto = (this._state.equipment || []).filter(e => e.autoGranted);
-				this._state.equipment = [...auto, ...eqRows.map(r => r.getState()).filter(it => it.name)];
+				this._state.equipment = eqRows.map(r => r.getState()).filter(it => it.name);
 				this._syncEquippedItems();
 				cb();
 			};
 			const wrpEqRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(eqRowInner);
 
 			// Auto-granted items (removeable, with equip checkbox for weapons/armor/shields)
-			(this._state.equipment || []).filter(e => e.autoGranted).forEach(item => {
+			(this._state.equipment || []).filter(() => false).forEach(item => {
 				const entry = this._getItemEntry(item.name);
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
 				const row = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpEqRows);
@@ -2625,10 +2624,10 @@ ${text}`);
 					cbEquip.appendTo(rowEle);
 				}
 				rowEle.appends(nameSpan, iptQty, iptNote, btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false})};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})})};
 				eqRows.push(rowMeta);
 			};
-			(this._state.equipment || []).filter(e => !e.autoGranted).forEach(item => addEqRow(item));
+			(this._state.equipment || []).forEach(item => addEqRow(item));
 
 			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Item</button>`
 				.appendTo(ee`<div></div>`.appendTo(eqRowInner))
@@ -2659,12 +2658,20 @@ ${text}`);
 			const addMgRow = (initial) => {
 				const entry = this._getItemEntry(initial?.name || "");
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const needsAttune = !!(entry?.reqAttune);
 				const iptQty  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
 				const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateMgState);
 				const nameSpan = ee`<span class="bold mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				const cbEquip = isEquippable
 					? ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
 					: null;
+				const btnAttune = needsAttune
+					? $('<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Requires attunement">Att.</button>')
+					: null;
+				if (btnAttune) {
+					if (initial?.attuned) btnAttune.addClass("active");
+					btnAttune.on("click", () => { btnAttune.toggleClass("active"); doUpdateMgState(); });
+				}
 				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
 					mgRows.splice(mgRows.indexOf(rowMeta), 1);
 					rowEle.remove();
@@ -2675,8 +2682,9 @@ ${text}`);
 					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
 					cbEquip.appendTo(rowEle);
 				}
+				if (btnAttune) btnAttune.appendTo(rowEle);
 				rowEle.appends(nameSpan, iptQty, iptNote, btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false})};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("active") : false})};
 				mgRows.push(rowMeta);
 			};
 			(this._state.magicEquipment || []).forEach(item => addMgRow(item));
@@ -2838,15 +2846,13 @@ ${text}`);
 				ee`<span class="ve-muted mr-1" style="font-size:.8em">Prep</span>`.appendTo(nameRow);
 				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(nameRow);
 
-				if (!isAuto) {
-					ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
-						.onn("click", () => {
-							spellRows.splice(spellRows.indexOf(rowMeta), 1);
-							card.remove();
-							doUpdateState();
-						})
-						.appendTo(nameRow);
-				}
+				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
+					.onn("click", () => {
+						spellRows.splice(spellRows.indexOf(rowMeta), 1);
+						card.remove();
+						doUpdateState();
+					})
+					.appendTo(nameRow);
 
 				if (spellData) {
 					const castStr  = this._fmtSpellCastingTime(spellData);
@@ -3340,7 +3346,10 @@ ${text}`);
 
 		// Magic item attunement pips
 		const attuneFields = [[429.6,615.4],[429.4,635.7],[429.5,655.9]];
-		(s.magicItems||[]).slice(0,3).forEach((item,i) => { if (item) pip(...attuneFields[i]); });
+		(s.magicEquipment||[]).filter(it => it.attuned).slice(0,3).forEach((item,i) => {
+			pip(...attuneFields[i]);
+			inFieldL(item.name, 436, attuneFields[i][1]-6, 594, attuneFields[i][1]+6, 7);
+		});
 
 		// Right column
 		inFieldML(v(s.appearance)||([ s.age&&`Age: ${s.age}`, s.height&&`Ht: ${s.height}`, s.weight&&`Wt: ${s.weight}`, s.eyes&&`Eyes: ${s.eyes}`, s.skin&&`Skin: ${s.skin}`, s.hair&&`Hair: ${s.hair}`].filter(Boolean).join(", ")),  417.9, 38.4,593.7,105.9, 6.5);
