@@ -1334,7 +1334,11 @@ export class CharacterBuilder extends BuilderBase {
 			},
 			expertise: {
 				label:       (from, cnt) => cnt > 1 ? `Expertise Skills (×${cnt})` : "Expertise Skill",
-				options:     null,
+				options:     () => {
+					const allProf = [...new Set([...(this._state.skillProfs||[]), ...(this._state.featSkillProfs||[])])];
+					const pool = allProf.length ? allProf : _SKILLS.map(s => s.name);
+					return pool.map(s => ({value: s, label: s}));
+				},
 				placeholder: () => "Skill you're proficient in",
 			},
 			// Virtual key for additionalSpells[].ability.choose
@@ -1556,10 +1560,29 @@ export class CharacterBuilder extends BuilderBase {
 		this._buildSkillsInput(wrp, cb);
 
 		// ── Other proficiencies ──────────────────────────────────────────────
+		// Helper: read-only row for feat-granted items in a given state key
+		const addFeatRow = (label, stateKey) => {
+			const div  = $('<div style="font-size:.85em;padding-left:2px;margin-bottom:4px"></div>');
+			const span = $('<span class="ve-muted"></span>');
+			div.append(span);
+			const refresh = () => {
+				const items = this._state[stateKey] || [];
+				if (items.length) { span.text(label + " (feats): " + items.join(", ")); div.show(); }
+				else div.hide();
+			};
+			refresh();
+			this._addHook("state", stateKey, refresh);
+			div.appendTo(wrp);
+		};
+
 		BuilderUi.getStateIptStringArray("Languages",   cb, this._state, {shortName: "Language",           nullable: true}, "languages").appendTo(wrp);
+		addFeatRow("Languages",     "featLanguages");
 		BuilderUi.getStateIptStringArray("Armor Prof.", cb, this._state, {shortName: "Armor Proficiency",  nullable: true}, "armorProfs").appendTo(wrp);
+		addFeatRow("Armor",         "featArmorProfs");
 		BuilderUi.getStateIptStringArray("Weapon Prof.",cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").appendTo(wrp);
+		addFeatRow("Weapons",       "featWeaponProfs");
 		BuilderUi.getStateIptStringArray("Tool Prof.",  cb, this._state, {shortName: "Tool Proficiency",   nullable: true}, "toolProfs").appendTo(wrp);
+		addFeatRow("Tools",         "featToolProfs");
 	}
 
 	// ── Stat generation ───────────────────────────────────────────────────────
@@ -2048,10 +2071,12 @@ export class CharacterBuilder extends BuilderBase {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Saving Throws", {isMarked: true, isRow: true});
 
 		_ABILITIES.forEach(abl => {
+			const hasFeatSave      = () => (this._state.featSavingThrowProfs || []).some(p => p.toLowerCase() === (_ABILITY_FULL[abl] || abl).toLowerCase());
+			const isSaveProficient = () => (this._state.savingThrowProfs || []).includes(abl) || hasFeatSave();
 			const getBonus = () => {
 				const pb  = this._state.profBonusOverride ?? _profBonus(this._state.level || 1);
 				const mod = _abilMod(this._state[abl] || 10);
-				return mod + ((this._state.savingThrowProfs || []).includes(abl) ? pb : 0);
+				return mod + (isSaveProficient() ? pb : 0);
 			};
 
 			const dispBonus = ee`<div class="ve-text-center ve-muted" style="font-size:.85em;min-width:28px">${_fmtMod(getBonus())}</div>`;
@@ -2062,14 +2087,15 @@ export class CharacterBuilder extends BuilderBase {
 					const idx   = profs.indexOf(abl);
 					if (idx >= 0) profs.splice(idx, 1); else profs.push(abl);
 					this._state.savingThrowProfs = profs;
-					btnProf.toggleClass("active", profs.includes(abl));
+					btnProf.toggleClass("active", isSaveProficient());
 					dispBonus.txt(_fmtMod(getBonus()));
 					cb();
 				});
-			if ((this._state.savingThrowProfs || []).includes(abl)) btnProf.addClass("active");
+			if (isSaveProficient()) btnProf.addClass("active");
 
-			this._addHook("state", abl,   () => dispBonus.txt(_fmtMod(getBonus())));
-			this._addHook("state", "level", () => dispBonus.txt(_fmtMod(getBonus())));
+			this._addHook("state", abl,                    () => dispBonus.txt(_fmtMod(getBonus())));
+			this._addHook("state", "level",                () => dispBonus.txt(_fmtMod(getBonus())));
+			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
 
 			ee`<div class="ve-flex-col ve-flex-vh-center mb-2 mr-2">
 				<span class="mb-1 bold ve-text-center">${abl.toUpperCase()}</span>
@@ -2094,8 +2120,8 @@ export class CharacterBuilder extends BuilderBase {
 		const halfProfBtns = [];
 
 		_SKILLS.forEach(({name, ability}) => {
-			const isProficient = () => (this._state.skillProfs     || []).includes(name);
-			const isExpert     = () => (this._state.skillExpertise || []).includes(name);
+			const isProficient = () => (this._state.skillProfs    || []).includes(name) || (this._state.featSkillProfs || []).includes(name);
+			const isExpert     = () => (this._state.skillExpertise || []).includes(name) || (this._state.featExpertise  || []).includes(name);
 			const isHalfProf   = () => (this._state.skillHalfProfs || []).includes(name);
 
 			const getBonus = () => {
@@ -2117,9 +2143,9 @@ export class CharacterBuilder extends BuilderBase {
 				.onn("click", () => {
 					if (isProficient()) {
 						this._state.skillProfs     = (this._state.skillProfs     || []).filter(s => s !== name);
-						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 					} else {
 						this._state.skillProfs     = [...new Set([...(this._state.skillProfs || []), name])];
+						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
 					btnProf.toggleClass("active",   isProficient());
@@ -2135,7 +2161,7 @@ export class CharacterBuilder extends BuilderBase {
 						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 					} else {
 						this._state.skillExpertise = [...new Set([...(this._state.skillExpertise || []), name])];
-						this._state.skillProfs     = [...new Set([...(this._state.skillProfs     || []), name])];
+						this._state.skillProfs     = (this._state.skillProfs     || []).filter(s => s !== name);
 						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
 					btnProf.toggleClass("active",   isProficient());
@@ -2144,6 +2170,8 @@ export class CharacterBuilder extends BuilderBase {
 					cb();
 				});
 			if (isExpert()) btnExpert.addClass("active");
+			this._addHook("state", "featSkillProfs", () => { btnProf.toggleClass("active",   isProficient()); updateBonus(); });
+			this._addHook("state", "featExpertise",  () => { btnExpert.toggleClass("active", isExpert());     updateBonus(); });
 			const btnHalfProf = $('<button class="ve-btn ve-btn-xs ve-btn-default ml-1" title="Half Proficiency">Half.</button>');
 			if (isHalfProf()) btnHalfProf.addClass("active");
 			halfProfBtns.push({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus});
