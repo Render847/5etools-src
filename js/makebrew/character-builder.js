@@ -887,16 +887,22 @@ ${text}`);
 		});
 
 		// ── Subclass features ────────────────────────────────────
-		const _scName = (this._state.subclass || "").toLowerCase();
-		const _clsKey = (cls.name || "").toLowerCase();
+		const _scName  = (this._state.subclass || "").toLowerCase();
+		const _clsKey  = (cls.name || "").toLowerCase();
+		const _isNew   = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 		if (_scName) {
 			const _scList = this._allSubclasses[_clsKey] || [];
-			const _sc = _scList.find(s => (s.name || "").toLowerCase() === _scName);
+			const _nameMatches = _scList.filter(s => (s.name || "").toLowerCase() === _scName);
+			const _sc = _isNew
+				? (_nameMatches.find(s => s.edition === "one") || _nameMatches[0])
+				: (_nameMatches.find(s => s.edition === "classic") || _nameMatches.find(s => s.edition !== "one") || _nameMatches[0]);
 			if (_sc) {
-				const _scShort = (_sc.shortName || "").toLowerCase();
+				const _scShort  = (_sc.shortName || "").toLowerCase();
+				const _scSource = _sc.source || "";
 				(this._allSubclassFeatures || []).forEach(feature => {
 					if ((feature.className || "").toLowerCase() !== _clsKey) return;
 					if ((feature.subclassShortName || "").toLowerCase() !== _scShort) return;
+					if (_scSource && feature.subclassSource && feature.subclassSource !== _scSource) return;
 					const featureLvl = feature.level || 0;
 					if (!featureLvl || featureLvl > lvl) return;
 					_pushFeature(featureLvl, feature);
