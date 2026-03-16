@@ -2790,21 +2790,6 @@ export class CharacterBuilder extends BuilderBase {
 		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
 		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
 
-		// Compute effective AC and shield flag from equipped items (always fresh).
-		// Base unarmored = 10 + DEX mod; armor replaces it via its formula; shield always adds 2.
-		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped);
-		let _armorAC = null;
-		let _hasEquippedShield = false;
-		for (const _it of _allEquip) {
-			const _e = this._getItemEntry(_it.name);
-			if (!_e) continue;
-			if      (_e.type === "LA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 11) + abilMods.dex);
-			else if (_e.type === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
-			else if (_e.type === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
-			else if (_e.type === "S")  _hasEquippedShield = true;
-		}
-		const effectiveAC = (_armorAC ?? (10 + abilMods.dex)) + (_hasEquippedShield ? 2 : 0);
-
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
 		const hasSkill   = sk  => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk);
 		const hasExpert  = sk  => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
@@ -2812,6 +2797,33 @@ export class CharacterBuilder extends BuilderBase {
 		const skillBonus = sk  => { const a=_SKILLS.find(x=>x.name===sk)?.ability||"str"; const mult=hasExpert(sk)?2:hasSkill(sk)?1:0; return abilMods[a]+profBonus*mult; };
 		const fmod = n => n >= 0 ? `+${n}` : `${n}`;
 		const v = (x,fb="") => (x!==undefined&&x!==null&&x!=="") ? String(x) : fb;
+
+		// Compute effective AC, shield, and weapon entries from equipped items (always fresh).
+		// Base unarmored = 10 + DEX mod; armor replaces it via its formula; shield always adds 2.
+		const _DMG_TYPES = {S:"slashing",P:"piercing",B:"bludgeoning",F:"fire",C:"cold",L:"lightning",N:"necrotic",R:"radiant",T:"thunder",A:"acid"};
+		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped);
+		let _armorAC = null;
+		let _hasEquippedShield = false;
+		const _equippedWeapons = [];
+		for (const _it of _allEquip) {
+			const _e = this._getItemEntry(_it.name);
+			if (!_e) continue;
+			if      (_e.type === "LA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 11) + abilMods.dex);
+			else if (_e.type === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
+			else if (_e.type === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
+			else if (_e.type === "S")  _hasEquippedShield = true;
+			if (_e.weapon) {
+				const _props    = _e.property || [];
+				const _finesse  = _props.includes("F");
+				const _ranged   = _e.type === "R" || _e.type === "A";
+				const _amod     = _finesse ? Math.max(abilMods.str, abilMods.dex) : (_ranged ? abilMods.dex : abilMods.str);
+				const _atkBonus = fmod(_amod + profBonus);
+				const _dmgType  = _DMG_TYPES[_e.dmgType] || _e.dmgType || "";
+				const _dmgMod   = _amod !== 0 ? ` ${fmod(_amod)}` : "";
+				_equippedWeapons.push({name: _it.name, atkBonus: _atkBonus, damage: `${_e.dmg1 || "—"}${_dmgMod}${_dmgType ? " " + _dmgType : ""}`, notes: _it.note || ""});
+			}
+		}
+		const effectiveAC = (_armorAC ?? (10 + abilMods.dex)) + (_hasEquippedShield ? 2 : 0);
 
 		if (!window.jspdf) await new Promise((res,rej) => {
 			const el = document.createElement("script");
@@ -2974,7 +2986,7 @@ export class CharacterBuilder extends BuilderBase {
 			[[231.5,281.1,337.1,298.2],[341.4,281.0,385.5,298.1],[390.0,281.0,464.6,298.1],[468.9,280.8,594.3,298.0]],
 			[[231.5,300.0,337.1,317.8],[341.7,300.2,385.2,317.7],[390.1,300.3,464.3,317.8],[468.9,300.3,594.0,317.8]],
 		];
-		([...(s.equippedWeapons||[]), ...(s.weapons||[])]).slice(0,6).forEach((w,i) => {
+		([..._equippedWeapons, ...(s.weapons||[])]).slice(0,6).forEach((w,i) => {
 			const [n,a,d,no] = wpnFields[i];
 			inFieldL(v(w?.name),     n[0],n[1],n[2],n[3], 7.5);
 			inField (v(w?.atkBonus), a[0],a[1],a[2],a[3], 7.5);
