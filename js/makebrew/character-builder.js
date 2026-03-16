@@ -146,9 +146,11 @@ export class CharacterBuilder extends BuilderBase {
 	async _pInit () {
 		const pLoad = (path) => DataUtil.loadJSON(path).catch(() => ({}));
 
-		// Use DataUtil.class.loadJSON() — returns fully-dereferenced class data
-		// where classFeatures is a 2D array of resolved feature objects, not string refs.
-		const pLoadClasses = () => DataUtil.class.loadJSON().catch(() => ({class: [], subclass: []}));
+		// loadJSON() returns resolved class/subclass; loadRawJSON() adds subclassFeature entries
+		const pLoadClasses = () => Promise.all([
+			DataUtil.class.loadJSON().catch(() => ({class: [], subclass: []})),
+			DataUtil.class.loadRawJSON().catch(() => ({})),
+		]).then(([resolved, raw]) => ({...resolved, subclassFeature: raw.subclassFeature || []}));
 
 		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, items] = await Promise.all([
 			pLoadClasses(),
@@ -163,8 +165,9 @@ export class CharacterBuilder extends BuilderBase {
 		]);
 
 
-		this._allClasses     = (classData.class || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
-		this._allSubclasses  = {};
+		this._allClasses           = (classData.class || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
+		this._allSubclasses        = {};
+		this._allSubclassFeatures  = classData.subclassFeature || [];
 		(classData.subclass || []).forEach(sc => {
 			const key = (sc.className || "").toLowerCase();
 			(this._allSubclasses[key] = this._allSubclasses[key] || []).push(sc);
@@ -600,7 +603,9 @@ export class CharacterBuilder extends BuilderBase {
 		const doApplySubclass = (name) => {
 			if (name === this._state.subclass) return;
 			this._state.subclass = name;
-			cb();
+			this._applyClassData();
+			this.renderInput();
+			this.renderOutput();
 		};
 
 		const doApplyClass = (name) => {
@@ -866,16 +871,42 @@ export class CharacterBuilder extends BuilderBase {
 		// classFeatures is a 2D array (per level) of fully-resolved feature objects
 		// after DataUtil.class.loadJSON(). Flatten, filter by level, render to plain text.
 		const featureLines = [];
+		const _pushFeature = (featureLvl, feature) => {
+			const name = feature.name || "";
+			const text = CharacterBuilder._renderFeatureToPlainText(feature);
+			featureLines.push(`[L${featureLvl}] ${name}
+${text}`);
+		};
 		(cls.classFeatures || []).forEach((lvlFeatures, ixLvl) => {
 			const featureLvl = ixLvl + 1;
 			if (featureLvl > lvl) return;
 			(Array.isArray(lvlFeatures) ? lvlFeatures : []).forEach(feature => {
 				if (feature.gainSubclassFeature) return;
-				const name  = feature.name || "";
-				const text  = CharacterBuilder._renderFeatureToPlainText(feature);
-				featureLines.push(`[L${featureLvl}] ${name}\n${text}`);
+				_pushFeature(featureLvl, feature);
 			});
 		});
+
+		// ── Subclass features ────────────────────────────────────
+		const _scName = (this._state.subclass || "").toLowerCase();
+		const _clsKey = (cls.name || "").toLowerCase();
+		if (_scName) {
+			const _scList = this._allSubclasses[_clsKey] || [];
+			const _sc = _scList.find(s => (s.name || "").toLowerCase() === _scName);
+			if (_sc) {
+				const _scShort = (_sc.shortName || "").toLowerCase();
+				(this._allSubclassFeatures || []).forEach(feature => {
+					if ((feature.className || "").toLowerCase() !== _clsKey) return;
+					if ((feature.subclassShortName || "").toLowerCase() !== _scShort) return;
+					const featureLvl = feature.level || 0;
+					if (!featureLvl || featureLvl > lvl) return;
+					_pushFeature(featureLvl, feature);
+				});
+				featureLines.sort((a, b) => {
+					const getLvl = s => parseInt((s.match(/^\[L(\d+)\]/) || [])[1] || 0);
+					return getLvl(a) - getLvl(b);
+				});
+			}
+		}
 		// Preserve user-set exclusions across level changes
 		const oldItems = this._state.classFeatureItems || [];
 		const oldExcluded = new Set(oldItems.filter(i => i.excluded).map(i => i.text));
