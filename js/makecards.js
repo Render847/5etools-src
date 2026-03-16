@@ -193,9 +193,19 @@ class MakeCards extends BaseComponent {
 			<div class="ve-col-1-1 ve-flex-v-center ve-flex-h-right"></div>
 		</div>`.appendTo(wrpContainer);
 
-		const wrpList = ee`<div class="ve-w-100 ve-h-100"></div>`;
-		ee`<div class="ve-flex-col ve-h-100 ve-w-100 ve-overflow-y-auto ve-mt-2 ve-overflow-x-hidden">${wrpList}</div>`.appendTo(wrpContainer);
-		this._list = new List({iptSearch, wrpList});
+		const wrpList = ee`<div class="w-100 h-100"></div>`;
+		ee`<div class="ve-flex-col h-100 w-100 ve-overflow-y-auto mt-2 ve-overflow-x-hidden">${wrpList}</div>`.appendTo(wrpContainer);
+		const _CARD_TYPE_ORDER = ["race", "background", "optionalfeature", "feat", "creature", "spell", "item"];
+		this._list = new List({
+			iptSearch,
+			wrpList,
+			fnSort: (a, b) => {
+				const oa = _CARD_TYPE_ORDER.indexOf(a.values.entityType);
+				const ob = _CARD_TYPE_ORDER.indexOf(b.values.entityType);
+				if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
+				return SortUtil.ascSortLower(a.name, b.name);
+			},
+		});
 		this._list.init();
 		// endregion
 	}
@@ -726,7 +736,13 @@ class MakeCards extends BaseComponent {
 		Promise.all(toLoad.listItems.map(async toLoad => this._pGetListItem(toLoad)))
 			.then(initialListItems => {
 				if (initialListItems.length) {
-					initialListItems.sort((a, b) => SortUtil.ascSortLower(a.name, b.name)).forEach(it => this._list.addItem(it));
+					const _TYPE_ORDER = ["background", "race", "feat", "item", "spell"];
+				initialListItems.sort((a, b) => {
+					const oa = _TYPE_ORDER.indexOf(a.values.entityType);
+					const ob = _TYPE_ORDER.indexOf(b.values.entityType);
+					if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
+					return SortUtil.ascSortLower(a.name, b.name);
+				}).forEach(it => this._list.addItem(it));
 					this._list.update();
 				}
 			});
