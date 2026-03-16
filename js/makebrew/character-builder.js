@@ -458,6 +458,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.spellSlots     = [0,0,0,0,0,0,0,0,0];
 			this._applyClassData();
 			this.renderInput();
+			this.renderOutput();
 		});
 
 		this._addHook("state", "class", () => {
@@ -471,6 +472,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.spellcastingAbility = "";
 			this._applyClassData();
 			this.renderInput();
+			this.renderOutput();
 		});
 
 		// Class Features (two columns, matching PDF Text54/Text55)
@@ -629,6 +631,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._applySpeciesData();
 			this._applyFeatData();
 			this.renderInput();
+			this.renderOutput();
 		};
 
 		ipt.onn("change", () => doApply(ipt.val()));
@@ -681,6 +684,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._applySpeciesData();
 			this._applyFeatData();
 			this.renderInput();
+			this.renderOutput();
 		};
 
 		ipt.onn("change", () => doApply(ipt.val()));
@@ -734,6 +738,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._applySpeciesData();
 		this._applyFeatData();
 		this.renderInput();
+		this.renderOutput();
 	}
 
 	_getClassEntry () {
@@ -2095,6 +2100,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			this._addHook("state", abl,                    () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "level",                () => dispBonus.txt(_fmtMod(getBonus())));
+			this._addHook("state", "profBonusOverride",    () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
 
 			ee`<div class="ve-flex-col ve-flex-vh-center mb-2 mr-2">
@@ -2135,9 +2141,10 @@ export class CharacterBuilder extends BuilderBase {
 
 			const dispBonus = ee`<span class="ve-muted mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
 			const updateBonus = () => dispBonus.txt(_fmtMod(getBonus()));
-			this._addHook("state", ability,          updateBonus);
-			this._addHook("state", "level",          updateBonus);
-			this._addHook("state", "skillHalfProfs", updateBonus);
+			this._addHook("state", ability,            updateBonus);
+			this._addHook("state", "level",            updateBonus);
+			this._addHook("state", "skillHalfProfs",   updateBonus);
+			this._addHook("state", "profBonusOverride", updateBonus);
 
 			const btnProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Proficient">Prof.</button>`
 				.onn("click", () => {
@@ -2335,6 +2342,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		this._rebuildHpSection = buildHpSection;
 		buildHpSection();
+		this._addHook("state", "con", () => { buildHpSection(); cb(); });
 		wrp.append(hpRow);
 
 		BuilderUi.getStateIptNumber("Armor Class", cb, this._state, {nullable: false, placeholder: "10"}, "ac").appendTo(wrp);
