@@ -381,11 +381,10 @@ export class CharacterBuilder extends BuilderBase {
 				new TabUiUtil.TabMeta({name: "Feats",      hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Spells",     hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Personality",hasBorder: true}),
-				new TabUiUtil.TabMeta({name: "Appearance", hasBorder: true}),
 			],
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
-		const [identityTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab, appearanceTab] = tabs;
+		const [identityTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab] = tabs;
 		ee`<div class="ve-flex-v-center w-100 no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
 
@@ -410,8 +409,6 @@ export class CharacterBuilder extends BuilderBase {
 		// ── PERSONALITY ───────────────────────────────────────────────────────
 		this._buildPersonalityTab(personalityTab.wrpTab, cb);
 
-		// ── APPEARANCE ────────────────────────────────────────────────────────
-		this._buildAppearanceTab(appearanceTab.wrpTab, cb);
 	}
 
 	// ── Identity tab ──────────────────────────────────────────────────────────
@@ -2936,20 +2933,14 @@ ${text}`);
 		BuilderUi.getStateIptEntries("Bonds",              cb, this._state, {placeholder: "Who or what do you care about?"}, "bonds").appendTo(wrp);
 		BuilderUi.getStateIptEntries("Flaws",              cb, this._state, {placeholder: "What are your weaknesses?"}, "flaws").appendTo(wrp);
 		BuilderUi.getStateIptEntries("Backstory",          cb, this._state, {placeholder: "Character history and backstory..."}, "backstory").appendTo(wrp);
-
-		// Magic Item Attunement (3 slots)
-		const [miRow, miRowInner] = BuilderUi.getLabelledRowTuple("Magic Item Attunement", {isMarked: true});
-		const miItems = () => this._state.magicItems || ["", "", ""];
-		const miIpts = miItems().map((val, i) => {
-			return ee`<input class="form-control input-xs form-control--minimal mb-1" placeholder="Attuned item ${i+1}">`.val(val).onn("change", () => {
-				const arr = [...(this._state.magicItems || ["","",""])];
-				arr[i] = miIpts[i].val().trim();
-				this._state.magicItems = arr;
-				cb();
-			});
-		});
-		ee`<div class="ve-flex-col w-100">${miIpts}</div>`.appendTo(miRowInner);
-		wrp.append(miRow);
+		BuilderUi.getStateIptString("Age",    cb, this._state, {placeholder: "e.g. 30"}, "age").appendTo(wrp);
+		BuilderUi.getStateIptString("Height", cb, this._state, {placeholder: "e.g. 5'10\""}, "height").appendTo(wrp);
+		BuilderUi.getStateIptString("Weight", cb, this._state, {placeholder: "e.g. 160 lbs"}, "weight").appendTo(wrp);
+		BuilderUi.getStateIptString("Eyes",   cb, this._state, {placeholder: "e.g. Brown"}, "eyes").appendTo(wrp);
+		BuilderUi.getStateIptString("Skin",   cb, this._state, {placeholder: "e.g. Tan"}, "skin").appendTo(wrp);
+		BuilderUi.getStateIptString("Hair",   cb, this._state, {placeholder: "e.g. Black"}, "hair").appendTo(wrp);
+		BuilderUi.getStateIptEnum("Size", cb, this._state, {nullable: false, vals: _SIZES, fnDisplay: v => String(v)}, "size").appendTo(wrp);
+		BuilderUi.getStateIptEntries("Appearance Notes", cb, this._state, {placeholder: "Physical description..."}, "appearance").appendTo(wrp);
 	}
 
 	// ── Appearance tab ────────────────────────────────────────────────────────
@@ -3033,11 +3024,15 @@ ${text}`);
 				out.character = [DataUtil.cleanJson(MiscUtil.copy(s))];
 				DataUtil.userDownload(DataUtil.getCleanFilename(s.name || "character"), out);
 			});
-		const btnPdf = ee`<button class="ve-btn ve-btn-xs ve-btn-default"><span class="glyphicon glyphicon-print mr-1"></span>PDF</button>`
+		const btnPdf = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1"><span class="glyphicon glyphicon-print mr-1"></span>PDF</button>`
 			.onn("click", () => this._doExportPdf());
+		const btnStatblock = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Export as creature statblock (Markdown)"><span class="glyphicon glyphicon-list-alt mr-1"></span>Statblock</button>`
+			.onn("click", () => this._doExportStatblock());
+		const btnCards = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th mr-1"></span>Cards</button>`
+			.onn("click", () => this._doExportCards());
 		ee`<div class="ve-flex-v-center mb-2 pb-1" style="border-bottom:1px solid var(--rgb-border-grey)">
 			<span class="ve-muted italic mr-2" style="font-size:.75em">${(s.styleHint === "classic") ? "D&D 2014 (5e)" : "D&D 2024 (5.5e)"}</span>
-			<div class="ml-auto">${btnJson}${btnPdf}</div>
+			<div class="ml-auto">${btnJson}${btnPdf}${btnStatblock}${btnCards}</div>
 		</div>`.appendTo(wrp);
 
 		// Status / iframe
@@ -3065,6 +3060,134 @@ ${text}`);
 	async _doExportPdf () {
 		const doc = await this._pBuildPdf();
 		doc.save(`${DataUtil.getCleanFilename(this._state.name || "character")}-sheet.pdf`);
+	}
+
+	_doExportStatblock () {
+		const s = this._state;
+		const prof = s.profBonusOverride ?? _profBonus(s.level || 1);
+		const _mod = score => _abilMod(score);
+		const _modStr = score => { const m = _mod(score); return `${m >= 0 ? "+" : ""}${m}`; };
+		const _scoreCell = score => `${score} (${_modStr(score)})`;
+
+		const SKILL_ABILITY = {
+			"Acrobatics": "dex", "Animal Handling": "wis", "Arcana": "int",
+			"Athletics": "str", "Deception": "cha", "History": "int",
+			"Insight": "wis", "Intimidation": "cha", "Investigation": "int",
+			"Medicine": "wis", "Nature": "int", "Perception": "wis",
+			"Performance": "cha", "Persuasion": "cha", "Religion": "int",
+			"Sleight of Hand": "dex", "Stealth": "dex", "Survival": "wis",
+		};
+
+		const allSaveProfs = new Set([...(s.savingThrowProfs || []), ...(s.featSavingThrowProfs || [])]);
+		const allSkillProfs = new Set([...(s.skillProfs || []), ...(s.featSkillProfs || [])]);
+		const allExpertise  = new Set([...(s.skillExpertise || []), ...(s.featExpertise || [])]);
+		const allHalfProfs  = new Set(s.skillHalfProfs || []);
+
+		const savesStr = ["str", "dex", "con", "int", "wis", "cha"]
+			.filter(a => allSaveProfs.has(a))
+			.map(a => `${a.charAt(0).toUpperCase()}${a.slice(1)} ${_modStr(_mod(s[a] || 10) + prof)}`)
+			.join(", ");
+
+		const skillsStr = Object.entries(SKILL_ABILITY)
+			.filter(([sk]) => allSkillProfs.has(sk))
+			.map(([sk, ab]) => {
+				const bonus = allExpertise.has(sk) ? prof * 2 : allHalfProfs.has(sk) ? Math.floor(prof / 2) : prof;
+				return `${sk} ${_modStr(_mod(s[ab] || 10) + bonus)}`;
+			}).join(", ");
+
+		const passPerc = 10 + _mod(s.wis || 10) + (allSkillProfs.has("Perception") ? (allExpertise.has("Perception") ? prof * 2 : prof) : 0);
+		const ac = s.equippedAC != null ? s.equippedAC + (s.equippedShield ? 2 : 0) : s.ac;
+		const languages = [...(s.languages || []), ...(s.featLanguages || [])].join(", ") || "\u2014";
+		const classLine = [s.class, s.subclass].filter(Boolean).join(", ");
+
+		const lines = [
+			`## ${s.name || "Character"}`,
+			`*${s.size || "Medium"} humanoid (${s.species || "human"}), ${s.alignment || "Unaligned"}*`,
+			``,
+			`---`,
+			``,
+			`**Armor Class** ${ac}  `,
+			`**Hit Points** ${s.hpMax || 0} (${s.hitDice || `${s.level || 1}d8`})  `,
+			`**Speed** ${s.speed || 30} ft.  `,
+			``,
+			`---`,
+			``,
+			`| STR | DEX | CON | INT | WIS | CHA |`,
+			`|:---:|:---:|:---:|:---:|:---:|:---:|`,
+			`| ${_scoreCell(s.str || 10)} | ${_scoreCell(s.dex || 10)} | ${_scoreCell(s.con || 10)} | ${_scoreCell(s.int || 10)} | ${_scoreCell(s.wis || 10)} | ${_scoreCell(s.cha || 10)} |`,
+			``,
+			`---`,
+			``,
+		];
+		if (savesStr) lines.push(`**Saving Throws** ${savesStr}  `);
+		if (skillsStr) lines.push(`**Skills** ${skillsStr}  `);
+		lines.push(`**Senses** passive Perception ${passPerc}  `);
+		lines.push(`**Languages** ${languages}  `);
+		lines.push(`**Proficiency Bonus** +${prof}  `);
+		if (classLine) lines.push(`**Class** ${classLine}, Level ${s.level || 1}  `);
+		if (s.background) lines.push(`**Background** ${s.background}  `);
+		lines.push(``, `---`, ``);
+
+		const features = (s.classFeatureItems || []).filter(i => !i.excluded);
+		if (features.length) {
+			lines.push(`### Class Features`, ``);
+			features.forEach(f => {
+				const [head, ...rest] = f.text.split("\n");
+				lines.push(`***${head.replace(/^\[L\d+\]\s*/, "")}*** ${rest.join(" ")}`, ``);
+			});
+		}
+		const traits = (s.speciesTraitItems || []).filter(i => !i.excluded);
+		if (traits.length) {
+			lines.push(`### Species Traits`, ``);
+			traits.forEach(t => {
+				const [head, ...rest] = t.text.split("\n");
+				lines.push(`***${head}*** ${rest.join(" ")}`, ``);
+			});
+		}
+
+		DataUtil.userDownloadText(`${DataUtil.getCleanFilename(s.name || "character")}-statblock.md`, lines.join("\n"));
+	}
+
+	async _doExportCards () {
+		const s = this._state;
+		const listItems = [];
+
+		const _push = (entity, page, entityType, color, icon) => {
+			if (!entity?.name || !entity?.source) return;
+			listItems.push({
+				page,
+				source: entity.source,
+				hash: UrlUtil.URL_TO_HASH_BUILDER[page](entity),
+				color,
+				icon,
+				count: 1,
+				entityType,
+			});
+		};
+
+		(s.spells || []).forEach(sp => {
+			const e = this._allSpells.find(x => x.name.toLowerCase() === (sp.name || "").toLowerCase());
+			if (e) _push(e, UrlUtil.PG_SPELLS, "spell", "#4a6898", "magic-swirl");
+		});
+		(s.magicEquipment || []).forEach(mi => {
+			const e = this._allItems.find(x => x.name.toLowerCase() === (mi.name || "").toLowerCase());
+			if (e) _push(e, UrlUtil.PG_ITEMS, "item", "#696969", "crossed-swords");
+		});
+		[...(s.bgFeat ? [s.bgFeat] : []), ...(s.feats || [])].filter(Boolean).forEach(name => {
+			const e = this._allFeats.find(x => x.name.toLowerCase() === name.toLowerCase());
+			if (e) _push(e, UrlUtil.PG_FEATS, "feat", "#aca300", "mighty-force");
+		});
+		if (s.species) {
+			const e = this._allSpecies.find(x => x.name.toLowerCase() === s.species.toLowerCase());
+			if (e) _push(e, UrlUtil.PG_RACES, "race", "#a7894b", "family-tree");
+		}
+		if (s.background) {
+			const e = this._allBackgrounds.find(x => x.name.toLowerCase() === s.background.toLowerCase());
+			if (e) _push(e, UrlUtil.PG_BACKGROUNDS, "background", "#a74b8d", "farmer");
+		}
+
+		await StorageUtil["pSetForPage"]("cardState", {state: {}, listItems}, {page: "makecards.html"});
+		JqueryUtil.doToast({content: `${listItems.length} card${listItems.length === 1 ? "" : "s"} sent to Card Builder`, type: "success"});
 	}
 
 	async _pBuildPdf () {
