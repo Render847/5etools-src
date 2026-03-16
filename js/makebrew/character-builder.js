@@ -1022,10 +1022,26 @@ ${text}`);
 	// Formats a list of startingEquipment items as a short human-readable label.
 	static _fmtEquipChoiceLabel (items) {
 		return (items || []).map(item => {
+			if (item && typeof item === "object" && item.value != null) {
+				return CharacterBuilder._fmtCp(item.value);
+			}
 			const parsed = CharacterBuilder._parseEquipItem(item);
 			if (!parsed) return null;
 			return parsed.qty > 1 ? `${parsed.name} ×${parsed.qty}` : parsed.name;
 		}).filter(Boolean).join(", ");
+	}
+
+	// Converts a copper-piece value to a human-readable currency string (GP/SP/CP).
+	static _fmtCp (cp) {
+		const gp = Math.floor(cp / 100);
+		const rem = cp % 100;
+		const sp = Math.floor(rem / 10);
+		const c = rem % 10;
+		const parts = [];
+		if (gp) parts.push(`${gp} GP`);
+		if (sp) parts.push(`${sp} SP`);
+		if (c) parts.push(`${c} CP`);
+		return parts.length ? parts.join(" ") : "0 CP";
 	}
 
 	// ── Background automation ─────────────────────────────────────────────────
@@ -2509,12 +2525,15 @@ ${text}`);
 
 		const choices = this._state.equipmentChoices || {};
 
+		let totalGrantedCp = 0;
+
 		const addGroup = (group, prefix, idx, source) => {
 			const choiceKey = `${prefix}_${idx}`;
 			const keys = Object.keys(group).filter(k => k !== "_");
 			// Mandatory items (underscore key only)
 			if (group._) {
 				for (const item of group._) {
+					if (item && typeof item === "object" && item.value != null) { totalGrantedCp += item.value; continue; }
 					const parsed = CharacterBuilder._parseEquipItem(item);
 					if (parsed) this._state.equipment.push({...parsed, note: `from ${source}`, autoGranted: true});
 				}
@@ -2524,6 +2543,7 @@ ${text}`);
 				const chosen = choices[choiceKey];
 				if (chosen && group[chosen]) {
 					for (const item of group[chosen]) {
+						if (item && typeof item === "object" && item.value != null) { totalGrantedCp += item.value; continue; }
 						const parsed = CharacterBuilder._parseEquipItem(item);
 						if (parsed) this._state.equipment.push({...parsed, note: `from ${source}`, autoGranted: true});
 					}
@@ -2540,6 +2560,10 @@ ${text}`);
 		if (bg?.startingEquipment) {
 			bg.startingEquipment.forEach((grp, i) => addGroup(grp, "bg", i, bg.name));
 		}
+
+		this._state.gp = Math.floor(totalGrantedCp / 100);
+		this._state.sp = Math.floor((totalGrantedCp % 100) / 10);
+		this._state.cp = totalGrantedCp % 10;
 
 		// Restore equipped flags
 		(this._state.equipment || []).filter(e => e.autoGranted).forEach(e => {
