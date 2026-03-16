@@ -3150,7 +3150,20 @@ ${text}`);
 
 	async _doExportCards () {
 		const s = this._state;
+		const isNew = (s.styleHint ?? "one") !== "classic";
 		const listItems = [];
+
+		// In 5.5e mode prefer the version WITHOUT reprintedAs (the newer reprint);
+		// in classic mode prefer the version WITH reprintedAs (the older original).
+		// Falls back to any match if the preferred edition doesn't exist.
+		const _pick = (candidates) => {
+			if (!candidates.length) return null;
+			if (candidates.length === 1) return candidates[0];
+			const preferred = isNew
+				? candidates.find(x => !x.reprintedAs?.length)
+				: candidates.find(x => x.reprintedAs?.length);
+			return preferred ?? candidates[0];
+		};
 
 		const _push = (entity, page, entityType, color, icon) => {
 			if (!entity?.name || !entity?.source) return;
@@ -3166,23 +3179,28 @@ ${text}`);
 		};
 
 		(s.spells || []).forEach(sp => {
-			const e = this._allSpells.find(x => x.name.toLowerCase() === (sp.name || "").toLowerCase());
+			const nm = (sp.name || "").toLowerCase();
+			const e = _pick(this._allSpells.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_SPELLS, "spell", "#4a6898", "magic-swirl");
 		});
 		(s.magicEquipment || []).forEach(mi => {
-			const e = this._allItems.find(x => x.name.toLowerCase() === (mi.name || "").toLowerCase());
+			const nm = (mi.name || "").toLowerCase();
+			const e = _pick(this._allItems.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_ITEMS, "item", "#696969", "crossed-swords");
 		});
 		[...(s.bgFeat ? [s.bgFeat] : []), ...(s.feats || [])].filter(Boolean).forEach(name => {
-			const e = this._allFeats.find(x => x.name.toLowerCase() === name.toLowerCase());
+			const nm = name.toLowerCase();
+			const e = _pick(this._allFeats.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_FEATS, "feat", "#aca300", "mighty-force");
 		});
 		if (s.species) {
-			const e = this._allSpecies.find(x => x.name.toLowerCase() === s.species.toLowerCase());
+			const nm = s.species.toLowerCase();
+			const e = _pick(this._allSpecies.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_RACES, "race", "#a7894b", "family-tree");
 		}
 		if (s.background) {
-			const e = this._allBackgrounds.find(x => x.name.toLowerCase() === s.background.toLowerCase());
+			const nm = s.background.toLowerCase();
+			const e = _pick(this._allBackgrounds.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_BACKGROUNDS, "background", "#a74b8d", "farmer");
 		}
 
