@@ -2623,7 +2623,7 @@ ${text}`);
 					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
 					cbEquip.appendTo(rowEle);
 				}
-				rowEle.appends(nameSpan, iptQty, iptNote, btnRm);
+				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
 				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})})};
 				eqRows.push(rowMeta);
 			};
@@ -2683,7 +2683,7 @@ ${text}`);
 					cbEquip.appendTo(rowEle);
 				}
 				if (btnAttune) btnAttune.appendTo(rowEle);
-				rowEle.appends(nameSpan, iptQty, iptNote, btnRm);
+				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
 				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("active") : false})};
 				mgRows.push(rowMeta);
 			};
