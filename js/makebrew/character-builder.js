@@ -108,6 +108,9 @@ export class CharacterBuilder extends BuilderBase {
 		this._modalFilterFeats       = null;
 		this._modalFilterSpells      = null;
 		this._rebuildSpellsTab       = null;
+		this._modalFilterItems       = null;
+		this._modalFilterItemsMagic  = null;
+		this._rebuildEquipmentTab    = null;
 		this._onEditionChange        = null; // set by _buildClassInput; called when edition toggle fires
 
 		// cached data for dropdowns
@@ -256,6 +259,13 @@ export class CharacterBuilder extends BuilderBase {
 			shield: false,
 			// magic item attunement slots
 			magicItems: ["", "", ""],
+			// equipment (non-magic user items + auto-granted; autoGranted managed by _syncGrantedEquipment)
+			magicEquipment: [],      // [{name, qty, note}] — user-added magic items
+			equipmentChoices: {},    // {cls_0:"a", bg_0:"b"} — starting equipment choice selections
+			// equipped-item computed values (managed by _syncEquippedItems)
+			equippedAC:      null,   // number | null — set when armor is equipped
+			equippedShield:  false,  // bool — set when a shield item is equipped
+			equippedWeapons: [],     // [{name,atkBonus,damage,notes}] — from equipped weapons
 			// weapons table
 			weapons: [],
 			// feats
@@ -819,6 +829,8 @@ export class CharacterBuilder extends BuilderBase {
 		const half = Math.ceil(featureLines.length / 2);
 		this._state.classFeatures  = featureLines.slice(0, half).join("\n\n");
 		this._state.classFeatures2 = featureLines.slice(half).join("\n\n");
+
+		this._syncGrantedEquipment();
 	}
 
 	// ── Shared tag-stripping helper ─────────────────────────────────────────
@@ -872,6 +884,41 @@ export class CharacterBuilder extends BuilderBase {
 			return Object.values(obj).flatMap(CharacterBuilder._collectSpells);
 		}
 		return [];
+	}
+
+	// ── Equipment item parsing helpers ───────────────────────────────────────
+	// Parses a single startingEquipment item entry → {name, qty} or null.
+	static _parseEquipItem (item) {
+		if (!item) return null;
+		// Capitalize first letter of each word but not letters after apostrophes
+		const toTitle = s => s.replace(/(^|\s)\w/g, c => c.toUpperCase());
+		if (typeof item === "string") {
+			const name = item.split("|")[0].replace(/#[a-z]$/, "").trim();
+			return name ? {name: toTitle(name), qty: 1} : null;
+		}
+		if (item.special) return {name: item.special, qty: item.quantity || 1};
+		if (item.item) {
+			const name = item.item.split("|")[0].trim();
+			return name ? {name: toTitle(name), qty: item.quantity || 1} : null;
+		}
+		if (item.equipmentType) {
+			const map = {
+				weaponMartial: "Martial Weapon", weaponSimple: "Simple Weapon",
+				focusSpellcastingHoly: "Holy Symbol", focusSpellcastingArcane: "Arcane Focus",
+				focusSpellcastingDruidic: "Druidic Focus", weaponHandCrossbow: "Hand Crossbow",
+			};
+			return {name: map[item.equipmentType] || item.equipmentType, qty: item.quantity || 1};
+		}
+		return null;
+	}
+
+	// Formats a list of startingEquipment items as a short human-readable label.
+	static _fmtEquipChoiceLabel (items) {
+		return (items || []).map(item => {
+			const parsed = CharacterBuilder._parseEquipItem(item);
+			if (!parsed) return null;
+			return parsed.qty > 1 ? `${parsed.name} ×${parsed.qty}` : parsed.name;
+		}).filter(Boolean).join(", ");
 	}
 
 	// ── Background automation ─────────────────────────────────────────────────
@@ -935,6 +982,7 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		this._syncGrantedSpells();
+		this._syncGrantedEquipment();
 		this._sg_syncAbilityScores();
 	}
 
@@ -2120,15 +2168,6 @@ export class CharacterBuilder extends BuilderBase {
 		// Prof bonus
 		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._state.level || 1)})`}, "profBonusOverride").appendTo(wrp);
 
-		// Shield & Heroic Inspiration toggles
-		const [toggleRow, toggleRowInner] = BuilderUi.getLabelledRowTuple("Toggles");
-		const mkToggle = (label, prop) => {
-			const cb2 = ee`<input type="checkbox" class="mkbru__ipt-cb mr-2">`.prop("checked", !!this._state[prop]).onn("change", () => { this._state[prop] = !!cb2.prop("checked"); cb(); });
-			return ee`<label class="ve-flex-v-center mr-3 mb-0"><span class="mr-1">${label}</span>${cb2}</label>`;
-		};
-		ee`<div class="ve-flex ve-flex-wrap">${mkToggle("Shield", "shield")}</div>`.appendTo(toggleRowInner);
-		wrp.append(toggleRow);
-
 		// Weapons table
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
 		const wpnList = () => this._state.weapons || [];
@@ -2152,50 +2191,254 @@ export class CharacterBuilder extends BuilderBase {
 
 	// ── Equipment tab ─────────────────────────────────────────────────────────
 
-	_buildEquipmentTab (wrp, cb) {
-		// Currency
-		const [currRow, currRowInner] = BuilderUi.getLabelledRowTuple("Currency");
-		const currencies = [{k:"cp",l:"CP"},{k:"sp",l:"SP"},{k:"ep",l:"EP"},{k:"gp",l:"GP"},{k:"pp",l:"PP"}];
-		const currEles = ee`<div class="ve-flex ve-flex-wrap w-100">`;
-		currencies.forEach(({k, l}) => {
-			const ipt = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px">`.val(this._state[k] || 0).onn("change", () => { this._state[k] = Math.max(0, UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN:0})); cb(); });
-			currEles.appends(ee`<div class="ve-flex-v-center mr-3 mb-1"><span class="mr-1 ve-muted" style="font-size:.8em">${l}</span>${ipt}</div>`);
-		});
-		currRowInner.append(currEles);
-		wrp.append(currRow);
+	// ── Auto-granted equipment sync ───────────────────────────────────────────
+	// Removes all {autoGranted:true} entries from this._state.equipment and
+	// re-adds the items selected via equipmentChoices from the class and
+	// background startingEquipment.defaultData / startingEquipment arrays.
+	_syncGrantedEquipment () {
+		if (!this._state) return;
 
-		// Equipment list
-		const [eqRow, eqRowInner] = BuilderUi.getLabelledRowTuple("Equipment", {isMarked: true});
+		// Preserve equipped flags so they survive the rebuild
+		const prevEquipped = new Set(
+			(this._state.equipment || []).filter(e => e.autoGranted && e.equipped).map(e => e.name),
+		);
 
-		const eqItems = () => this._state.equipment || [];
-		const eqRows = [];
-		const doUpdateEqState = () => {
-			this._state.equipment = eqRows.map(r => r.getState()).filter(it => it.name);
-			cb();
+		this._state.equipment = (this._state.equipment || []).filter(e => !e.autoGranted);
+
+		const choices = this._state.equipmentChoices || {};
+
+		const addGroup = (group, prefix, idx, source) => {
+			const choiceKey = `${prefix}_${idx}`;
+			const keys = Object.keys(group).filter(k => k !== "_");
+			// Mandatory items (underscore key only)
+			if (group._) {
+				for (const item of group._) {
+					const parsed = CharacterBuilder._parseEquipItem(item);
+					if (parsed) this._state.equipment.push({...parsed, note: `from ${source}`, autoGranted: true});
+				}
+			}
+			// Choice items — only add the selected option
+			if (keys.length > 0) {
+				const chosen = choices[choiceKey];
+				if (chosen && group[chosen]) {
+					for (const item of group[chosen]) {
+						const parsed = CharacterBuilder._parseEquipItem(item);
+						if (parsed) this._state.equipment.push({...parsed, note: `from ${source}`, autoGranted: true});
+					}
+				}
+			}
 		};
 
-		const wrpEqRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(eqRowInner);
-		eqItems().forEach(item => addEqRow(item));
-
-		function addEqRow (initial) {
-			const iptName = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Item name" style="flex:2">`.val(initial?.name || "").onn("change", doUpdateEqState);
-			const iptQty  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
-			const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateEqState);
-			const btnRm   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
-				eqRows.splice(eqRows.indexOf(rowMeta), 1);
-				rowEle.empty().remove();
-				doUpdateEqState();
-			});
-			const rowEle = ee`<div class="ve-flex-v-center mb-1">${iptName}${iptQty}${iptNote}${btnRm}</div>`.appendTo(wrpEqRows);
-			const rowMeta = {getState: () => ({name: iptName.val().trim(), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim()})};
-			eqRows.push(rowMeta);
+		const cls = this._getClassEntry();
+		if (cls?.startingEquipment?.defaultData) {
+			cls.startingEquipment.defaultData.forEach((grp, i) => addGroup(grp, "cls", i, cls.name));
 		}
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Item</button>`
-			.appendTo(ee`<div></div>`.appendTo(eqRowInner))
-			.onn("click", () => { addEqRow(null); doUpdateEqState(); });
+		const bg = this._sg_getBgEntry();
+		if (bg?.startingEquipment) {
+			bg.startingEquipment.forEach((grp, i) => addGroup(grp, "bg", i, bg.name));
+		}
 
-		wrp.append(eqRow);
+		// Restore equipped flags
+		(this._state.equipment || []).filter(e => e.autoGranted).forEach(e => {
+			if (prevEquipped.has(e.name)) e.equipped = true;
+		});
+
+		this._rebuildEquipmentTab?.();
+	}
+
+	_buildEquipmentTab (wrp, cb) {
+		const buildContent = () => {
+			// ── Currency ────────────────────────────────────────────────────────
+			const [currRow, currRowInner] = BuilderUi.getLabelledRowTuple("Currency");
+			const currencies = [{k:"cp",l:"CP"},{k:"sp",l:"SP"},{k:"ep",l:"EP"},{k:"gp",l:"GP"},{k:"pp",l:"PP"}];
+			const currEles = ee`<div class="ve-flex ve-flex-wrap w-100">`;
+			currencies.forEach(({k, l}) => {
+				const ipt = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px">`.val(this._state[k] || 0).onn("change", () => { this._state[k] = Math.max(0, UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN:0})); cb(); });
+				currEles.appends(ee`<div class="ve-flex-v-center mr-3 mb-1"><span class="mr-1 ve-muted" style="font-size:.8em">${l}</span>${ipt}</div>`);
+			});
+			currRowInner.append(currEles);
+			wrp.append(currRow);
+
+			// ── Starting Equipment choices ───────────────────────────────────────
+			const cls = this._getClassEntry();
+			const bg  = this._sg_getBgEntry();
+			if (cls?.startingEquipment?.defaultData?.length || bg?.startingEquipment?.length) {
+				const [seRow, seRowInner] = BuilderUi.getLabelledRowTuple("Starting Equipment");
+
+				const renderChoiceGroups = (groups, prefix, sourceName) => {
+					if (!groups?.length) return;
+					ee`<div class="ve-muted italic mb-1" style="font-size:.85em">${sourceName}:</div>`.appendTo(seRowInner);
+					groups.forEach((group, idx) => {
+						const choiceKey = `${prefix}_${idx}`;
+						const choiceKeys = Object.keys(group).filter(k => k !== "_");
+
+						// Mandatory block
+						if (group._) {
+							const lbl = CharacterBuilder._fmtEquipChoiceLabel(group._);
+							if (lbl) ee`<div class="mb-1 ml-1" style="font-size:.85em">${lbl}</div>`.appendTo(seRowInner);
+						}
+
+						// Choice dropdown
+						if (choiceKeys.length > 0) {
+							const sel = document.createElement("select");
+							sel.className = "form-control input-xs form-control--minimal mb-1";
+							const blank = document.createElement("option");
+							blank.value = ""; blank.textContent = "(choose one)";
+							sel.appendChild(blank);
+							choiceKeys.sort().forEach(k => {
+								const opt = document.createElement("option");
+								opt.value = k;
+								opt.textContent = `${k.toUpperCase()}: ${CharacterBuilder._fmtEquipChoiceLabel(group[k])}`;
+								sel.appendChild(opt);
+							});
+							sel.value = (this._state.equipmentChoices || {})[choiceKey] || "";
+							sel.addEventListener("change", () => {
+								if (!this._state.equipmentChoices) this._state.equipmentChoices = {};
+								this._state.equipmentChoices[choiceKey] = sel.value;
+								this._syncGrantedEquipment();
+								cb();
+							});
+							seRowInner.appendChild(sel);
+						}
+					});
+				};
+
+				renderChoiceGroups(cls?.startingEquipment?.defaultData, "cls", cls?.name);
+				renderChoiceGroups(bg?.startingEquipment, "bg", bg?.name);
+				wrp.append(seRow);
+			}
+
+			// ── Equipment (non-magic: auto-granted + user-added) ─────────────────
+			const [eqRow, eqRowInner] = BuilderUi.getLabelledRowTuple("Equipment", {isMarked: true});
+			const eqRows = [];
+			const doUpdateEqState = () => {
+				const auto = (this._state.equipment || []).filter(e => e.autoGranted);
+				this._state.equipment = [...auto, ...eqRows.map(r => r.getState()).filter(it => it.name)];
+				this._syncEquippedItems();
+				cb();
+			};
+			const wrpEqRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(eqRowInner);
+
+			// Auto-granted items (removeable, with equip checkbox for weapons/armor/shields)
+			(this._state.equipment || []).filter(e => e.autoGranted).forEach(item => {
+				const entry = this._getItemEntry(item.name);
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const row = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpEqRows);
+				if (isEquippable) {
+					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(row);
+					const cbEle = ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!item.equipped);
+					cbEle.onn("change", () => { item.equipped = !!cbEle.prop("checked"); cb(); });
+					cbEle.appendTo(row);
+				}
+				ee`<span class="mr-2" style="flex:1">${item.name}${item.qty > 1 ? ` ×${item.qty}` : ""}</span>`.appendTo(row);
+				ee`<span class="ve-muted italic mr-2" style="font-size:.85em;flex:1">${item.note || ""}</span>`.appendTo(row);
+				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+					.onn("click", () => {
+						this._state.equipment = (this._state.equipment || []).filter(e => e !== item);
+						row.remove();
+						this._syncEquippedItems();
+						cb();
+					})
+					.appendTo(row);
+			});
+
+			// User-added items
+			const addEqRow = (initial) => {
+				const entry = this._getItemEntry(initial?.name || "");
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const iptQty  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
+				const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateEqState);
+				const nameSpan = ee`<span class="bold mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				const cbEquip = isEquippable
+					? ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateEqState)
+					: null;
+				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
+					eqRows.splice(eqRows.indexOf(rowMeta), 1);
+					rowEle.remove();
+					doUpdateEqState();
+				});
+				const rowEle = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpEqRows);
+				if (isEquippable) {
+					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
+					cbEquip.appendTo(rowEle);
+				}
+				rowEle.appends(nameSpan, iptQty, iptNote, btnRm);
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false})};
+				eqRows.push(rowMeta);
+			};
+			(this._state.equipment || []).filter(e => !e.autoGranted).forEach(item => addEqRow(item));
+
+			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Item</button>`
+				.appendTo(ee`<div></div>`.appendTo(eqRowInner))
+				.onn("click", async () => {
+					if (!this._modalFilterItems) {
+						this._modalFilterItems = new ModalFilterItems({
+							namespace: "charBuilder.items",
+							allData: this._allItems.filter(it => !it.rarity || it.rarity === "none"),
+						});
+					}
+					const selected = await this._modalFilterItems.pGetUserSelection();
+					if (!selected?.length) return;
+					selected.forEach(item => { if (item.name) addEqRow({name: item.name, qty: 1, note: ""}); });
+					doUpdateEqState();
+				});
+			wrp.append(eqRow);
+
+			// ── Magic Items ──────────────────────────────────────────────────────
+			const [mgRow, mgRowInner] = BuilderUi.getLabelledRowTuple("Magic Items", {isMarked: true});
+			const mgRows = [];
+			const doUpdateMgState = () => {
+				this._state.magicEquipment = mgRows.map(r => r.getState()).filter(it => it.name);
+				this._syncEquippedItems();
+				cb();
+			};
+			const wrpMgRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(mgRowInner);
+
+			const addMgRow = (initial) => {
+				const entry = this._getItemEntry(initial?.name || "");
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const iptQty  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
+				const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateMgState);
+				const nameSpan = ee`<span class="bold mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				const cbEquip = isEquippable
+					? ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
+					: null;
+				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
+					mgRows.splice(mgRows.indexOf(rowMeta), 1);
+					rowEle.remove();
+					doUpdateMgState();
+				});
+				const rowEle = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpMgRows);
+				if (isEquippable) {
+					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
+					cbEquip.appendTo(rowEle);
+				}
+				rowEle.appends(nameSpan, iptQty, iptNote, btnRm);
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false})};
+				mgRows.push(rowMeta);
+			};
+			(this._state.magicEquipment || []).forEach(item => addMgRow(item));
+
+			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Magic Item</button>`
+				.appendTo(ee`<div></div>`.appendTo(mgRowInner))
+				.onn("click", async () => {
+					if (!this._modalFilterItemsMagic) {
+						this._modalFilterItemsMagic = new ModalFilterItems({
+							namespace: "charBuilder.itemsMagic",
+							allData: this._allItems.filter(it => it.rarity && it.rarity !== "none"),
+						});
+					}
+					const selected = await this._modalFilterItemsMagic.pGetUserSelection();
+					if (!selected?.length) return;
+					selected.forEach(item => { if (item.name) addMgRow({name: item.name, qty: 1, note: ""}); });
+					doUpdateMgState();
+				});
+			wrp.append(mgRow);
+		};
+
+		this._rebuildEquipmentTab = () => { wrp.empty(); buildContent(); };
+		buildContent();
 	}
 
 	// ── Spell data helpers ────────────────────────────────────────────────────
@@ -2203,6 +2446,66 @@ export class CharacterBuilder extends BuilderBase {
 	_getSpellEntry (name) {
 		if (!this._allSpells || !name) return null;
 		return this._allSpells.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
+	}
+
+	_getItemEntry (name) {
+		if (!this._allItems || !name) return null;
+		return this._allItems.find(it => it.name.toLowerCase() === name.toLowerCase()) || null;
+	}
+
+	// Computes equippedAC, equippedShield, equippedWeapons from items marked equipped:true.
+	// Called whenever an equip checkbox changes or equipment state updates.
+	_syncEquippedItems () {
+		if (!this._state) return;
+		const dexMod = _abilMod(this._state.dex || 10);
+		const strMod = _abilMod(this._state.str || 10);
+		const prof   = _profBonus(this._state.level || 1);
+		const all    = [...(this._state.equipment || []), ...(this._state.magicEquipment || [])];
+		const equipped = all.filter(it => it.equipped);
+
+		let equippedAC   = null;
+		let equippedShield = false;
+		const equippedWeapons = [];
+
+		const _DMG_TYPE = {S:"slashing",P:"piercing",B:"bludgeoning",F:"fire",C:"cold",
+			L:"lightning",N:"necrotic",R:"radiant",T:"thunder",A:"acid"};
+
+		for (const it of equipped) {
+			const entry = this._getItemEntry(it.name);
+			if (!entry) continue;
+			if (entry.type === "LA") {
+				const ac = (entry.ac || 11) + dexMod;
+				if (equippedAC === null || ac > equippedAC) equippedAC = ac;
+			} else if (entry.type === "MA") {
+				const ac = (entry.ac || 13) + Math.min(dexMod, 2);
+				if (equippedAC === null || ac > equippedAC) equippedAC = ac;
+			} else if (entry.type === "HA") {
+				const ac = entry.ac || 16;
+				if (equippedAC === null || ac > equippedAC) equippedAC = ac;
+			} else if (entry.type === "S") {
+				equippedShield = true;
+			}
+			if (entry.weapon) {
+				const props = entry.property || [];
+				const isFinesse = props.includes("F");
+				const isRanged  = entry.type === "R" || entry.type === "A";
+				const abilMod   = isFinesse ? Math.max(strMod, dexMod) : (isRanged ? dexMod : strMod);
+				const atkBonus  = _fmtMod(abilMod + prof);
+				const dmgType   = _DMG_TYPE[entry.dmgType] || entry.dmgType || "";
+				const dmgMod    = abilMod !== 0 ? ` ${_fmtMod(abilMod)}` : "";
+				const damage    = `${entry.dmg1 || "—"}${dmgMod}${dmgType ? " " + dmgType : ""}`;
+				equippedWeapons.push({name: it.name, atkBonus, damage, notes: it.note || ""});
+			}
+		}
+
+		// Combine armor AC + shield bonus into a single effective AC.
+		// Only set equippedAC when at least one piece of equipment affects it,
+		// so the manual AC field is still used when nothing is equipped.
+		const hasArmorOrShield = equippedAC !== null || equippedShield;
+		const baseAC = equippedAC ?? (this._state.ac || 10);
+		this._state.equippedAC      = hasArmorOrShield ? baseAC + (equippedShield ? 2 : 0) : null;
+		this._state.equippedShield  = equippedShield;
+		this._state.equippedWeapons = equippedWeapons;
 	}
 
 	_fmtSpellCastingTime (spell) {
@@ -2486,6 +2789,22 @@ export class CharacterBuilder extends BuilderBase {
 		const spellMod   = s.spellcastingAbility ? abilMods[s.spellcastingAbility] : null;
 		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
 		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
+
+		// Compute effective AC and shield flag from equipped items (always fresh).
+		// Base unarmored = 10 + DEX mod; armor replaces it via its formula; shield always adds 2.
+		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped);
+		let _armorAC = null;
+		let _hasEquippedShield = false;
+		for (const _it of _allEquip) {
+			const _e = this._getItemEntry(_it.name);
+			if (!_e) continue;
+			if      (_e.type === "LA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 11) + abilMods.dex);
+			else if (_e.type === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
+			else if (_e.type === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
+			else if (_e.type === "S")  _hasEquippedShield = true;
+		}
+		const effectiveAC = (_armorAC ?? (10 + abilMods.dex)) + (_hasEquippedShield ? 2 : 0);
+
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
 		const hasSkill   = sk  => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk);
 		const hasExpert  = sk  => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
@@ -2559,7 +2878,7 @@ export class CharacterBuilder extends BuilderBase {
 		inFieldL(v(s.species),                  25.0, 63.2, 145.2, 77.4,  8);
 		inFieldL(v(s.subclass),                150.6, 63.2, 249.2, 77.3,  8);
 		inField (v(s.level||1),               266.2, 28.7, 293.5, 51.0, 14, true);
-		inField (v(s.ac,"10"),                325.5, 40.4, 362.8, 63.2, 14, true);
+		inField (String(effectiveAC),         325.5, 40.4, 362.8, 63.2, 14, true);
 		inField (v(s.hpMax,"0"),              444.9, 61.7, 488.2, 75.6, 10, true);
 		inField (v(s.hitDice,""),             499.8, 61.7, 537.5, 75.8,  8);
 
@@ -2625,7 +2944,7 @@ export class CharacterBuilder extends BuilderBase {
 		sk(fmod(skillBonus("Persuasion")),  135.7,600.7,153.1,613.8, 129.8,609.8, hasSkill("Persuasion"));
 
 		// Shield pip
-		if (s.shield) pip(344.4, 80.0);
+		if (_hasEquippedShield) pip(344.4, 80.0);
 
 		// Armor training pips (exact checkbox centres)
 		const armorPips = {
@@ -2655,7 +2974,7 @@ export class CharacterBuilder extends BuilderBase {
 			[[231.5,281.1,337.1,298.2],[341.4,281.0,385.5,298.1],[390.0,281.0,464.6,298.1],[468.9,280.8,594.3,298.0]],
 			[[231.5,300.0,337.1,317.8],[341.7,300.2,385.2,317.7],[390.1,300.3,464.3,317.8],[468.9,300.3,594.0,317.8]],
 		];
-		(s.weapons||[]).slice(0,6).forEach((w,i) => {
+		([...(s.equippedWeapons||[]), ...(s.weapons||[])]).slice(0,6).forEach((w,i) => {
 			const [n,a,d,no] = wpnFields[i];
 			inFieldL(v(w?.name),     n[0],n[1],n[2],n[3], 7.5);
 			inField (v(w?.atkBonus), a[0],a[1],a[2],a[3], 7.5);
@@ -2746,7 +3065,7 @@ export class CharacterBuilder extends BuilderBase {
 		inFieldML([s.personalityTraits&&`Traits: ${s.personalityTraits}`, s.ideals&&`Ideals: ${s.ideals}`, s.bonds&&`Bonds: ${s.bonds}`, s.flaws&&`Flaws: ${s.flaws}`, s.backstory].filter(Boolean).join(" | "), 418.5,146.4,594.3,283.6, 6.5);
 		inFieldL (v(s.alignment),  419.2,294.2,594.0,310.4, 8);
 		inFieldML(allLanguages.join(", "), 418.5,351.7,595.7,383.7, 6.5);
-		inFieldML((s.equipment||[]).map(it=>`${it.name||"?"}${it.qty&&it.qty!==1?` x${it.qty}`:""}`).join(", "), 418.9,421.4,594.3,597.5, 6.5);
+		inFieldML([...(s.equipment||[]), ...(s.magicEquipment||[])].map(it=>`${it.name||"?"}${it.qty&&it.qty!==1?` x${it.qty}`:""}`).join(", "), 418.9,421.4,594.3,597.5, 6.5);
 
 		// Coins
 		[[s.cp,418.5,717.4,450.7,737.5],[s.sp,455.1,717.9,486.7,738.0],[s.ep,491.2,717.7,522.8,737.8],[s.gp,526.7,717.3,558.3,737.5],[s.pp,562.4,717.9,594.0,738.0]]
