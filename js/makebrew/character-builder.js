@@ -1659,7 +1659,30 @@ ${text}`);
 
 		BuilderUi.getStateIptStringArray("Languages",   cb, this._state, {shortName: "Language",           nullable: true}, "languages").appendTo(wrp);
 		addFeatRow("Languages",     "featLanguages");
-		BuilderUi.getStateIptStringArray("Armor Prof.", cb, this._state, {shortName: "Armor Proficiency",  nullable: true}, "armorProfs").appendTo(wrp);
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Armor Prof.");
+			const _ARMOR_CATS = ["Light", "Medium", "Heavy", "Shields"];
+			const btnWrp = ee`<div class="ve-flex"></div>`;
+			_ARMOR_CATS.forEach(cat => {
+				const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1">${cat}</button>`;
+				const refresh = () => {
+					const all = [...(this._state.armorProfs || []), ...(this._state.featArmorProfs || [])];
+					btn.toggleClass("active", all.includes(cat));
+					btn.prop("disabled", (this._state.featArmorProfs || []).includes(cat));
+				};
+				btn.onn("click", () => {
+					const cur = this._state.armorProfs || [];
+					this._state.armorProfs = cur.includes(cat) ? cur.filter(v => v !== cat) : [...cur, cat];
+					cb();
+				});
+				this._addHook("state", "armorProfs",     refresh);
+				this._addHook("state", "featArmorProfs", refresh);
+				refresh();
+				btnWrp.appends(btn);
+			});
+			btnWrp.appendTo(rowInner);
+			row.appendTo(wrp);
+		}
 		addFeatRow("Armor",         "featArmorProfs");
 		BuilderUi.getStateIptStringArray("Weapon Prof.",cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").appendTo(wrp);
 		addFeatRow("Weapons",       "featWeaponProfs");
