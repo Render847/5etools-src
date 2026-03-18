@@ -578,16 +578,25 @@ export class CharacterBuilder extends BuilderBase {
 				const selLevel    = ee`<select class="form-control input-xs form-control--minimal mr-1" style="width:55px;flex:0 0 55px"></select>`;
 				const btnRemove   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}">✕</button>`;
 
-				_LEVELS.forEach(l => {
+				const _othersTotal = (this._state.classes || [])
+					.filter((_, j) => j !== ix)
+					.reduce((s, oc) => s + Math.max(1, Math.min(20, parseInt(oc.level) || 1)), 0);
+				const _maxLvl = Math.max(1, 20 - _othersTotal);
+				const _curLvl = Math.max(1, Math.min(_maxLvl, parseInt(c.level) || 1));
+				_LEVELS.filter(l => l <= _maxLvl).forEach(l => {
 					const opt = document.createElement("option");
 					opt.value = l;
 					opt.textContent = l;
-					if (l === (parseInt(c.level) || 1)) opt.selected = true;
+					if (l === _curLvl) opt.selected = true;
 					selLevel.appendChild(opt);
 				});
 
+				const _usedClasses = new Set(
+					(this._state.classes || []).filter((_, j) => j !== ix).map(oc => oc.cls).filter(Boolean),
+				);
 				selClass.innerHTML = '<option value="">(None)</option>';
 				getFilteredClasses().forEach(cls => {
+					if (_usedClasses.has(cls.name)) return;
 					const opt = document.createElement("option");
 					opt.value = cls.name;
 					opt.textContent = cls.name;
@@ -651,6 +660,9 @@ export class CharacterBuilder extends BuilderBase {
 				</div>`.appendTo(wrpRows);
 			});
 			addBtn.appendTo(wrpRows);
+			const _totalLvl = (this._state.classes || []).reduce((s, oc) => s + Math.max(1, Math.min(20, parseInt(oc.level) || 1)), 0);
+			const _takenNames = new Set((this._state.classes || []).map(oc => oc.cls).filter(Boolean));
+			addBtn.disabled = _totalLvl >= 20 || !getFilteredClasses().some(cls => !_takenNames.has(cls.name));
 		};
 
 		addBtn.onn("click", () => {
@@ -3619,7 +3631,8 @@ export class CharacterBuilder extends BuilderBase {
 		};
 		const _clsArr = s.classes || (s.class ? [{cls: s.class, sub: s.subclass, level: s.level || 1}] : []);
 		const _clsEntries  = _clsArr.filter(c => c.cls);
-		const _clsLines = _clsEntries.map(c => `${c.cls} (${c.level})`);
+		const _isMulticlass = _clsEntries.length > 1;
+		const _clsLines = _clsEntries.map(c => _isMulticlass ? `${c.cls} (${c.level})` : c.cls);
 		const _subLines = _clsEntries.map(c => c.sub || "").filter(Boolean);
 		const _clsSz = _clsEntries.length > 2 ? 6 : 7;
 		const _subSz = _subLines.length    > 2 ? 6 : 7;
