@@ -993,13 +993,23 @@ export class CharacterBuilder extends BuilderBase {
 		const sp = primaryCls.startingProficiencies || {};
 		if (sp.armor && !this._state.armorProfs?.length) {
 			const ARMOR_MAP = {"light": "Light", "medium": "Medium", "heavy": "Heavy", "shield": "Shields"};
-			this._state.armorProfs = sp.armor.map(a => ARMOR_MAP[a.toLowerCase()] || a).filter(Boolean);
+			this._state.armorProfs = sp.armor.map(a => {
+				if (typeof a === "object" && a) {
+					const key = (a.proficiency || "").toLowerCase();
+					return ARMOR_MAP[key] || a.full || a.proficiency || null;
+				}
+				return ARMOR_MAP[a.toLowerCase()] || a;
+			}).filter(Boolean);
 		}
 
 		// ── Weapon proficiencies (primary class only) ────────────────────────
 		if (sp.weapons && !this._state.weaponProfs?.length) {
 			const WEAPON_MAP = {"simple": "Simple weapons", "martial": "Martial weapons"};
 			this._state.weaponProfs = sp.weapons.map(w => {
+				if (typeof w === "object" && w) {
+					const key = (w.proficiency || "").toLowerCase();
+					return WEAPON_MAP[key] || w.proficiency || null;
+				}
 				const lower = w.toLowerCase();
 				if (WEAPON_MAP[lower]) return WEAPON_MAP[lower];
 				const tagMatch = w.match(/\{@\w+ [^|]+\|[^|]+\|([^}]+)\}/);
