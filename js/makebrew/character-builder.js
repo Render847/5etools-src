@@ -212,9 +212,7 @@ export class CharacterBuilder extends BuilderBase {
 			source: this._ui ? this._ui.source : "",
 			// identity
 			playerName: "",
-			class: "",
-			subclass: "",
-			level: 1,
+			classes: [{cls: "", sub: "", level: 1}],
 			background: "",
 			species: "",
 			alignment: "",
@@ -317,6 +315,17 @@ export class CharacterBuilder extends BuilderBase {
 		if (!state?.s || !state?.m) return;
 		this._doResetProxies();
 		if (!state.s.uniqueId) state.s.uniqueId = CryptUtil.uid();
+		// Migrate old single-class format to classes array
+		if (!state.s.classes && (state.s.class !== undefined || state.s.level !== undefined)) {
+			state.s.classes = [{
+				cls:   state.s.class   || "",
+				sub:   state.s.subclass || "",
+				level: state.s.level   || 1,
+			}];
+			delete state.s.class;
+			delete state.s.subclass;
+			delete state.s.level;
+		}
 		this.__state = state.s;
 		this.__meta = state.m;
 	}
@@ -425,13 +434,6 @@ export class CharacterBuilder extends BuilderBase {
 		// Class dropdown
 		this._buildClassInput(wrp, cb);
 
-		// Level
-		BuilderUi.getStateIptEnum(
-			"Level", cb, this._state,
-			{nullable: false, vals: [...Array(20)].map((_, i) => String(i + 1)), fnDisplay: v => v},
-			"level",
-		).appendTo(wrp);
-
 		// Background
 		this._buildBackgroundInput(wrp, cb);
 
@@ -448,25 +450,11 @@ export class CharacterBuilder extends BuilderBase {
 		// XP
 		BuilderUi.getStateIptNumber("Experience Points", cb, this._state, {nullable: true, placeholder: "0"}, "xp").appendTo(wrp);
 
-		// State hooks — fire whenever level or class changes via the proxy
-		// (getStateIptEnum uses __setProp which triggers these hooks)
-		this._addHook("state", "level", () => {
-			this._state.classFeatureItems = [];
-			this._state.hitDice        = "";
-			this._state.spellSlots     = [0,0,0,0,0,0,0,0,0];
-			this._applyClassData();
-			this.renderInput();
-			this.renderOutput();
-		});
-
-		this._addHook("state", "class", () => {
+		// State hook — fires whenever classes array changes
+		this._addHook("state", "classes", () => {
 			this._state.classFeatureItems = [];
 			this._state.hitDice           = "";
 			this._state.spellSlots        = [0,0,0,0,0,0,0,0,0];
-			this._state.armorProfs        = [];
-			this._state.weaponProfs       = [];
-			this._state.savingThrowProfs  = [];
-			this._state.spellcastingAbility = "";
 			this._applyClassData();
 			this.renderInput();
 			this.renderOutput();
@@ -571,63 +559,124 @@ export class CharacterBuilder extends BuilderBase {
 			});
 		};
 
-		const selClass    = ee`<select class="form-control input-xs form-control--minimal mr-2" style="flex:1"></select>`;
-		const selSubclass = ee`<select class="form-control input-xs form-control--minimal" style="flex:1"></select>`;
+		const _LEVELS = [...Array(20)].map((_, i) => i + 1);
+		const wrpRows = ee`<div class="ve-flex-col w-100"></div>`.appendTo(rowInner);
 
-		const rebuildSubclassOptions = () => {
-			selSubclass.innerHTML = '<option value="">(No Subclass)</option>';
-			getFilteredSubclasses(this._state.class || "").forEach(sc => {
-				const opt = document.createElement("option");
-				opt.value = sc.name;
-				opt.textContent = sc.name;
-				if (sc.name === (this._state.subclass || "")) opt.selected = true;
-				selSubclass.appendChild(opt);
+		const addBtn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mt-1">+ Add Class</button>`;
+
+		const rebuildAllRows = () => {
+			wrpRows.empty();
+			const classes = this._state.classes || [{cls: "", sub: "", level: 1}];
+			const showRemove = classes.length > 1;
+			classes.forEach((_, ix) => {
+				const c = this._state.classes[ix];
+
+				const selClass    = ee`<select class="form-control input-xs form-control--minimal mr-1" style="flex:2"></select>`;
+				const selSubclass = ee`<select class="form-control input-xs form-control--minimal mr-1" style="flex:2"></select>`;
+				const selLevel    = ee`<select class="form-control input-xs form-control--minimal mr-1" style="width:55px;flex:0 0 55px"></select>`;
+				const btnRemove   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}">✕</button>`;
+
+				_LEVELS.forEach(l => {
+					const opt = document.createElement("option");
+					opt.value = l;
+					opt.textContent = l;
+					if (l === (parseInt(c.level) || 1)) opt.selected = true;
+					selLevel.appendChild(opt);
+				});
+
+				selClass.innerHTML = '<option value="">(None)</option>';
+				getFilteredClasses().forEach(cls => {
+					const opt = document.createElement("option");
+					opt.value = cls.name;
+					opt.textContent = cls.name;
+					if (cls.name === (c.cls || "")) opt.selected = true;
+					selClass.appendChild(opt);
+				});
+
+				const rebuildSubs = () => {
+					const curSub = (this._state.classes?.[ix]?.sub) || "";
+					selSubclass.innerHTML = '<option value="">(No Subclass)</option>';
+					getFilteredSubclasses((this._state.classes?.[ix]?.cls) || "").forEach(sc => {
+						const opt = document.createElement("option");
+						opt.value = sc.name;
+						opt.textContent = sc.name;
+						if (sc.name === curSub) opt.selected = true;
+						selSubclass.appendChild(opt);
+					});
+				};
+				rebuildSubs();
+
+				selClass.onn("change", () => {
+					const name = selClass.val();
+					const cur = [...(this._state.classes || [])];
+					if (!cur[ix] || cur[ix].cls === name) return;
+					cur[ix] = {...cur[ix], cls: name, sub: ""};
+					this._state.classes = cur;
+					rebuildSubs();
+					this._onLevelOrClassChange({resetClass: ix === 0});
+				});
+
+				selSubclass.onn("change", () => {
+					const name = selSubclass.val();
+					const cur = [...(this._state.classes || [])];
+					if (!cur[ix] || cur[ix].sub === name) return;
+					cur[ix] = {...cur[ix], sub: name};
+					this._state.classes = cur;
+					this._applyClassData();
+					this.renderInput();
+					this.renderOutput();
+				});
+
+				selLevel.onn("change", () => {
+					const cur = [...(this._state.classes || [])];
+					if (!cur[ix]) return;
+					cur[ix] = {...cur[ix], level: parseInt(selLevel.val()) || 1};
+					this._state.classes = cur;
+					this._onLevelOrClassChange();
+				});
+
+				btnRemove.onn("click", () => {
+					const cur = [...(this._state.classes || [])];
+					if (cur.length <= 1) return;
+					cur.splice(ix, 1);
+					this._state.classes = cur;
+					this._onLevelOrClassChange({resetClass: false});
+					rebuildAllRows();
+				});
+
+				ee`<div class="ve-flex ve-flex-v-center mb-1 w-100">
+					${selClass}${selSubclass}${selLevel}${btnRemove}
+				</div>`.appendTo(wrpRows);
 			});
+			addBtn.appendTo(wrpRows);
 		};
 
-		const rebuildClassOptions = () => {
-			selClass.innerHTML = '<option value="">(None)</option>';
-			getFilteredClasses().forEach(c => {
-				const opt = document.createElement("option");
-				opt.value = c.name;
-				opt.textContent = c.name;
-				if (c.name === (this._state.class || "")) opt.selected = true;
-				selClass.appendChild(opt);
-			});
-			rebuildSubclassOptions();
-		};
+		addBtn.onn("click", () => {
+			const cur = [...(this._state.classes || [{cls: "", sub: "", level: 1}])];
+			cur.push({cls: "", sub: "", level: 1});
+			this._state.classes = cur;
+			rebuildAllRows();
+		});
 
-		const doApplySubclass = (name) => {
-			if (name === this._state.subclass) return;
-			this._state.subclass = name;
-			this._applyClassData();
-			this.renderInput();
-			this.renderOutput();
-		};
+		rebuildAllRows();
 
-		const doApplyClass = (name) => {
-			if (name === this._state.class) return;
-			this._state.class    = name;
-			this._state.subclass = "";
-			rebuildSubclassOptions();
-			this._onLevelOrClassChange({resetClass: true});
-		};
-
-		selClass.onn("change",    () => doApplyClass(selClass.val()));
-		selSubclass.onn("change", () => doApplySubclass(selSubclass.val()));
-
-		// When the edition toggle fires, rebuild both lists; clear state if no longer valid.
 		this._onEditionChange = () => {
 			const availableClasses = getFilteredClasses().map(c => c.name);
-			if (this._state.class && !availableClasses.includes(this._state.class)) {
-				doApplyClass("");
+			const cur = [...(this._state.classes || [])];
+			let changed = false;
+			cur.forEach((c, i) => {
+				if (c.cls && !availableClasses.includes(c.cls)) {
+					cur[i] = {cls: "", sub: "", level: c.level};
+					changed = true;
+				}
+			});
+			if (changed) {
+				this._state.classes = cur;
+				this._onLevelOrClassChange({resetClass: true});
 			}
-			rebuildClassOptions();
+			rebuildAllRows();
 		};
 
-		rebuildClassOptions();
-
-		ee`<div class="ve-flex w-100 ve-flex-v-center">${selClass}${selSubclass}</div>`.appendTo(rowInner);
 		wrp.append(row);
 	}
 
@@ -745,7 +794,7 @@ export class CharacterBuilder extends BuilderBase {
 
 
 	_autoSetSpellcastingAbility () {
-		const cls = this._state.class || "";
+		const cls = (this._state.classes?.[0]?.cls) || "";
 		if (!this._state.spellcastingAbility && _CASTER_CLASSES.has(cls)) {
 			const defaults = {
 				Bard: "cha", Cleric: "wis", Druid: "wis", Paladin: "cha",
@@ -784,7 +833,7 @@ export class CharacterBuilder extends BuilderBase {
 
 	_getClassEntry () {
 		if (!this._state) return null;
-		const clsName = this._state.class || "";
+		const clsName = (this._state.classes?.[0]?.cls) || "";
 		if (!clsName) return null;
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 		// Prefer edition-matching entry; fall back to any match
@@ -794,72 +843,165 @@ export class CharacterBuilder extends BuilderBase {
 		return preferred || matches[0];
 	}
 
-	_applyClassData () {
-		if (!this._state) return;   // called before state is ready — skip
-		const cls = this._getClassEntry();
-		const lvl = Math.max(1, Math.min(20, parseInt(this._state.level) || 1));
-		if (!cls) return;
+	_getClassEntries () {
+		const classes = this._state.classes || [];
+		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		return classes.map(c => {
+			const clsName = c.cls || "";
+			if (!clsName) return null;
+			const matches = this._allClasses.filter(x => x.name === clsName);
+			if (!matches.length) return null;
+			const preferred = matches.find(x => isNew ? x.edition === "one" : x.edition === "classic");
+			return preferred || matches[0];
+		});
+	}
 
-		// ── Spellcasting ability ────────────────────────────────────────────
-		if (cls.spellcastingAbility && !this._state.spellcastingAbility) {
-			this._state.spellcastingAbility = cls.spellcastingAbility;
+	_getTotalLevel () {
+		const classes = this._state.classes;
+		if (!classes?.length) return 1;
+		return classes.reduce((s, c) => s + Math.max(1, Math.min(20, parseInt(c.level) || 1)), 0);
+	}
+
+	_applyClassData () {
+		if (!this._state) return;
+		const classes = this._state.classes || [];
+		if (!classes.length) return;
+
+		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		const classEntries = this._getClassEntries();
+		const primaryCls = classEntries[0];
+		if (!primaryCls) return;
+
+		const totalLvl = this._getTotalLevel();
+
+		// ── Spellcasting ability ─────────────────────────────────────────────
+		if (primaryCls.spellcastingAbility && !this._state.spellcastingAbility) {
+			this._state.spellcastingAbility = primaryCls.spellcastingAbility;
 		}
 
-		// ── Spell slots ─────────────────────────────────────────────────────
-		const slotGroup = (cls.classTableGroups || []).find(g => g.rowsSpellProgression);
-		const pactGroup = (cls.classTableGroups || []).find(g => {
-			const labels = g.colLabels || [];
-			return !g.rowsSpellProgression
-				&& labels.some(l => l === "Spell Slots")
-				&& labels.some(l => l === "Slot Level");
-		});
-		if (slotGroup) {
-			const row = slotGroup.rowsSpellProgression[lvl - 1];
-			if (row) this._state.spellSlots = [...row];
-		} else if (pactGroup) {
-			// Pact Magic (e.g. Warlock): all slots are at a single level
-			const labels  = pactGroup.colLabels;
-			const iCount  = labels.indexOf("Spell Slots");
-			const iLevel  = labels.indexOf("Slot Level");
-			const row     = (pactGroup.rows || [])[lvl - 1];
-			if (row) {
-				const count     = parseInt(row[iCount]) || 0;
-				// Slot level encoded as "{@filter Nth|...|level=N|...}" or plain number
-				const levelCell = String(row[iLevel]);
-				const match     = levelCell.match(/\blevel=(\d+)/i);
-				const slotLvl   = match ? parseInt(match[1]) : parseInt(levelCell);
-				const slots     = [0,0,0,0,0,0,0,0,0];
-				if (slotLvl >= 1 && slotLvl <= 9) slots[slotLvl - 1] = count;
+		// ── Spell slots ──────────────────────────────────────────────────────
+		const _getCasterType = (clsEntry) => {
+			if (!clsEntry) return "none";
+			const slotGroup = (clsEntry.classTableGroups || []).find(g => g.rowsSpellProgression);
+			if (slotGroup) {
+				const rows = slotGroup.rowsSpellProgression;
+				const lastRow = rows[Math.min(19, rows.length - 1)];
+				if (lastRow?.[8] > 0) return "full";
+				if (lastRow?.[4] > 0) return "half";
+				if (lastRow?.[2] > 0) return "third";
+				return "full";
+			}
+			const pactGroup = (clsEntry.classTableGroups || []).find(g => {
+				const labels = g.colLabels || [];
+				return !g.rowsSpellProgression
+					&& labels.some(l => l === "Spell Slots")
+					&& labels.some(l => l === "Slot Level");
+			});
+			if (pactGroup) return "pact";
+			return "none";
+		};
+
+		const _getPactSlots = (clsEntry, clsLvl) => {
+			const pactGroup = (clsEntry.classTableGroups || []).find(g => {
+				const labels = g.colLabels || [];
+				return !g.rowsSpellProgression
+					&& labels.some(l => l === "Spell Slots")
+					&& labels.some(l => l === "Slot Level");
+			});
+			if (!pactGroup) return null;
+			const labels = pactGroup.colLabels;
+			const iCount = labels.indexOf("Spell Slots");
+			const iLevel = labels.indexOf("Slot Level");
+			const row = (pactGroup.rows || [])[clsLvl - 1];
+			if (!row) return null;
+			const count = parseInt(row[iCount]) || 0;
+			const levelCell = String(row[iLevel]);
+			const match = levelCell.match(/\blevel=(\d+)/i);
+			const slotLvl = match ? parseInt(match[1]) : parseInt(levelCell);
+			if (slotLvl < 1 || slotLvl > 9) return null;
+			return {count, slotLvl};
+		};
+
+		if (classes.length === 1) {
+			// Single class — original logic
+			const cls = primaryCls;
+			const lvl = Math.max(1, Math.min(20, parseInt(classes[0].level) || 1));
+			const slotGroup = (cls.classTableGroups || []).find(g => g.rowsSpellProgression);
+			const casterType = _getCasterType(cls);
+			if (slotGroup) {
+				const row = slotGroup.rowsSpellProgression[lvl - 1];
+				if (row) this._state.spellSlots = [...row];
+				else this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
+			} else if (casterType === "pact") {
+				const pact = _getPactSlots(cls, lvl);
+				const slots = [0,0,0,0,0,0,0,0,0];
+				if (pact) slots[pact.slotLvl - 1] = pact.count;
 				this._state.spellSlots = slots;
+			} else {
+				this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
 			}
 		} else {
-			// No spell slots for non-casters
-			this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
+			// Multiclass — combine spell slots using D&D 5e rules
+			const _MC_SLOTS = [
+				[2,0,0,0,0,0,0,0,0], [3,0,0,0,0,0,0,0,0], [4,2,0,0,0,0,0,0,0],
+				[4,3,0,0,0,0,0,0,0], [4,3,2,0,0,0,0,0,0], [4,3,3,0,0,0,0,0,0],
+				[4,3,3,1,0,0,0,0,0], [4,3,3,2,0,0,0,0,0], [4,3,3,3,1,0,0,0,0],
+				[4,3,3,3,2,0,0,0,0], [4,3,3,3,2,1,0,0,0], [4,3,3,3,2,1,0,0,0],
+				[4,3,3,3,2,1,1,0,0], [4,3,3,3,2,1,1,0,0], [4,3,3,3,2,1,1,1,0],
+				[4,3,3,3,2,1,1,1,0], [4,3,3,3,2,1,1,1,1], [4,3,3,3,3,1,1,1,1],
+				[4,3,3,3,3,2,1,1,1], [4,3,3,3,3,2,2,1,1],
+			];
+			let effectiveCasterLevel = 0;
+			const pactSlotsList = [];
+
+			classes.forEach((c, i) => {
+				const entry = classEntries[i];
+				if (!entry) return;
+				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+				const casterType = _getCasterType(entry);
+				if (casterType === "full")  effectiveCasterLevel += clsLvl;
+				else if (casterType === "half")  effectiveCasterLevel += Math.floor(clsLvl / 2);
+				else if (casterType === "third") effectiveCasterLevel += Math.floor(clsLvl / 3);
+				else if (casterType === "pact") {
+					const pact = _getPactSlots(entry, clsLvl);
+					if (pact) pactSlotsList.push(pact);
+				}
+			});
+
+			const combinedSlots = effectiveCasterLevel > 0
+				? [...(_MC_SLOTS[Math.min(19, effectiveCasterLevel - 1)] || [0,0,0,0,0,0,0,0,0])]
+				: [0,0,0,0,0,0,0,0,0];
+
+			pactSlotsList.forEach(({count, slotLvl}) => {
+				combinedSlots[slotLvl - 1] = (combinedSlots[slotLvl - 1] || 0) + count;
+			});
+
+			this._state.spellSlots = combinedSlots;
 		}
 
-		// ── Hit dice ────────────────────────────────────────────────────────
-		if (cls.hd) {
-			this._state.hitDice = `${lvl}d${cls.hd.faces}`;
-		}
+		// ── Hit dice (combined for multiclass) ───────────────────────────────
+		const hitDiceParts = [];
+		classes.forEach((c, i) => {
+			const entry = classEntries[i];
+			if (!entry?.hd) return;
+			const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+			hitDiceParts.push(`${clsLvl}d${entry.hd.faces}`);
+		});
+		this._state.hitDice = hitDiceParts.join("+") || "";
 
-		// ── Armor proficiencies ─────────────────────────────────────────────
-		const sp = cls.startingProficiencies || {};
+		// ── Armor proficiencies (primary class only) ─────────────────────────
+		const sp = primaryCls.startingProficiencies || {};
 		if (sp.armor && !this._state.armorProfs?.length) {
-			const ARMOR_MAP = {
-				"light": "Light", "medium": "Medium", "heavy": "Heavy", "shield": "Shields",
-			};
-			this._state.armorProfs = sp.armor
-				.map(a => ARMOR_MAP[a.toLowerCase()] || a)
-				.filter(Boolean);
+			const ARMOR_MAP = {"light": "Light", "medium": "Medium", "heavy": "Heavy", "shield": "Shields"};
+			this._state.armorProfs = sp.armor.map(a => ARMOR_MAP[a.toLowerCase()] || a).filter(Boolean);
 		}
 
-		// ── Weapon proficiencies ────────────────────────────────────────────
+		// ── Weapon proficiencies (primary class only) ────────────────────────
 		if (sp.weapons && !this._state.weaponProfs?.length) {
 			const WEAPON_MAP = {"simple": "Simple weapons", "martial": "Martial weapons"};
 			this._state.weaponProfs = sp.weapons.map(w => {
 				const lower = w.toLowerCase();
 				if (WEAPON_MAP[lower]) return WEAPON_MAP[lower];
-				// Strip 5etools tags like {@item longsword|phb|longswords}
 				const tagMatch = w.match(/\{@\w+ [^|]+\|[^|]+\|([^}]+)\}/);
 				if (tagMatch) return tagMatch[1];
 				const simpleTag = w.match(/\{@\w+ ([^|}]+)[|}]/);
@@ -868,70 +1010,74 @@ export class CharacterBuilder extends BuilderBase {
 			}).filter(Boolean);
 		}
 
-		// ── Saving throw proficiencies ──────────────────────────────────────
-		if (cls.proficiency && !this._state.savingThrowProfs?.length) {
-			this._state.savingThrowProfs = [...cls.proficiency];
+		// ── Saving throw proficiencies (primary class only) ──────────────────
+		if (primaryCls.proficiency && !this._state.savingThrowProfs?.length) {
+			this._state.savingThrowProfs = [...primaryCls.proficiency];
 		}
 
-		// ── Skill choices info (stored for UI prompt) ───────────────────────
+		// ── Skill choices (primary class only) ──────────────────────────────
 		const skillEntry = (sp.skills || [])[0];
 		if (skillEntry) {
 			if (skillEntry.any) {
 				this._state._skillChoiceCount = skillEntry.any;
-				this._state._skillChoiceFrom  = null; // any skill
+				this._state._skillChoiceFrom  = null;
 			} else if (skillEntry.choose) {
 				this._state._skillChoiceCount = skillEntry.choose.count || 2;
 				this._state._skillChoiceFrom  = skillEntry.choose.from || null;
 			}
 		}
 
-		// ── Class features text ─────────────────────────────────────────────
-		// classFeatures is a 2D array (per level) of fully-resolved feature objects
-		// after DataUtil.class.loadJSON(). Flatten, filter by level, render to plain text.
+		// ── Class features (from ALL classes) ───────────────────────────────
 		const featureLines = [];
 		const _pushFeature = (featureLvl, feature) => {
 			const name = feature.name || "";
 			const text = CharacterBuilder._renderFeatureToPlainText(feature);
-			featureLines.push(`[L${featureLvl}] ${name}
-${text}`);
+			featureLines.push(`[L${featureLvl}] ${name}\n${text}`);
 		};
-		(cls.classFeatures || []).forEach((lvlFeatures, ixLvl) => {
-			const featureLvl = ixLvl + 1;
-			if (featureLvl > lvl) return;
-			(Array.isArray(lvlFeatures) ? lvlFeatures : []).forEach(feature => {
-				if (feature.gainSubclassFeature) return;
-				_pushFeature(featureLvl, feature);
-			});
-		});
 
-		// ── Subclass features ────────────────────────────────────
-		const _scName  = (this._state.subclass || "").toLowerCase();
-		const _clsKey  = (cls.name || "").toLowerCase();
-		const _isNew   = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
-		if (_scName) {
-			const _scList = this._allSubclasses[_clsKey] || [];
-			const _nameMatches = _scList.filter(s => (s.name || "").toLowerCase() === _scName);
-			const _sc = _isNew
-				? (_nameMatches.find(s => s.edition === "one") || _nameMatches[0])
-				: (_nameMatches.find(s => s.edition === "classic") || _nameMatches.find(s => s.edition !== "one") || _nameMatches[0]);
-			if (_sc) {
-				const _scShort  = (_sc.shortName || "").toLowerCase();
-				const _scSource = _sc.source || "";
-				(this._allSubclassFeatures || []).forEach(feature => {
-					if ((feature.className || "").toLowerCase() !== _clsKey) return;
-					if ((feature.subclassShortName || "").toLowerCase() !== _scShort) return;
-					if (_scSource && feature.subclassSource && feature.subclassSource !== _scSource) return;
-					const featureLvl = feature.level || 0;
-					if (!featureLvl || featureLvl > lvl) return;
+		classes.forEach((c, i) => {
+			const entry = classEntries[i];
+			if (!entry) return;
+			const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+			const subName = (c.sub || "").toLowerCase();
+			const clsKey  = (entry.name || "").toLowerCase();
+			const _isNew  = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+
+			(entry.classFeatures || []).forEach((lvlFeatures, ixLvl) => {
+				const featureLvl = ixLvl + 1;
+				if (featureLvl > clsLvl) return;
+				(Array.isArray(lvlFeatures) ? lvlFeatures : []).forEach(feature => {
+					if (feature.gainSubclassFeature) return;
 					_pushFeature(featureLvl, feature);
 				});
-				featureLines.sort((a, b) => {
-					const getLvl = s => parseInt((s.match(/^\[L(\d+)\]/) || [])[1] || 0);
-					return getLvl(a) - getLvl(b);
-				});
+			});
+
+			if (subName) {
+				const _scList = this._allSubclasses[clsKey] || [];
+				const _nameMatches = _scList.filter(s => (s.name || "").toLowerCase() === subName);
+				const _sc = _isNew
+					? (_nameMatches.find(s => s.edition === "one") || _nameMatches[0])
+					: (_nameMatches.find(s => s.edition === "classic") || _nameMatches.find(s => s.edition !== "one") || _nameMatches[0]);
+				if (_sc) {
+					const _scShort  = (_sc.shortName || "").toLowerCase();
+					const _scSource = _sc.source || "";
+					(this._allSubclassFeatures || []).forEach(feature => {
+						if ((feature.className || "").toLowerCase() !== clsKey) return;
+						if ((feature.subclassShortName || "").toLowerCase() !== _scShort) return;
+						if (_scSource && feature.subclassSource && feature.subclassSource !== _scSource) return;
+						const featureLvl = feature.level || 0;
+						if (!featureLvl || featureLvl > clsLvl) return;
+						_pushFeature(featureLvl, feature);
+					});
+				}
 			}
-		}
-		// Preserve user-set exclusions across level changes
+		});
+
+		featureLines.sort((a, b) => {
+			const getLvl = s => parseInt((s.match(/^\[L(\d+)\]/) || [])[1] || 0);
+			return getLvl(a) - getLvl(b);
+		});
+
 		const oldItems = this._state.classFeatureItems || [];
 		const oldExcluded = new Set(oldItems.filter(i => i.excluded).map(i => i.text));
 		this._state.classFeatureItems = featureLines.map(text => ({text, excluded: oldExcluded.has(text)}));
@@ -2213,7 +2359,7 @@ ${text}`);
 			const hasFeatSave      = () => (this._state.featSavingThrowProfs || []).some(p => p.toLowerCase() === (_ABILITY_FULL[abl] || abl).toLowerCase());
 			const isSaveProficient = () => (this._state.savingThrowProfs || []).includes(abl) || hasFeatSave();
 			const getBonus = () => {
-				const pb  = this._state.profBonusOverride ?? _profBonus(this._state.level || 1);
+				const pb  = this._state.profBonusOverride ?? _profBonus(this._getTotalLevel());
 				const mod = _abilMod(this._state[abl] || 10);
 				return mod + (isSaveProficient() ? pb : 0);
 			};
@@ -2233,7 +2379,7 @@ ${text}`);
 			if (isSaveProficient()) btnProf.addClass("active");
 
 			this._addHook("state", abl,                    () => dispBonus.txt(_fmtMod(getBonus())));
-			this._addHook("state", "level",                () => dispBonus.txt(_fmtMod(getBonus())));
+			this._addHook("state", "classes",              () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "profBonusOverride",    () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
 
@@ -2265,7 +2411,7 @@ ${text}`);
 			const isHalfProf   = () => (this._state.skillHalfProfs || []).includes(name);
 
 			const getBonus = () => {
-				const pb  = this._state.profBonusOverride ?? _profBonus(this._state.level || 1);
+				const pb  = this._state.profBonusOverride ?? _profBonus(this._getTotalLevel());
 				const mod = _abilMod(this._state[ability] || 10);
 				if (isExpert())     return mod + pb * 2;
 				if (isProficient()) return mod + pb;
@@ -2276,7 +2422,7 @@ ${text}`);
 			const dispBonus = ee`<span class="ve-muted mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
 			const updateBonus = () => dispBonus.txt(_fmtMod(getBonus()));
 			this._addHook("state", ability,            updateBonus);
-			this._addHook("state", "level",            updateBonus);
+			this._addHook("state", "classes",          updateBonus);
 			this._addHook("state", "skillHalfProfs",   updateBonus);
 			this._addHook("state", "profBonusOverride", updateBonus);
 
@@ -2399,13 +2545,22 @@ ${text}`);
 
 		const buildHpSection = () => {
 			wrpHpContent.empty();
-			const faces   = this._getClassHitDie();
-			const level   = this._state.level || 1;
-			const conMod  = _abilMod(this._state.con || 10);
-			const isAuto  = (this._state.hpMode || "auto") === "auto";
-			const conStr  = conMod >= 0 ? `+${conMod}` : `${conMod}`;
+			const classEntries = this._getClassEntries();
+			const totalLevel  = this._getTotalLevel();
+			const conMod      = _abilMod(this._state.con || 10);
+			const isAuto      = (this._state.hpMode || "auto") === "auto";
+			const conStr      = conMod >= 0 ? `+${conMod}` : `${conMod}`;
 
-			// Mode toggle
+			// Build ordered list of {faces} for each character level:
+			// primary class L1, L2..N, secondary L1..M, ...
+			const _levelDice = [];
+			(this._state.classes || [{cls: "", sub: "", level: 1}]).forEach((c, ci) => {
+				const entry = classEntries[ci];
+				const faces = entry?.hd?.faces || null;
+				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+				for (let i = 0; i < clsLvl; i++) _levelDice.push(faces);
+			});
+
 			const btnAuto   = ee`<button class="ve-btn ve-btn-xs ${isAuto  ? "ve-btn-primary" : "ve-btn-default"} mr-1">Auto</button>`;
 			const btnRolled = ee`<button class="ve-btn ve-btn-xs ${!isAuto ? "ve-btn-primary" : "ve-btn-default"}">Rolled</button>`;
 			btnAuto  .onn("click", () => { this._state.hpMode = "auto";   buildHpSection(); cb(); });
@@ -2416,36 +2571,44 @@ ${text}`);
 			let iptHp = null;
 
 			if (isAuto) {
-				const avgPerLvl = faces ? Math.floor(faces / 2) + 1 : 0;
-				calcMax = faces ? faces + (level - 1) * avgPerLvl + conMod * level : 0;
-				if (faces) {
-					const parts = [`(${faces}${conStr})`];
-					for (let i = 1; i < level; i++) parts.push(`(${avgPerLvl}${conStr})`);
+				if (_levelDice.length && _levelDice[0] != null) {
+					calcMax = _levelDice[0]; // L1 = max die
+					for (let i = 1; i < _levelDice.length; i++) {
+						const f = _levelDice[i];
+						calcMax += f != null ? Math.floor(f / 2) + 1 : 0;
+					}
+					calcMax += conMod * totalLevel;
+					const parts = [`(${_levelDice[0]}${conStr})`];
+					for (let i = 1; i < _levelDice.length; i++) {
+						const f = _levelDice[i];
+						parts.push(`(${f != null ? Math.floor(f / 2) + 1 : "?"}${conStr})`);
+					}
 					ee`<div class="ve-muted mb-1" style="font-size:.8em">${parts.join("+")}</div>`.appendTo(wrpHpContent);
 				} else {
 					ee`<div class="ve-muted mb-1" style="font-size:.8em">Select a class first</div>`.appendTo(wrpHpContent);
 				}
 			} else {
-				// Rolled — level 1 is always max; levels 2..N get individual inputs
 				if (!Array.isArray(this._state.hpRolls)) this._state.hpRolls = [];
 				const hpRolls = this._state.hpRolls;
-				const lvl1Max = faces || 0;
+				const lvl1Max = _levelDice[0] ?? 0;
 
-				const wrpRolls = ee`<div class="ve-flex ve-flex-wrap ve-flex-v-center mb-1"></div>`.appendTo(wrpHpContent);
+				const wrpRolls    = ee`<div class="ve-flex ve-flex-wrap ve-flex-v-center mb-1"></div>`.appendTo(wrpHpContent);
+				const dispBreakdown = ee`<div class="ve-muted mb-1" style="font-size:.8em"></div>`.appendTo(wrpHpContent);
+
 				ee`<span class="ve-muted mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.appendTo(wrpRolls);
 
-				const dispBreakdown = ee`<div class="ve-muted mb-1" style="font-size:.8em"></div>`.appendTo(wrpHpContent);
 				const recalc = () => {
-					calcMax = lvl1Max + hpRolls.slice(0, level - 1).reduce((s, v) => s + (v || 0), 0) + conMod * level;
+					calcMax = lvl1Max + hpRolls.slice(0, totalLevel - 1).reduce((s, v) => s + (v || 0), 0) + conMod * totalLevel;
 					const parts = [`(${lvl1Max}${conStr})`];
-					for (let i = 0; i < level - 1; i++) parts.push(`(${hpRolls[i] ?? "?"}${conStr})`);
+					for (let i = 0; i < totalLevel - 1; i++) parts.push(`(${hpRolls[i] ?? "?"}${conStr})`);
 					dispBreakdown.txt(parts.join("+"));
 					this._state.hpMax = calcMax;
 					if (iptHp) iptHp.val(calcMax);
 				};
 
-				for (let i = 0; i < level - 1; i++) {
-					const ipt = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" max="${faces || 20}" style="width:42px" placeholder="${faces ? Math.floor(faces / 2) + 1 : "?"}">`;
+				for (let i = 0; i < totalLevel - 1; i++) {
+					const rollDie = _levelDice[i + 1];
+					const ipt = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" max="${rollDie || 20}" style="width:42px" placeholder="${rollDie != null ? Math.floor(rollDie / 2) + 1 : "?"}">`;
 					if (hpRolls[i] != null) ipt.val(hpRolls[i]);
 					ipt.onn("change", () => { hpRolls[i] = UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN: 0}) || null; recalc(); cb(); });
 					ee`<span class="ve-muted" style="font-size:.75em;margin-right:1px">L${i + 2}</span>`.appendTo(wrpRolls);
@@ -2477,7 +2640,7 @@ ${text}`);
 		BuilderUi.getStateIptNumber("Initiative Override", cb, this._state, {nullable: true, placeholder: "Auto (Dex mod)"}, "initiative").appendTo(wrp);
 
 		// Prof bonus
-		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._state.level || 1)})`}, "profBonusOverride").appendTo(wrp);
+		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._getTotalLevel())})`}, "profBonusOverride").appendTo(wrp);
 
 		// Weapons table
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
@@ -2840,7 +3003,7 @@ ${text}`);
 		if (!this._state) return;
 		const dexMod = _abilMod(this._state.dex || 10);
 		const strMod = _abilMod(this._state.str || 10);
-		const prof   = _profBonus(this._state.level || 1);
+		const prof   = _profBonus(this._getTotalLevel());
 		const all    = [...(this._state.equipment || []), ...(this._state.magicEquipment || [])];
 		const equipped = all.filter(it => it.equipped);
 
@@ -3152,7 +3315,8 @@ ${text}`);
 
 	_doExportStatblock () {
 		const s = this._state;
-		const prof = s.profBonusOverride ?? _profBonus(s.level || 1);
+		const _stLevel = s => (s.classes || [{level: s.level || 1}]).reduce((a, c) => a + Math.max(1, parseInt(c.level) || 1), 0);
+		const prof = s.profBonusOverride ?? _profBonus(_stLevel(s));
 		const _mod = score => _abilMod(score);
 		const _modStr = score => { const m = _mod(score); return `${m >= 0 ? "+" : ""}${m}`; };
 		const _scoreCell = score => `${score} (${_modStr(score)})`;
@@ -3186,7 +3350,10 @@ ${text}`);
 		const passPerc = 10 + _mod(s.wis || 10) + (allSkillProfs.has("Perception") ? (allExpertise.has("Perception") ? prof * 2 : prof) : 0);
 		const ac = s.equippedAC != null ? s.equippedAC + (s.equippedShield ? 2 : 0) : s.ac;
 		const languages = [...(s.languages || []), ...(s.featLanguages || [])].join(", ") || "\u2014";
-		const classLine = [s.class, s.subclass].filter(Boolean).join(", ");
+		const classLine = (s.classes || (s.class ? [{cls: s.class, sub: s.subclass, level: s.level}] : []))
+			.filter(c => c.cls)
+			.map(c => `${c.cls}${c.sub ? ` (${c.sub})` : ""} ${c.level}`)
+			.join(" / ");
 
 		const lines = [
 			`## ${s.name || "Character"}`,
@@ -3195,7 +3362,7 @@ ${text}`);
 			`---`,
 			``,
 			`**Armor Class** ${ac}  `,
-			`**Hit Points** ${s.hpMax || 0} (${s.hitDice || `${s.level || 1}d8`})  `,
+			`**Hit Points** ${s.hpMax || 0} (${s.hitDice || `${_stLevel(s)}d8`})  `,
 			`**Speed** ${s.speed || 30} ft.  `,
 			``,
 			`---`,
@@ -3212,7 +3379,7 @@ ${text}`);
 		lines.push(`**Senses** passive Perception ${passPerc}  `);
 		lines.push(`**Languages** ${languages}  `);
 		lines.push(`**Proficiency Bonus** +${prof}  `);
-		if (classLine) lines.push(`**Class** ${classLine}, Level ${s.level || 1}  `);
+		if (classLine) lines.push(`**Class** ${classLine}  `);
 		if (s.background) lines.push(`**Background** ${s.background}  `);
 		lines.push(``, `---`, ``);
 
@@ -3319,10 +3486,12 @@ ${text}`);
 		// For manual mode the raw state value is the base score; add race/bg/feat
 		// bonuses so the PDF reflects the true total.  For other modes _sg_syncAbilityScores
 		// already wrote the total into state, so we just read it directly.
+		const _stLevel = s => (s.classes || [{level: s.level || 1}]).reduce((a, c) => a + Math.max(1, parseInt(c.level) || 1), 0);
+		const totalLevel = _stLevel(s);
 		const totalAbl   = (abl) => Math.min(20, (s.sg_mode || "manual") === "manual"
 			? (s[abl] || 10) + this._sg_getRaceBonus(abl) + this._sg_getBgBonus(abl) + this._sg_getFeatBonus(abl)
 			: (s[abl] || 10));
-		const profBonus  = s.profBonusOverride ?? _profBonus(s.level || 1);
+		const profBonus  = s.profBonusOverride ?? _profBonus(totalLevel);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
 		const initiative = s.initiative ?? abilMods.dex;
 		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : (s.skillProfs||[]).includes("Perception") ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
@@ -3428,14 +3597,13 @@ ${text}`);
 		// Banner
 		inFieldL(v(s.name,"New Character"),     26.6, 18.8, 248.1, 33.6,  9);
 		inFieldL(v(s.background),               25.5, 42.0, 145.4, 55.5,  8);
-		inFieldL(v(s.class),                   150.6, 42.0, 248.8, 55.5,  8);
-		inFieldL(v(s.species),                  25.0, 63.2, 145.2, 77.4,  8);
-		inFieldL(v(s.subclass),                150.6, 63.2, 249.2, 77.3,  8);
-		inField (v(s.level||1),               266.2, 28.7, 293.5, 51.0, 14, true);
+		inFieldL(v((s.classes || [])[0]?.cls || s.class),  150.6, 42.0, 248.8, 55.5,  8);
+		inFieldL(v(s.species),                              25.0, 63.2, 145.2, 77.4,  8);
+		inFieldL(v((s.classes || [])[0]?.sub || s.subclass), 150.6, 63.2, 249.2, 77.3,  8);
+		inField (v(totalLevel),                             266.2, 28.7, 293.5, 51.0, 14, true);
 		inField (String(effectiveAC),         325.5, 40.4, 362.8, 63.2, 14, true);
 		inField (v(s.hpMax,"0"),              444.9, 61.7, 488.2, 75.6, 10, true);
-		const _hitDiceFaces = this._getClassHitDie();
-		const _hitDiceStr   = _hitDiceFaces ? `${s.level || 1}d${_hitDiceFaces}` : v(s.hitDice, "");
+		const _hitDiceStr = v(s.hitDice, "");
 		inField (v(_hitDiceStr,""),           499.8, 61.7, 537.5, 75.8,  8);
 
 		// Death saves — left blank for player to fill in
@@ -3538,7 +3706,7 @@ ${text}`);
 				const data = this._getSpellEntry(sp.name);
 				if (!data || data.level !== 0 || !data.damageInflict?.length) return null;
 				if (_hiddenWpn.has(sp.name)) return null;
-				const lvl = parseInt(s.level) || 1;
+				const lvl = totalLevel;
 				let die = "";
 				if (data.scalingLevelDice?.scaling) {
 					const thresholds = Object.keys(data.scalingLevelDice.scaling).map(Number).sort((a,b)=>a-b);
