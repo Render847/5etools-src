@@ -149,7 +149,7 @@ export class CharacterBuilder extends BuilderBase {
 		// loadJSON() returns resolved class/subclass; loadRawJSON() adds subclassFeature entries
 		const pLoadClasses = () => Promise.all([
 			DataUtil.class.loadJSON().catch(() => ({class: [], subclass: []})),
-			DataUtil.class.loadRawJSON().catch(() => ({})),
+			DataUtil.class.loadRawJSON().catch(() => ({subclassFeature: []})),
 		]).then(([resolved, raw]) => ({...resolved, subclassFeature: raw.subclassFeature || []}));
 
 		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, items] = await Promise.all([
@@ -435,11 +435,11 @@ export class CharacterBuilder extends BuilderBase {
 		// Class dropdown
 		this._buildClassInput(wrp, cb);
 
-		// Background
-		this._buildBackgroundInput(wrp, cb);
-
 		// Species / Race
 		this._buildSpeciesInput(wrp, cb);
+
+		// Background
+		this._buildBackgroundInput(wrp, cb);
 
 		// Alignment
 		BuilderUi.getStateIptEnum(
@@ -526,8 +526,8 @@ export class CharacterBuilder extends BuilderBase {
 			btnNew.toggleClass("ve-btn-primary", using2024).toggleClass("ve-btn-default", !using2024);
 		};
 
-		btnClassic.onn("click", () => { this._state.styleHint = SITE_STYLE__CLASSIC; doUpdate(); this._onEditionChange?.(); cb(); });
-		btnNew.onn("click",     () => { this._state.styleHint = SITE_STYLE__ONE;     doUpdate(); this._onEditionChange?.(); cb(); });
+		btnClassic.onn("click", () => { this._state.styleHint = SITE_STYLE__CLASSIC; doUpdate(); this._onEditionChange?.(); this.renderInput(); cb(); });
+		btnNew.onn("click",     () => { this._state.styleHint = SITE_STYLE__ONE;     doUpdate(); this._onEditionChange?.(); this.renderInput(); cb(); });
 
 		ee`<div class="ve-flex">${btnClassic}${btnNew}</div>`.appendTo(rowInner);
 		return row;
@@ -754,7 +754,8 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	_buildSpeciesInput (wrp, cb) {
-		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Species / Race");
+		const _isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple(_isNew ? "Species" : "Race");
 
 		const dlId = "cb-species-dl";
 		if (!document.getElementById(dlId)) {
@@ -2017,14 +2018,15 @@ export class CharacterBuilder extends BuilderBase {
 			: (matches.find(b => b.edition === "classic") || matches.find(b => b.edition !== "one") || matches[0]);
 	}
 
-	_sg_getRaceBonus (abl) {
-		const obj = this._sg_getEntityAbilityObj(this._sg_getSpeciesEntry(), "race_ixAbilitySet");
-		return this._sg_calcEntityBonus(abl, obj, "race_choice_from", "race_choice_weighted");
-	}
-
-	_sg_getBgBonus (abl) {
-		const obj = this._sg_getEntityAbilityObj(this._sg_getBgEntry(), "bg_ixAbilitySet");
-		return this._sg_calcEntityBonus(abl, obj, "bg_choice_from", "bg_choice_weighted");
+	_sg_getAsiBonus (abl) {
+		const _isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		if (_isNew) {
+			const obj = this._sg_getEntityAbilityObj(this._sg_getBgEntry(), "bg_ixAbilitySet");
+			return this._sg_calcEntityBonus(abl, obj, "bg_choice_from", "bg_choice_weighted");
+		} else {
+			const obj = this._sg_getEntityAbilityObj(this._sg_getSpeciesEntry(), "race_ixAbilitySet");
+			return this._sg_calcEntityBonus(abl, obj, "race_choice_from", "race_choice_weighted");
+		}
 	}
 
 	// Sum ability score bonuses granted by active feats for one ability.
@@ -2058,8 +2060,7 @@ export class CharacterBuilder extends BuilderBase {
 		if ((this._state.sg_mode || "manual") === "manual") return;
 		_ABILITIES.forEach(abl => {
 			this._state[abl] = Math.min(20, this._sg_getBase(abl)
-				+ this._sg_getRaceBonus(abl)
-				+ this._sg_getBgBonus(abl)
+				+ this._sg_getAsiBonus(abl)
 				+ this._sg_getFeatBonus(abl));
 		});
 	}
@@ -2081,13 +2082,12 @@ export class CharacterBuilder extends BuilderBase {
 		const mode     = this._state.sg_mode || "manual";
 		const isManual = mode === "manual";
 
-		const raceBonus = _ABILITIES.map(a => this._sg_getRaceBonus(a));
-		const bgBonus   = _ABILITIES.map(a => this._sg_getBgBonus(a));
+		const _isNew    = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		const asiBonus  = _ABILITIES.map(a => this._sg_getAsiBonus(a));
 		const featBonus = _ABILITIES.map(a => this._sg_getFeatBonus(a));
-		const hasRace   = raceBonus.some(b => b !== 0);
-		const hasBg     = bgBonus.some(b => b !== 0);
+		const hasAsi    = asiBonus.some(b => b !== 0);
 		const hasFeat   = featBonus.some(b => b !== 0);
-		const showExtra = !isManual || hasRace || hasBg || hasFeat;
+		const showExtra = !isManual || hasAsi || hasFeat;
 
 		// ── Header row ───────────────────────────────────────────────────
 		const hdr = ee`<div class="ve-flex-v-center mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
@@ -2095,8 +2095,7 @@ export class CharacterBuilder extends BuilderBase {
 		const baseLabel = {manual: "Score", roll: "Assign", array: "Array", pointbuy: "Score"}[mode];
 		hdr.appends(ee`<span class="ve-text-center" style="min-width:80px">${baseLabel}</span>`);
 		if (showExtra) {
-			hdr.appends(ee`<span class="ve-text-center" style="width:46px">+Race</span>`);
-			hdr.appends(ee`<span class="ve-text-center" style="width:38px">+BG</span>`);
+			hdr.appends(ee`<span class="ve-text-center" style="width:46px">${_isNew ? "+BG" : "+Race"}</span>`);
 			if (hasFeat) hdr.appends(ee`<span class="ve-text-center" style="width:42px">+Feat</span>`);
 			hdr.appends(ee`<span class="ve-text-center" style="width:46px">Total</span>`);
 		}
@@ -2110,7 +2109,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			const getScore = () => {
 				const base = isManual ? (this._state[abl] ?? 10) : this._sg_getBase(abl);
-				return base + this._sg_getRaceBonus(abl) + this._sg_getBgBonus(abl) + this._sg_getFeatBonus(abl);
+				return base + this._sg_getAsiBonus(abl) + this._sg_getFeatBonus(abl);
 			};
 
 			let dispTotal = null;
@@ -2193,11 +2192,9 @@ export class CharacterBuilder extends BuilderBase {
 			row.appends(baseCell);
 
 			if (showExtra) {
-				const rB = raceBonus[ablIdx];
-				const bB = bgBonus[ablIdx];
+				const aB = asiBonus[ablIdx];
 				const fB = featBonus[ablIdx];
-				row.appends(ee`<span class="ve-text-center ve-muted" style="width:46px">${rB >= 0 ? "+" : ""}${rB}</span>`);
-				row.appends(ee`<span class="ve-text-center ve-muted" style="width:38px">${bB >= 0 ? "+" : ""}${bB}</span>`);
+				row.appends(ee`<span class="ve-text-center ve-muted" style="width:46px">${aB >= 0 ? "+" : ""}${aB}</span>`);
 				if (hasFeat) row.appends(ee`<span class="ve-text-center ve-muted" style="width:42px">${fB >= 0 ? "+" : ""}${fB}</span>`);
 				row.appends(dispTotal);
 			}
@@ -2253,20 +2250,14 @@ export class CharacterBuilder extends BuilderBase {
 	// ── Ability choice UI (choose.from / choose.weighted / multiple sets) ─────
 
 	_sg_buildAbilityChoices (wrp, cb, onChoiceChange) {
+		const _isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 		const entities = [
 			{
-				label:        "Species",
-				data:         this._sg_getSpeciesEntry(),
-				ixSetProp:    "race_ixAbilitySet",
-				choiceFrom:   "race_choice_from",
-				choiceWeight: "race_choice_weighted",
-			},
-			{
-				label:        "Background",
-				data:         this._sg_getBgEntry(),
-				ixSetProp:    "bg_ixAbilitySet",
-				choiceFrom:   "bg_choice_from",
-				choiceWeight: "bg_choice_weighted",
+				label:        _isNew ? "Background" : "Race",
+				data:         _isNew ? this._sg_getBgEntry() : this._sg_getSpeciesEntry(),
+				ixSetProp:    _isNew ? "bg_ixAbilitySet" : "race_ixAbilitySet",
+				choiceFrom:   _isNew ? "bg_choice_from" : "race_choice_from",
+				choiceWeight: _isNew ? "bg_choice_weighted" : "race_choice_weighted",
 			},
 		];
 
@@ -3511,7 +3502,7 @@ export class CharacterBuilder extends BuilderBase {
 		const _stLevel = s => (s.classes || [{level: s.level || 1}]).reduce((a, c) => a + Math.max(1, parseInt(c.level) || 1), 0);
 		const totalLevel = _stLevel(s);
 		const totalAbl   = (abl) => Math.min(20, (s.sg_mode || "manual") === "manual"
-			? (s[abl] || 10) + this._sg_getRaceBonus(abl) + this._sg_getBgBonus(abl) + this._sg_getFeatBonus(abl)
+			? (s[abl] || 10) + this._sg_getAsiBonus(abl) + this._sg_getFeatBonus(abl)
 			: (s[abl] || 10));
 		const profBonus  = s.profBonusOverride ?? _profBonus(totalLevel);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
