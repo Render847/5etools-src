@@ -1296,6 +1296,7 @@
 			"className": "Artificer",
 			"classSource": "EFA",
 			"page": 12,
+			"edition": "one",
 			"additionalSpells": [
 				{
 					"prepared": {
@@ -1353,6 +1354,7 @@
 			"className": "Artificer",
 			"classSource": "EFA",
 			"page": 14,
+			"edition": "one",
 			"additionalSpells": [
 				{
 					"prepared": {
@@ -1394,6 +1396,7 @@
 			"className": "Artificer",
 			"classSource": "EFA",
 			"page": 16,
+			"edition": "one",
 			"additionalSpells": [
 				{
 					"prepared": {
@@ -1435,6 +1438,7 @@
 			"className": "Artificer",
 			"classSource": "EFA",
 			"page": 18,
+			"edition": "one",
 			"additionalSpells": [
 				{
 					"prepared": {
@@ -1476,6 +1480,7 @@
 			"className": "Artificer",
 			"classSource": "EFA",
 			"page": 20,
+			"edition": "one",
 			"additionalSpells": [
 				{
 					"prepared": {

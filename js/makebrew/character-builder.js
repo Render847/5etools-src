@@ -286,6 +286,7 @@ export class CharacterBuilder extends BuilderBase {
 				// spells
 			spellcastingAbility: "",
 			spellSlots: [0,0,0,0,0,0,0,0,0],
+			pactSlots: [0,0,0,0,0,0,0,0,0],
 			spellSlotsUsed: [0,0,0,0,0,0,0,0,0],
 			spells: [], // [{name, source, level, prepared}]
 			hpMode:  "auto", // "auto" | "rolled"
@@ -455,6 +456,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.classFeatureItems = [];
 			this._state.hitDice           = "";
 			this._state.spellSlots        = [0,0,0,0,0,0,0,0,0];
+			this._state.pactSlots         = [0,0,0,0,0,0,0,0,0];
 			this._applyClassData();
 			this.renderInput();
 			this.renderOutput();
@@ -817,6 +819,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._state.classFeatures2     = "";
 		this._state.hitDice            = "";
 		this._state.spellSlots         = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+		this._state.pactSlots          = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 		if (resetClass) {
 			this._state.armorProfs          = [];
 			this._state.weaponProfs         = [];
@@ -934,11 +937,13 @@ export class CharacterBuilder extends BuilderBase {
 				else this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
 			} else if (casterType === "pact") {
 				const pact = _getPactSlots(cls, lvl);
-				const slots = [0,0,0,0,0,0,0,0,0];
-				if (pact) slots[pact.slotLvl - 1] = pact.count;
-				this._state.spellSlots = slots;
+				const pactArr = [0,0,0,0,0,0,0,0,0];
+				if (pact) pactArr[pact.slotLvl - 1] = pact.count;
+				this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
+				this._state.pactSlots  = pactArr;
 			} else {
 				this._state.spellSlots = [0,0,0,0,0,0,0,0,0];
+				this._state.pactSlots  = [0,0,0,0,0,0,0,0,0];
 			}
 		} else {
 			// Multiclass — combine spell slots using D&D 5e rules
@@ -952,31 +957,26 @@ export class CharacterBuilder extends BuilderBase {
 				[4,3,3,3,3,2,1,1,1], [4,3,3,3,3,2,2,1,1],
 			];
 			let effectiveCasterLevel = 0;
-			const pactSlotsList = [];
+			const pactSlotsArr = [0,0,0,0,0,0,0,0,0];
 
 			classes.forEach((c, i) => {
 				const entry = classEntries[i];
 				if (!entry) return;
 				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
 				const casterType = _getCasterType(entry);
-				if (casterType === "full")  effectiveCasterLevel += clsLvl;
+				if (casterType === "full")       effectiveCasterLevel += clsLvl;
 				else if (casterType === "half")  effectiveCasterLevel += Math.floor(clsLvl / 2);
 				else if (casterType === "third") effectiveCasterLevel += Math.floor(clsLvl / 3);
 				else if (casterType === "pact") {
 					const pact = _getPactSlots(entry, clsLvl);
-					if (pact) pactSlotsList.push(pact);
+					if (pact) pactSlotsArr[pact.slotLvl - 1] = (pactSlotsArr[pact.slotLvl - 1] || 0) + pact.count;
 				}
 			});
 
-			const combinedSlots = effectiveCasterLevel > 0
+			this._state.spellSlots = effectiveCasterLevel > 0
 				? [...(_MC_SLOTS[Math.min(19, effectiveCasterLevel - 1)] || [0,0,0,0,0,0,0,0,0])]
 				: [0,0,0,0,0,0,0,0,0];
-
-			pactSlotsList.forEach(({count, slotLvl}) => {
-				combinedSlots[slotLvl - 1] = (combinedSlots[slotLvl - 1] || 0) + count;
-			});
-
-			this._state.spellSlots = combinedSlots;
+			this._state.pactSlots = pactSlotsArr;
 		}
 
 		// ── Hit dice (combined for multiclass) ───────────────────────────────
@@ -3597,9 +3597,25 @@ export class CharacterBuilder extends BuilderBase {
 		// Banner
 		inFieldL(v(s.name,"New Character"),     26.6, 18.8, 248.1, 33.6,  9);
 		inFieldL(v(s.background),               25.5, 42.0, 145.4, 55.5,  8);
-		inFieldL(v((s.classes || [])[0]?.cls || s.class),  150.6, 42.0, 248.8, 55.5,  8);
-		inFieldL(v(s.species),                              25.0, 63.2, 145.2, 77.4,  8);
-		inFieldL(v((s.classes || [])[0]?.sub || s.subclass), 150.6, 63.2, 249.2, 77.3,  8);
+		// Stack all classes/subclasses vertically, centred in their respective boxes
+		const inFieldLStack = (lines, x0, top, x1, bot, sz) => {
+			const nonEmpty = lines.filter(Boolean);
+			if (!nonEmpty.length) return;
+			const lh = sz * 0.352 * 1.3;
+			const totalH = (nonEmpty.length - 1) * lh;
+			const y0 = pt((top + bot) / 2) - totalH / 2 + sz * 0.352 * 0.35;
+			doc.setFontSize(sz); doc.setFont("helvetica", "normal");
+			nonEmpty.forEach((l, i) => doc.text(l, pt(x0) + 0.5, y0 + i * lh));
+		};
+		const _clsArr = s.classes || (s.class ? [{cls: s.class, sub: s.subclass, level: s.level || 1}] : []);
+		const _clsEntries  = _clsArr.filter(c => c.cls);
+		const _clsLines = _clsEntries.map(c => `${c.cls} (${c.level})`);
+		const _subLines = _clsEntries.map(c => c.sub || "").filter(Boolean);
+		const _clsSz = _clsEntries.length > 2 ? 6 : 7;
+		const _subSz = _subLines.length    > 2 ? 6 : 7;
+		inFieldLStack(_clsLines, 150.6, 42.0, 248.8, 55.5, _clsSz);
+		inFieldL(v(s.species),   25.0, 63.2, 145.2, 77.4,  8);
+		inFieldLStack(_subLines, 150.6, 63.2, 249.2, 77.3, _subSz);
 		inField (v(totalLevel),                             266.2, 28.7, 293.5, 51.0, 14, true);
 		inField (String(effectiveAC),         325.5, 40.4, 362.8, 63.2, 14, true);
 		inField (v(s.hpMax,"0"),              444.9, 61.7, 488.2, 75.6, 10, true);
@@ -3763,8 +3779,10 @@ export class CharacterBuilder extends BuilderBase {
 			[353.5, 88.9,368.5, 99.2],[353.5,103.2,368.5,113.6],[353.5,117.3,368.5,127.7], // L7,L8,L9
 		];
 		for (let i=0;i<9;i++) {
-			const tot=(s.spellSlots||[])[i]||0;
-			if (tot) { const f=slotTotFields[i]; inField(String(tot),f[0],f[1],f[2],f[3],8,true); }
+			const reg=(s.spellSlots||[])[i]||0;
+			const pct=(s.pactSlots||[])[i]||0;
+			const tot = reg && pct ? `${reg},${pct}` : reg ? String(reg) : pct ? String(pct) : "";
+			if (tot) { const f=slotTotFields[i]; inField(tot,f[0],f[1],f[2],f[3],8,true); }
 		}
 
 		// Prepared spells (30 rows; level x0=17.7, name x0=42.9, cast x0=157, range x0=191.6, notes x0=309.2)
