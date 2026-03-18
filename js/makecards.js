@@ -264,7 +264,7 @@ class MakeCards extends BaseComponent {
 						default: throw new Error(`Unhandled branch!`);
 					}
 				})();
-				const selected = await modalFilter.pGetUserSelection({filterExpression: "level=0;1|class=cleric"});
+				const selected = await modalFilter.pGetUserSelection();
 				if (selected == null || !selected.length) return;
 
 				// do this in serial to avoid bombarding the hover cache
@@ -544,14 +544,30 @@ class MakeCards extends BaseComponent {
 		const ptDamageCt = this._ct_htmlToText(ptDamage);
 		const ptPropertiesCt = this._ct_htmlToText(ptProperties);
 
-		const itemEntries = [];
-		if (item._fullEntries || (item.entries && item.entries.length)) {
-			itemEntries.push(...(item._fullEntries || item.entries));
+		const masteryEntries = [];
+		if (item.mastery?.length) {
+			item.mastery.forEach(uid => {
+				try {
+					const masteryEnt = Renderer.item._getMastery(typeof uid === "object" ? uid.uid : uid);
+					if (masteryEnt?.name && masteryEnt?.entries?.length) {
+						masteryEntries.push({type: "entries", name: masteryEnt.name, entries: masteryEnt.entries});
+					}
+				} catch (e) { /* mastery not loaded */ }
+			});
 		}
 
-		if (item._fullAdditionalEntries || item.additionalEntries) {
-			itemEntries.push(...(item._fullAdditionalEntries || item.additionalEntries));
+		const isWeapon = !!item.mastery?.length || !!item.weaponCategory || item.weapon;
+		const itemEntries = [];
+		if (!isWeapon) {
+			if (item._fullEntries || (item.entries && item.entries.length)) {
+				itemEntries.push(...(item._fullEntries || item.entries));
+			}
+			if (item._fullAdditionalEntries || item.additionalEntries) {
+				itemEntries.push(...(item._fullAdditionalEntries || item.additionalEntries));
+			}
 		}
+
+		const bodyEntries = masteryEntries.length ? masteryEntries : itemEntries;
 
 		return [
 			typeRarityHtml ? this._ct_htmlToText(this._ct_subtitle(typeRarityHtml)) : null,
@@ -562,8 +578,8 @@ class MakeCards extends BaseComponent {
 			tierHtml ? this._ct_property("Tier", tierHtml) : null,
 			ptWeight ? this._ct_property("Weight", ptWeight) : null,
 			ptValue ? this._ct_property("Value", ptValue) : null,
-			itemEntries.length ? this._ct_rule() : null,
-			...this._ct_renderEntries(itemEntries, 2),
+			bodyEntries.length ? this._ct_rule() : null,
+			...this._ct_renderEntries(bodyEntries, 2),
 			item.charges ? this._ct_boxes(item.charges) : null,
 		].filter(Boolean);
 	}
@@ -716,14 +732,16 @@ class MakeCards extends BaseComponent {
 		Promise.all(toLoad.listItems.map(async toLoad => this._pGetListItem(toLoad)))
 			.then(initialListItems => {
 				if (initialListItems.length) {
-					const _TYPE_ORDER = ["background", "race", "feat", "item", "spell"];
-				initialListItems.sort((a, b) => {
-					const oa = _TYPE_ORDER.indexOf(a.values.entityType);
-					const ob = _TYPE_ORDER.indexOf(b.values.entityType);
-					if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
-					return SortUtil.ascSortLower(a.name, b.name);
-				}).forEach(it => this._list.addItem(it));
+					const _TYPE_ORDER = ["race", "background", "optionalfeature", "feat", "creature", "spell", "item"];
+					const fnSort = (a, b) => {
+						const oa = _TYPE_ORDER.indexOf(a.values.entityType);
+						const ob = _TYPE_ORDER.indexOf(b.values.entityType);
+						if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
+						return SortUtil.ascSortLower(a.name, b.name);
+					};
+					initialListItems.sort(fnSort).forEach(it => this._list.addItem(it));
 					this._list.update();
+					this._list.items.sort(fnSort);
 				}
 			});
 	}

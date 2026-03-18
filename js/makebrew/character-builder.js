@@ -30,7 +30,7 @@ const _SKILLS = [
 	{name: "Survival",        ability: "wis"},
 ];
 const _ALIGNMENTS = [
-	"Lawful Good", "Neutral Good", "Chaotic Good",
+	"", "Lawful Good", "Neutral Good", "Chaotic Good",
 	"Lawful Neutral", "True Neutral", "Chaotic Neutral",
 	"Lawful Evil", "Neutral Evil", "Chaotic Evil",
 	"Unaligned",
@@ -217,7 +217,7 @@ export class CharacterBuilder extends BuilderBase {
 			level: 1,
 			background: "",
 			species: "",
-			alignment: "True Neutral",
+			alignment: "",
 			xp: 0,
 			// appearance
 			age: "",
@@ -380,7 +380,7 @@ export class CharacterBuilder extends BuilderBase {
 				new TabUiUtil.TabMeta({name: "Equipment",  hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Feats",      hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Spells",     hasBorder: true}),
-				new TabUiUtil.TabMeta({name: "Personality",hasBorder: true}),
+				new TabUiUtil.TabMeta({name: "Personality and Appearance",hasBorder: true}),
 			],
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
@@ -3230,8 +3230,11 @@ ${text}`);
 			const e = _pick(this._allSpells.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_SPELLS, "spell", "#4a6898", "magic-swirl");
 		});
-		(s.magicEquipment || []).forEach(mi => {
-			const nm = (mi.name || "").toLowerCase();
+		const _seenItemNames = new Set();
+		[...(s.magicEquipment || []), ...(s.equipment || [])].forEach(it => {
+			const nm = (it.name || "").toLowerCase();
+			if (!nm || _seenItemNames.has(nm)) return;
+			_seenItemNames.add(nm);
 			const e = _pick(this._allItems.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_ITEMS, "item", "#696969", "crossed-swords");
 		});
