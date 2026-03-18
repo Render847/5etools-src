@@ -272,6 +272,7 @@ export class CharacterBuilder extends BuilderBase {
 			equippedWeapons: [],     // [{name,atkBonus,damage,notes}] — from equipped weapons
 			// weapons table
 			weapons: [],
+			weaponHidden: [],  // names hidden from PDF
 			// feats
 			feats: [],
 			bgFeat: "",
@@ -289,9 +290,8 @@ export class CharacterBuilder extends BuilderBase {
 			spellSlots: [0,0,0,0,0,0,0,0,0],
 			spellSlotsUsed: [0,0,0,0,0,0,0,0,0],
 			spells: [], // [{name, source, level, prepared}]
-			hpMode:        "auto", // "auto" | "rolled"
-			hpRolls:       [],     // [number|null] — rolled die values for levels 2..level
-			hpMaxOverride: null,   // number|null — user override; null = use calculated
+			hpMode:  "auto", // "auto" | "rolled"
+			hpRolls: [],     // [number|null] — rolled die values for levels 2..level
 			// proficiency bonus override
 			profBonusOverride: null,
 			// stat generation
@@ -2413,6 +2413,7 @@ ${text}`);
 			ee`<div class="ve-btn-group mb-1">${btnAuto}${btnRolled}</div>`.appendTo(wrpHpContent);
 
 			let calcMax = 0;
+			let iptHp = null;
 
 			if (isAuto) {
 				const avgPerLvl = faces ? Math.floor(faces / 2) + 1 : 0;
@@ -2439,7 +2440,8 @@ ${text}`);
 					const parts = [`(${lvl1Max}${conStr})`];
 					for (let i = 0; i < level - 1; i++) parts.push(`(${hpRolls[i] ?? "?"}${conStr})`);
 					dispBreakdown.txt(parts.join("+"));
-					applyMax();
+					this._state.hpMax = calcMax;
+					if (iptHp) iptHp.val(calcMax);
 				};
 
 				for (let i = 0; i < level - 1; i++) {
@@ -2452,26 +2454,17 @@ ${text}`);
 				recalc();
 			}
 
-			// Max HP display + manual override
-			const applyMax = () => {
-				const override = this._state.hpMaxOverride;
-				this._state.hpMax = (override != null) ? override : calcMax;
-				iptOverride.attr("placeholder", String(calcMax));
-			};
-			const iptOverride = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Override Max HP">`;
-			if (this._state.hpMaxOverride != null) iptOverride.val(this._state.hpMaxOverride);
-			iptOverride.onn("change", () => {
-				const raw = iptOverride.val().trim();
-				this._state.hpMaxOverride = raw === "" ? null : UiUtil.strToInt(raw, 0, {fallbackOnNaN: 0});
-				applyMax(); cb();
+			iptHp = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Max HP">`.val(calcMax);
+			iptHp.onn("change", () => {
+				const raw = iptHp.val().trim();
+				this._state.hpMax = raw === "" ? calcMax : UiUtil.strToInt(raw, calcMax, {fallbackOnNaN: calcMax});
+				cb();
 			});
+			this._state.hpMax = calcMax;
 			ee`<div class="ve-flex-v-center mt-1">
 				<span class="ve-muted mr-1" style="font-size:.8em">Max HP</span>
-				<b class="mr-2">${calcMax}</b>
-				<span class="ve-muted mr-1" style="font-size:.75em">Override</span>
-				${iptOverride}
+				${iptHp}
 			</div>`.appendTo(wrpHpContent);
-			applyMax();
 		};
 
 		this._rebuildHpSection = buildHpSection;
@@ -2488,6 +2481,56 @@ ${text}`);
 
 		// Weapons table
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
+
+		// ── Auto entries (equipped weapons + damage cantrips) ──────────────────
+		const wrpAutoWpn = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(wpnRowInner);
+
+		const buildAutoWpnSection = () => {
+			wrpAutoWpn.empty();
+			const hidden = new Set(this._state.weaponHidden || []);
+
+			const autoEntries = [];
+
+			// Equipped weapons from equipment / magic equipment
+			for (const it of [...(this._state.equipment || []), ...(this._state.magicEquipment || [])]) {
+				if (!it.equipped) continue;
+				const e = this._getItemEntry(it.name);
+				if (!e?.weapon) continue;
+				autoEntries.push(it.name);
+			}
+
+			// Damage-dealing cantrips
+			for (const sp of (this._state.spells || [])) {
+				const data = this._getSpellEntry(sp.name);
+				if (!data || data.level !== 0 || !data.damageInflict?.length) continue;
+				autoEntries.push(sp.name);
+			}
+
+			if (!autoEntries.length) return;
+
+			autoEntries.forEach(name => {
+				const isHidden = hidden.has(name);
+				const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="${isHidden ? "Show in PDF" : "Hide from PDF"}"><span class="glyphicon ${isHidden ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`
+					.onn("click", () => {
+						const cur = new Set(this._state.weaponHidden || []);
+						if (cur.has(name)) cur.delete(name); else cur.add(name);
+						this._state.weaponHidden = [...cur];
+						cb();
+						buildAutoWpnSection();
+					});
+				ee`<div class="ve-flex-v-center mb-1">
+					<span style="flex:1;font-size:.85em">${name}</span>
+					${btnEye}
+				</div>`.appendTo(wrpAutoWpn);
+			});
+		};
+
+		buildAutoWpnSection();
+		this._addHook("state", "equipment",      buildAutoWpnSection);
+		this._addHook("state", "magicEquipment", buildAutoWpnSection);
+		this._addHook("state", "spells",         buildAutoWpnSection);
+
+		// ── Manual entries ─────────────────────────────────────────────────────
 		const wpnList = () => this._state.weapons || [];
 		const wpnRows = [];
 		const doUpdateWpn = () => { this._state.weapons = wpnRows.map(r => r.getState()).filter(it => it.name); cb(); };
@@ -3487,7 +3530,35 @@ ${text}`);
 			[[231.5,281.1,337.1,298.2],[341.4,281.0,385.5,298.1],[390.0,281.0,464.6,298.1],[468.9,280.8,594.3,298.0]],
 			[[231.5,300.0,337.1,317.8],[341.7,300.2,385.2,317.7],[390.1,300.3,464.3,317.8],[468.9,300.3,594.0,317.8]],
 		];
-		([..._equippedWeapons, ...(s.weapons||[])]).slice(0,6).forEach((w,i) => {
+		const _hiddenWpn = new Set(s.weaponHidden || []);
+
+		// Damage cantrips — pick correct scaling die for character level
+		const _cantripWpns = (s.spells || [])
+			.map(sp => {
+				const data = this._getSpellEntry(sp.name);
+				if (!data || data.level !== 0 || !data.damageInflict?.length) return null;
+				if (_hiddenWpn.has(sp.name)) return null;
+				const lvl = parseInt(s.level) || 1;
+				let die = "";
+				if (data.scalingLevelDice?.scaling) {
+					const thresholds = Object.keys(data.scalingLevelDice.scaling).map(Number).sort((a,b)=>a-b);
+					const key = thresholds.filter(t => t <= lvl).pop() ?? thresholds[0];
+					die = data.scalingLevelDice.scaling[key];
+				}
+				const dmgType = data.damageInflict[0] || "";
+				const damage = die ? `${die} ${dmgType}` : dmgType;
+				let atkBonus = "";
+				if (data.spellAttack?.length) atkBonus = spellAtk != null ? fmod(spellAtk) : "";
+				else if (data.savingThrow?.length) atkBonus = spellDC != null ? `DC ${spellDC}` : "";
+				return {name: sp.name, atkBonus, damage, notes: ""};
+			})
+			.filter(Boolean);
+
+		([
+			..._equippedWeapons.filter(w => !_hiddenWpn.has(w.name)),
+			..._cantripWpns,
+			...(s.weapons||[]).filter(w => !_hiddenWpn.has(w.name)),
+		]).slice(0,6).forEach((w,i) => {
 			const [n,a,d,no] = wpnFields[i];
 			inFieldL(v(w?.name),     n[0],n[1],n[2],n[3], 7.5);
 			inField (v(w?.atkBonus), a[0],a[1],a[2],a[3], 7.5);
