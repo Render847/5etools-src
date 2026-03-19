@@ -378,8 +378,8 @@ export class CharacterBuilder extends BuilderBase {
 
 	async pRenderSideMenu () {
 		if (!this._eleSideMenuStageSaved) {
-			this._eleSideMenuWrpList = ee`<div class="w-100 ve-flex-col">`;
-			this._eleSideMenuStageSaved = ee`<div class="w-100">${this._eleSideMenuWrpList}</div>`;
+			this._eleSideMenuWrpList = ee`<div class="ve-w-100 ve-flex-col">`;
+			this._eleSideMenuStageSaved = ee`<div class="ve-w-100">${this._eleSideMenuWrpList}</div>`;
 		}
 		this._eleSideMenuStageSaved.appendTo(this._ui.wrpSideMenu);
 		await this._pDoUpdateSidemenu();
@@ -403,7 +403,7 @@ export class CharacterBuilder extends BuilderBase {
 				return;
 			}
 
-			const btnEdit = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-2" title="Load"><span class="glyphicon glyphicon-pencil"></span></button>`
+			const btnEdit = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Load"><span class="glyphicon glyphicon-pencil"></span></button>`
 				.onn("click", async () => {
 					if (
 						this.getOnNavMessage()
@@ -424,10 +424,10 @@ export class CharacterBuilder extends BuilderBase {
 					await this._pDoUpdateSidemenu();
 				});
 
-			const dispName = ee`<span class="py-1">${char.name}</span>`;
-			const row = ee`<div class="mkbru__sidebar-entry ve-flex-v-center split px-2" style="order:${ix}">
+			const dispName = ee`<span class="ve-py-1">${char.name}</span>`;
+			const row = ee`<div class="mkbru__sidebar-entry ve-flex-v-center ve-split ve-px-2" style="order:${ix}">
 				${dispName}
-				<div class="py-1 no-shrink">${btnEdit}${btnDelete}</div>
+				<div class="ve-py-1 ve-no-shrink">${btnEdit}${btnDelete}</div>
 			</div>`.appendTo(this._eleSideMenuWrpList);
 
 			this._sidemenuListRenderCache[char.uniqueId] = {dispName, row, name: char.name, position: ix};
@@ -450,7 +450,7 @@ export class CharacterBuilder extends BuilderBase {
 	// -------------------------------------------------------------------------
 
 	renderInputControls () {
-		const btnSave = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-2">Save</button>`
+		const btnSave = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2">Save</button>`
 			.onn("click", () => this._pSaveCharacter());
 		this._addHook("meta", "isModified", () => btnSave.txt(this._meta.isModified ? "Save *" : "Save"))();
 
@@ -476,8 +476,8 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Data is loaded async — show a spinner until ready, then re-render
 		if (!this._isDataLoaded) {
-			ee`<div class="ve-flex-vh-center w-100 h-100 py-4">
-				<span class="ve-muted italic">Loading character data...</span>
+			ee`<div class="ve-flex-vh-center ve-w-100 ve-h-100 ve-py-4">
+				<span class="ve-muted ve-italic">Loading character data...</span>
 			</div>`.appendTo(wrp);
 			return;
 		}
@@ -504,7 +504,7 @@ export class CharacterBuilder extends BuilderBase {
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
 		const [identityTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab] = tabs;
-		ee`<div class="ve-flex-v-center w-100 no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
+		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
 
 		// ── IDENTITY ──────────────────────────────────────────────────────────
@@ -574,7 +574,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Per-item feature list builder — renders each item as a row with an Exclude button
 		const buildItemList = (label, stateKey, emptyMsg) => {
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple(label);
-			const listWrp = $('<div class="ve-flex-col w-100"></div>');
+			const listWrp = ee`<div class="ve-flex-col ve-w-100"></div>`;
 			let _skipRefresh = false;
 
 			const refresh = () => {
@@ -582,21 +582,21 @@ export class CharacterBuilder extends BuilderBase {
 				listWrp.empty();
 				const items = this._state[stateKey] || [];
 				if (!items.length) {
-					listWrp.append($(`<div class="ve-muted ve-small italic">${emptyMsg}</div>`));
+					listWrp.append(ee`<div class="ve-muted ve-small ve-italic">${emptyMsg}</div>`);
 					return;
 				}
 				items.forEach((item, ix) => {
-					const itemRow = $('<div class="ve-flex mb-1" style="align-items:flex-start"></div>');
-					const btnExcl = $('<button class="ve-btn ve-btn-xs ve-btn-default mr-1 mt-1" title="Exclude from PDF" style="min-width:42px;flex-shrink:0">Excl.</button>');
+					const itemRow = ee`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
+					const btnExcl = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="Exclude from PDF" style="min-width:42px;flex-shrink:0">Excl.</button>`;
 					if (item.excluded) btnExcl.addClass("active");
-					const ta = $('<textarea class="form-control input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>');
+					const ta = ee`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
 					ta.val(item.text);
-					btnExcl.on("click", () => {
+					btnExcl.onn("click", () => {
 						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, excluded: !it.excluded} : it);
 						this._state[stateKey] = cur;
 						cb();
 					});
-					ta.on("input", () => {
+					ta.onn("input", () => {
 						_skipRefresh = true;
 						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val()} : it);
 						this._state[stateKey] = cur;
@@ -626,7 +626,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 
-		const btnClassic = ee`<button class="ve-btn ve-btn-xs ${!isNew ? "ve-btn-primary" : "ve-btn-default"} mr-1">2014 (5e)</button>`;
+		const btnClassic = ee`<button class="ve-btn ve-btn-xs ${!isNew ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">2014 (5e)</button>`;
 		const btnNew     = ee`<button class="ve-btn ve-btn-xs ${isNew  ? "ve-btn-primary" : "ve-btn-default"}">2024 (5.5e)</button>`;
 
 		const doUpdate = () => {
@@ -671,9 +671,9 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		const _LEVELS = [...Array(20)].map((_, i) => i + 1);
-		const wrpRows = ee`<div class="ve-flex-col w-100"></div>`.appendTo(rowInner);
+		const wrpRows = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(rowInner);
 
-		const addBtn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mt-1">+ Add Class</button>`;
+		const addBtn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Class</button>`;
 
 		const rebuildAllRows = () => {
 			wrpRows.empty();
@@ -682,9 +682,9 @@ export class CharacterBuilder extends BuilderBase {
 			classes.forEach((_, ix) => {
 				const c = this._state.classes[ix];
 
-				const selClass    = ee`<select class="form-control input-xs form-control--minimal mr-1" style="flex:2"></select>`;
-				const selSubclass = ee`<select class="form-control input-xs form-control--minimal mr-1" style="flex:2"></select>`;
-				const selLevel    = ee`<select class="form-control input-xs form-control--minimal mr-1" style="width:55px;flex:0 0 55px"></select>`;
+				const selClass    = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
+				const selSubclass = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
+				const selLevel    = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="width:55px;flex:0 0 55px"></select>`;
 				const btnRemove   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}">✕</button>`;
 
 				const _othersTotal = (this._state.classes || [])
@@ -764,7 +764,7 @@ export class CharacterBuilder extends BuilderBase {
 					rebuildAllRows();
 				});
 
-				ee`<div class="ve-flex ve-flex-v-center mb-1 w-100">
+				ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100">
 					${selClass}${selSubclass}${selLevel}${btnRemove}
 				</div>`.appendTo(wrpRows);
 			});
@@ -820,7 +820,7 @@ export class CharacterBuilder extends BuilderBase {
 			document.body.appendChild(dl);
 		}
 
-		const ipt = ee`<input class="form-control input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.background || "");
+		const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.background || "");
 
 		const doApply = (name) => {
 			const trimmed = (name || "").trim();
@@ -849,7 +849,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		ipt.onn("change", () => doApply(ipt.val()));
 
-		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Filter backgrounds"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
+		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter backgrounds"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
 			.onn("click", async () => {
 				this._modalFilterBackgrounds = this._modalFilterBackgrounds
 					|| new ModalFilterBackgrounds({namespace: "charBuilder.backgrounds", isRadio: true});
@@ -858,7 +858,7 @@ export class CharacterBuilder extends BuilderBase {
 				doApply(selected[0].name);
 			});
 
-		ee`<div class="ve-flex w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
+		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
 		wrp.append(row);
 	}
 
@@ -878,7 +878,7 @@ export class CharacterBuilder extends BuilderBase {
 			document.body.appendChild(dl);
 		}
 
-		const ipt = ee`<input class="form-control input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.species || "");
+		const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.species || "");
 
 		const doApply = (name) => {
 			const trimmed = (name || "").trim();
@@ -903,7 +903,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		ipt.onn("change", () => doApply(ipt.val()));
 
-		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Filter species"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
+		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter species"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
 			.onn("click", async () => {
 				this._modalFilterRaces = this._modalFilterRaces
 					|| new ModalFilterRaces({namespace: "charBuilder.races", isRadio: true});
@@ -912,7 +912,7 @@ export class CharacterBuilder extends BuilderBase {
 				doApply(selected[0].name);
 			});
 
-		ee`<div class="ve-flex w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
+		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
 		wrp.append(row);
 	}
 
@@ -1822,7 +1822,7 @@ export class CharacterBuilder extends BuilderBase {
 	_buildFeatsInput (wrp, cb) {
 		const featsArr = () => this._state.feats || [];
 		const featRows = [];
-		const wrpRows = ee`<div class="ve-flex-col mb-2"></div>`.appendTo(wrp);
+		const wrpRows = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
 
 		// Appends choice inputs (select or text) for each choice a feat requires.
 		// Each choice gets its own indented row. State stored as featChoices[featName][choiceKey].
@@ -1832,10 +1832,10 @@ export class CharacterBuilder extends BuilderBase {
 			const stored = () => (this._state.featChoices || {})[featName] || {};
 
 			for (const choice of choiceList) {
-				const choiceRow = ee`<div class="ve-flex-v-center mt-1 pl-3 cb-feat-choice-lbl"></div>`.appendTo(container);
+				const choiceRow = ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3 cb-feat-choice-lbl"></div>`.appendTo(container);
 
 				const lbl = document.createElement("span");
-				lbl.className = "mr-2 ve-muted";
+				lbl.className = "ve-mr-2 ve-muted";
 				lbl.style.cssText = "font-size:.85em;white-space:nowrap;min-width:8em";
 				lbl.textContent = choice.label + ":";
 				choiceRow.appendChild(lbl);
@@ -1843,7 +1843,7 @@ export class CharacterBuilder extends BuilderBase {
 				if (choice.options) {
 					// Fixed list → <select>
 					const sel = document.createElement("select");
-					sel.className = "cb-feat-choice-sel form-control input-xs form-control--minimal";
+					sel.className = "cb-feat-choice-sel ve-form-control ve-input-xs form-control--minimal";
 					sel.style.flex = "1";
 					const blank = document.createElement("option");
 					blank.value = ""; blank.textContent = "(choose)";
@@ -1866,7 +1866,7 @@ export class CharacterBuilder extends BuilderBase {
 					// Open / multi-pick → <input type="text">
 					const ipt = document.createElement("input");
 					ipt.type = "text";
-					ipt.className = "cb-feat-choice-sel form-control input-xs form-control--minimal";
+					ipt.className = "cb-feat-choice-sel ve-form-control ve-input-xs form-control--minimal";
 					ipt.style.flex = "1";
 					ipt.placeholder = choice.placeholder || "(type here)";
 					ipt.value = stored()[choice.key] || "";
@@ -1883,10 +1883,10 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		// Background-granted feat: card at the top, hidden when no bgFeat
-		const bgFeatCard = ee`<div class="mb-2 p-2 ve-hidden" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
+		const bgFeatCard = ee`<div class="ve-mb-2 ve-p-2 ve-hidden" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
 		const bgFeatNameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(bgFeatCard);
-		const bgFeatSpan = ee`<span class="mr-2 bold" style="flex:1"></span>`.appendTo(bgFeatNameRow);
-		ee`<span class="ve-muted italic" style="font-size:.85em">(from background)</span>`.appendTo(bgFeatNameRow);
+		const bgFeatSpan = ee`<span class="ve-mr-2 ve-bold" style="flex:1"></span>`.appendTo(bgFeatNameRow);
+		ee`<span class="ve-muted ve-italic" style="font-size:.85em">(from background)</span>`.appendTo(bgFeatNameRow);
 
 		const refreshBgFeatRow = () => {
 			const name = this._state.bgFeat || "";
@@ -1905,10 +1905,10 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		const addRow = (name) => {
-			const card = ee`<div class="mb-2 p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
+			const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
 
 			const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
-			ee`<span class="bold mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
+			ee`<span class="ve-bold ve-mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
 			const btnRemove = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Feat"><span class="glyphicon glyphicon-trash"></span></button>`
 				.onn("click", () => {
 					featRows.splice(featRows.indexOf(rowMeta), 1);
@@ -1956,13 +1956,13 @@ export class CharacterBuilder extends BuilderBase {
 		// ── Other proficiencies ──────────────────────────────────────────────
 		// Helper: read-only row for feat-granted items in a given state key
 		const addFeatRow = (label, stateKey) => {
-			const div  = $('<div style="font-size:.85em;padding-left:2px;margin-bottom:4px"></div>');
-			const span = $('<span class="ve-muted"></span>');
+			const div  = ee`<div style="font-size:.85em;padding-left:2px;margin-bottom:4px"></div>`;
+			const span = ee`<span class="ve-muted"></span>`;
 			div.append(span);
 			const refresh = () => {
 				const items = this._state[stateKey] || [];
-				if (items.length) { span.text(label + " (feats): " + items.join(", ")); div.show(); }
-				else div.hide();
+				if (items.length) { span.txt(label + " (feats): " + items.join(", ")); div.showVe(); }
+				else div.hideVe();
 			};
 			refresh();
 			this._addHook("state", stateKey, refresh);
@@ -1976,7 +1976,7 @@ export class CharacterBuilder extends BuilderBase {
 			const _ARMOR_CATS = ["Light", "Medium", "Heavy", "Shields"];
 			const btnWrp = ee`<div class="ve-flex"></div>`;
 			_ARMOR_CATS.forEach(cat => {
-				const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1">${cat}</button>`;
+				const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${cat}</button>`;
 				const refresh = () => {
 					const all = [...(this._state.armorProfs || []), ...(this._state.featArmorProfs || [])];
 					btn.toggleClass("active", all.includes(cat));
@@ -2017,9 +2017,9 @@ export class CharacterBuilder extends BuilderBase {
 		wrp.append(modeRow);
 
 		// ── Roll controls (visible only in roll mode) ─────────────────────
-		const rollRow = ee`<div class="ve-flex-v-center mb-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
+		const rollRow = ee`<div class="ve-flex-v-center ve-mb-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
 		const rollsDisp = ee`<span class="ve-muted" style="font-size:.85em"></span>`;
-		rollRow.appends(ee`<button class="ve-btn ve-btn-xs ve-btn-success mr-2">Roll 4d6×6</button>`
+		rollRow.appends(ee`<button class="ve-btn ve-btn-xs ve-btn-success ve-mr-2">Roll 4d6×6</button>`
 			.onn("click", () => {
 				const rolls = Array.from({length: 6}, () => {
 					const d = Array.from({length: 4}, () => Math.ceil(Math.random() * 6)).sort((a, b) => b - a);
@@ -2033,14 +2033,14 @@ export class CharacterBuilder extends BuilderBase {
 		wrp.append(rollRow);
 
 		// ── Point buy info (visible only in pointbuy mode) ────────────────
-		const pbRow = ee`<div class="ve-flex-v-center mb-1 ${this._state.sg_mode !== "pointbuy" ? "ve-hidden" : ""}">`;
+		const pbRow = ee`<div class="ve-flex-v-center ve-mb-1 ${this._state.sg_mode !== "pointbuy" ? "ve-hidden" : ""}">`;
 		this._sg_pbSpentDisp = ee`<b>0</b>`;
 		pbRow.appends(ee`<span class="ve-muted" style="font-size:.85em">Points spent: ${this._sg_pbSpentDisp} / ${_SG_PB_BUDGET}</span>`);
 		wrp.append(pbRow);
 
 		// ── Grid + choice containers ──────────────────────────────────────
 		this._sg_rollsDisp = rollsDisp;
-		const gridWrp   = ee`<div class="mb-2"></div>`.appendTo(wrp);
+		const gridWrp   = ee`<div class="ve-mb-2"></div>`.appendTo(wrp);
 		const choiceWrp = ee`<div></div>`.appendTo(wrp);
 
 		// Single rebuild function used by mode buttons, roll, and choice changes
@@ -2057,7 +2057,7 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		modeList.forEach(({key, label}) => {
-			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1">${label}</button>`
+			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${label}</button>`
 				.onn("click", () => {
 					if (this._state.sg_mode === key) return;
 					this._state.sg_mode = key;
@@ -2199,7 +2199,7 @@ export class CharacterBuilder extends BuilderBase {
 		const showExtra = !isManual || hasAsi || hasFeat;
 
 		// ── Header row ───────────────────────────────────────────────────
-		const hdr = ee`<div class="ve-flex-v-center mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
+		const hdr = ee`<div class="ve-flex-v-center ve-mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
 		hdr.appends(ee`<span style="width:46px"> </span>`);
 		const baseLabel = {manual: "Score", roll: "Assign", array: "Array", pointbuy: "Score"}[mode];
 		hdr.appends(ee`<span class="ve-text-center" style="min-width:80px">${baseLabel}</span>`);
@@ -2213,7 +2213,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		// ── One row per ability ──────────────────────────────────────────
 		_ABILITIES.forEach((abl, ablIdx) => {
-			const row = ee`<div class="ve-flex-v-center mb-1">`;
+			const row = ee`<div class="ve-flex-v-center ve-mb-1">`;
 			row.appends(ee`<span class="bold" style="width:46px">${abl.toUpperCase()}</span>`);
 
 			const getScore = () => {
@@ -2224,7 +2224,7 @@ export class CharacterBuilder extends BuilderBase {
 			let dispTotal = null;
 			const dispMod = ee`<span class="ve-text-center ve-muted" style="width:36px">${_fmtMod(_abilMod(getScore()))}</span>`;
 			if (showExtra) {
-				dispTotal = ee`<span class="ve-text-center bold" style="width:46px">${getScore()}</span>`;
+				dispTotal = ee`<span class="ve-text-center ve-bold" style="width:46px">${getScore()}</span>`;
 			}
 
 			const doUpdate = () => {
@@ -2242,7 +2242,7 @@ export class CharacterBuilder extends BuilderBase {
 			let baseCell;
 			switch (mode) {
 				case "manual": {
-					const ipt = ee`<input class="form-control form-control--minimal input-xs ve-text-center" style="width:80px">`
+					const ipt = ee`<input class="ve-form-control form-control--minimal ve-input-xs ve-text-center" style="width:80px">`
 						.val(this._state[abl] ?? 10)
 						.onn("change", () => {
 							const v = Math.min(30, Math.max(1, UiUtil.strToInt(ipt.val(), 10, {fallbackOnNaN: 10})));
@@ -2255,7 +2255,7 @@ export class CharacterBuilder extends BuilderBase {
 				}
 				case "roll": {
 					const rolls = this._state.sg_rolls || [];
-					const sel = ee`<select class="form-control input-xs form-control--minimal" style="min-width:80px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
 						<option value="">— assign —</option>
 						${rolls.map((v, i) => `<option value="${i}">${v}</option>`).join("")}
 					</select>`;
@@ -2270,7 +2270,7 @@ export class CharacterBuilder extends BuilderBase {
 					break;
 				}
 				case "array": {
-					const sel = ee`<select class="form-control input-xs form-control--minimal" style="min-width:80px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
 						<option value="">— assign —</option>
 						${_STANDARD_ARRAY.map(v => `<option value="${v}">${v}</option>`).join("")}
 					</select>`;
@@ -2285,7 +2285,7 @@ export class CharacterBuilder extends BuilderBase {
 					break;
 				}
 				case "pointbuy": {
-					const sel = ee`<select class="form-control input-xs form-control--minimal" style="min-width:80px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
 						${_SG_PB_SCORES.map(v => `<option value="${v}">${v} (${_SG_PB_COSTS[v]}pts)</option>`).join("")}
 					</select>`;
 					sel.val(String(this._state[`sg_pb_${abl}`] ?? 8));
@@ -2385,7 +2385,7 @@ export class CharacterBuilder extends BuilderBase {
 					if (obj.choose?.weighted) parts.push(`choose ${obj.choose.weighted.weights.map(w=>`+${w}`).join("/")} from ${obj.choose.weighted.from.map(a=>a.toUpperCase()).join("/")}`);
 					return `(${String.fromCharCode(97 + i)}) ${parts.join(", ") || "(none)"}`;
 				});
-				const sel = ee`<select class="form-control input-xs form-control--minimal mb-1">
+				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mb-1">
 					${optLabels.map((l, i) => `<option value="${i}">${l.qq()}</option>`).join("")}
 				</select>`;
 				sel.val(String(this._state[ixSetProp] || 0));
@@ -2405,7 +2405,7 @@ export class CharacterBuilder extends BuilderBase {
 			// Static bonuses summary (read-only info line)
 			const staticParts = _ABILITIES.filter(a => typeof abilObj[a] === "number" && abilObj[a]).map(a => `${a.toUpperCase()} +${abilObj[a]}`);
 			if (staticParts.length) {
-				secRowInner.appends(ee`<div class="ve-muted mb-1" style="font-size:.85em">${staticParts.join(", ")}</div>`);
+				secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">${staticParts.join(", ")}</div>`);
 			}
 
 			// ── choose.from (pick N abilities each getting +amount) ───────
@@ -2415,10 +2415,10 @@ export class CharacterBuilder extends BuilderBase {
 				const count  = abilObj.choose.count  ?? 1;
 				const stored = () => this._state[choiceFrom] || [];
 
-				secRowInner.appends(ee`<div class="ve-muted mb-1" style="font-size:.85em">Choose ${count} ×+${amount} from: ${from.map(a=>a.toUpperCase()).join(", ")}</div>`);
+				secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">Choose ${count} ×+${amount} from: ${from.map(a=>a.toUpperCase()).join(", ")}</div>`);
 
 				const sels = Array.from({length: count}, (_, slotIx) => {
-					const sel = ee`<select class="form-control input-xs form-control--minimal mr-1 mb-1" style="width:90px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:90px">
 						<option value="">—</option>
 						${from.map(a => `<option value="${a}">${a.toUpperCase()}</option>`).join("")}
 					</select>`;
@@ -2434,7 +2434,7 @@ export class CharacterBuilder extends BuilderBase {
 					});
 					return sel;
 				});
-				const slotWrp = ee`<div class="ve-flex ve-flex-wrap mb-1">`;
+				const slotWrp = ee`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
 				sels.forEach(s => slotWrp.appends(s));
 				secRowInner.appends(slotWrp);
 			}
@@ -2444,11 +2444,11 @@ export class CharacterBuilder extends BuilderBase {
 				const {from, weights} = abilObj.choose.weighted;
 				const stored = () => this._state[choiceWeight] || [];
 
-				secRowInner.appends(ee`<div class="ve-muted mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
+				secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
 
-				const slotWrp = ee`<div class="ve-flex ve-flex-wrap mb-1">`;
+				const slotWrp = ee`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
 				weights.forEach((weight, slotIx) => {
-					const sel = ee`<select class="form-control input-xs form-control--minimal mr-1 mb-1" style="width:110px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:110px">
 						<option value="">+${weight}: —</option>
 						${from.map(a => `<option value="${a}">+${weight}: ${a.toUpperCase()}</option>`).join("")}
 					</select>`;
@@ -2505,8 +2505,8 @@ export class CharacterBuilder extends BuilderBase {
 			this._addHook("state", "profBonusOverride",    () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
 
-			ee`<div class="ve-flex-col ve-flex-vh-center mb-2 mr-2">
-				<span class="mb-1 bold ve-text-center">${abl.toUpperCase()}</span>
+			ee`<div class="ve-flex-col ve-flex-vh-center ve-mb-2 ve-mr-2">
+				<span class="ve-mb-1 ve-bold ve-text-center">${abl.toUpperCase()}</span>
 				${dispBonus}
 				${btnProf}
 			</div>`.appendTo(rowInner);
@@ -2519,7 +2519,7 @@ export class CharacterBuilder extends BuilderBase {
 		if (this._state._skillChoiceCount) {
 			const from    = this._state._skillChoiceFrom;
 			const fromStr = from ? from.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ") : "any skill";
-			ee`<div class="ve-muted italic px-2 mb-1" style="font-size:.85em">
+			ee`<div class="ve-muted ve-italic ve-px-2 ve-mb-1" style="font-size:.85em">
 				Your class grants <b>${this._state._skillChoiceCount}</b> skill proficiency choice(s) from: ${fromStr}
 			</div>`.appendTo(wrp);
 		}
@@ -2541,7 +2541,7 @@ export class CharacterBuilder extends BuilderBase {
 				return mod;
 			};
 
-			const dispBonus = ee`<span class="ve-muted mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
+			const dispBonus = ee`<span class="ve-muted ve-mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
 			const updateBonus = () => dispBonus.txt(_fmtMod(getBonus()));
 			this._addHook("state", ability,            updateBonus);
 			this._addHook("state", "classes",          updateBonus);
@@ -2564,7 +2564,7 @@ export class CharacterBuilder extends BuilderBase {
 				});
 			if (isProficient()) btnProf.addClass("active");
 
-			const btnExpert = ee`<button class="ve-btn ve-btn-xs ve-btn-default ml-1" title="Expertise">Expert.</button>`
+			const btnExpert = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Expertise">Expert.</button>`
 				.onn("click", () => {
 					if (isExpert()) {
 						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
@@ -2581,13 +2581,13 @@ export class CharacterBuilder extends BuilderBase {
 			if (isExpert()) btnExpert.addClass("active");
 			this._addHook("state", "featSkillProfs", () => { btnProf.toggleClass("active",   isProficient()); updateBonus(); });
 			this._addHook("state", "featExpertise",  () => { btnExpert.toggleClass("active", isExpert());     updateBonus(); });
-			const btnHalfProf = $('<button class="ve-btn ve-btn-xs ve-btn-default ml-1" title="Half Proficiency">Half.</button>');
+			const btnHalfProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Half Proficiency">Half.</button>`;
 			if (isHalfProf()) btnHalfProf.addClass("active");
 			halfProfBtns.push({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus});
 
-			ee`<div class="ve-flex-v-center mb-1">
-				<span class="mr-2 mkbru__sub-name--33">${name}</span>
-				<span class="ve-muted mr-2" style="font-size:.8em;width:28px">(${ability.toUpperCase()})</span>
+			ee`<div class="ve-flex-v-center ve-mb-1">
+				<span class="ve-mr-2 mkbru__sub-name--33">${name}</span>
+				<span class="ve-muted ve-mr-2" style="font-size:.8em;width:28px">(${ability.toUpperCase()})</span>
 				${dispBonus}${btnProf}${btnExpert}
 			</div>`.appendTo(rowInner);
 		});
@@ -2595,7 +2595,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Insert half-prof buttons into DOM and wire up click handlers
 		halfProfBtns.forEach(({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus}) => {
 			btnHalfProf.insertAfter(btnProf);
-			btnHalfProf.on("click", () => {
+			btnHalfProf.onn("click", () => {
 				if (isHalfProf()) {
 					this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 				} else {
@@ -2621,7 +2621,7 @@ export class CharacterBuilder extends BuilderBase {
 		const PB_COSTS = {8:0, 9:1, 10:2, 11:3, 12:4, 13:5, 14:7, 15:9};
 		const MAX_POINTS = 27;
 
-		const dispPoints = ee`<span class="mr-2 ve-muted">Points remaining: <b>--</b></span>`;
+		const dispPoints = ee`<span class="ve-mr-2 ve-muted">Points remaining: <b>--</b></span>`;
 		const btnApply = ee`<button class="ve-btn ve-btn-xs ve-btn-default">Apply Standard Array</button>`;
 
 		const updatePointDisplay = () => {
@@ -2663,7 +2663,7 @@ export class CharacterBuilder extends BuilderBase {
 	_buildCombatTab (wrp, cb) {
 		// HP — dynamic section that rebuilds when class/level changes
 		const [hpRow, hpRowInner] = BuilderUi.getLabelledRowTuple("Hit Points");
-		const wrpHpContent = ee`<div class="ve-flex-col w-100"></div>`.appendTo(hpRowInner);
+		const wrpHpContent = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(hpRowInner);
 
 		const buildHpSection = () => {
 			wrpHpContent.empty();
@@ -2683,11 +2683,11 @@ export class CharacterBuilder extends BuilderBase {
 				for (let i = 0; i < clsLvl; i++) _levelDice.push(faces);
 			});
 
-			const btnAuto   = ee`<button class="ve-btn ve-btn-xs ${isAuto  ? "ve-btn-primary" : "ve-btn-default"} mr-1">Auto</button>`;
+			const btnAuto   = ee`<button class="ve-btn ve-btn-xs ${isAuto  ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">Auto</button>`;
 			const btnRolled = ee`<button class="ve-btn ve-btn-xs ${!isAuto ? "ve-btn-primary" : "ve-btn-default"}">Rolled</button>`;
 			btnAuto  .onn("click", () => { this._state.hpMode = "auto";   buildHpSection(); cb(); });
 			btnRolled.onn("click", () => { this._state.hpMode = "rolled"; buildHpSection(); cb(); });
-			ee`<div class="ve-btn-group mb-1">${btnAuto}${btnRolled}</div>`.appendTo(wrpHpContent);
+			ee`<div class="ve-btn-group ve-mb-1">${btnAuto}${btnRolled}</div>`.appendTo(wrpHpContent);
 
 			let calcMax = 0;
 			let iptHp = null;
@@ -2705,19 +2705,19 @@ export class CharacterBuilder extends BuilderBase {
 						const f = _levelDice[i];
 						parts.push(`(${f != null ? Math.floor(f / 2) + 1 : "?"}${conStr})`);
 					}
-					ee`<div class="ve-muted mb-1" style="font-size:.8em">${parts.join("+")}</div>`.appendTo(wrpHpContent);
+					ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">${parts.join("+")}</div>`.appendTo(wrpHpContent);
 				} else {
-					ee`<div class="ve-muted mb-1" style="font-size:.8em">Select a class first</div>`.appendTo(wrpHpContent);
+					ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">Select a class first</div>`.appendTo(wrpHpContent);
 				}
 			} else {
 				if (!Array.isArray(this._state.hpRolls)) this._state.hpRolls = [];
 				const hpRolls = this._state.hpRolls;
 				const lvl1Max = _levelDice[0] ?? 0;
 
-				const wrpRolls    = ee`<div class="ve-flex ve-flex-wrap ve-flex-v-center mb-1"></div>`.appendTo(wrpHpContent);
-				const dispBreakdown = ee`<div class="ve-muted mb-1" style="font-size:.8em"></div>`.appendTo(wrpHpContent);
+				const wrpRolls    = ee`<div class="ve-flex ve-flex-wrap ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpHpContent);
+				const dispBreakdown = ee`<div class="ve-muted ve-mb-1" style="font-size:.8em"></div>`.appendTo(wrpHpContent);
 
-				ee`<span class="ve-muted mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.appendTo(wrpRolls);
+				ee`<span class="ve-muted ve-mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.appendTo(wrpRolls);
 
 				const recalc = () => {
 					calcMax = lvl1Max + hpRolls.slice(0, totalLevel - 1).reduce((s, v) => s + (v || 0), 0) + conMod * totalLevel;
@@ -2730,7 +2730,7 @@ export class CharacterBuilder extends BuilderBase {
 
 				for (let i = 0; i < totalLevel - 1; i++) {
 					const rollDie = _levelDice[i + 1];
-					const ipt = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" max="${rollDie || 20}" style="width:42px" placeholder="${rollDie != null ? Math.floor(rollDie / 2) + 1 : "?"}">`;
+					const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" max="${rollDie || 20}" style="width:42px" placeholder="${rollDie != null ? Math.floor(rollDie / 2) + 1 : "?"}">`;
 					if (hpRolls[i] != null) ipt.val(hpRolls[i]);
 					ipt.onn("change", () => { hpRolls[i] = UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN: 0}) || null; recalc(); cb(); });
 					ee`<span class="ve-muted" style="font-size:.75em;margin-right:1px">L${i + 2}</span>`.appendTo(wrpRolls);
@@ -2739,15 +2739,15 @@ export class CharacterBuilder extends BuilderBase {
 				recalc();
 			}
 
-			iptHp = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Max HP">`.val(calcMax);
+			iptHp = ee`<input class="ve-form-control ve-input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Max HP">`.val(calcMax);
 			iptHp.onn("change", () => {
 				const raw = iptHp.val().trim();
 				this._state.hpMax = raw === "" ? calcMax : UiUtil.strToInt(raw, calcMax, {fallbackOnNaN: calcMax});
 				cb();
 			});
 			this._state.hpMax = calcMax;
-			ee`<div class="ve-flex-v-center mt-1">
-				<span class="ve-muted mr-1" style="font-size:.8em">Max HP</span>
+			ee`<div class="ve-flex-v-center ve-mt-1">
+				<span class="ve-muted ve-mr-1" style="font-size:.8em">Max HP</span>
 				${iptHp}
 			</div>`.appendTo(wrpHpContent);
 		};
@@ -2768,7 +2768,7 @@ export class CharacterBuilder extends BuilderBase {
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
 
 		// ── Auto entries (equipped weapons + damage cantrips) ──────────────────
-		const wrpAutoWpn = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(wpnRowInner);
+		const wrpAutoWpn = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(wpnRowInner);
 
 		const buildAutoWpnSection = () => {
 			wrpAutoWpn.empty();
@@ -2803,7 +2803,7 @@ export class CharacterBuilder extends BuilderBase {
 						cb();
 						buildAutoWpnSection();
 					});
-				ee`<div class="ve-flex-v-center mb-1">
+				ee`<div class="ve-flex-v-center ve-mb-1">
 					<span style="flex:1;font-size:.85em">${name}</span>
 					${btnEye}
 				</div>`.appendTo(wrpAutoWpn);
@@ -2819,15 +2819,15 @@ export class CharacterBuilder extends BuilderBase {
 		const wpnList = () => this._state.weapons || [];
 		const wpnRows = [];
 		const doUpdateWpn = () => { this._state.weapons = wpnRows.map(r => r.getState()).filter(it => it.name); cb(); };
-		const wrpWpnRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(wpnRowInner);
+		const wrpWpnRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(wpnRowInner);
 		wpnList().forEach(w => addWpnRow(w));
 		function addWpnRow (initial) {
-			const iptName = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Name" style="flex:2">`.val(initial?.name || "").onn("change", doUpdateWpn);
-			const iptAtk  = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Atk/DC" style="width:65px">`.val(initial?.atkBonus || "").onn("change", doUpdateWpn);
-			const iptDmg  = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Dmg" style="width:80px">`.val(initial?.damage || "").onn("change", doUpdateWpn);
-			const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.notes || "").onn("change", doUpdateWpn);
+			const iptName = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Name" style="flex:2">`.val(initial?.name || "").onn("change", doUpdateWpn);
+			const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(initial?.atkBonus || "").onn("change", doUpdateWpn);
+			const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(initial?.damage || "").onn("change", doUpdateWpn);
+			const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.notes || "").onn("change", doUpdateWpn);
 			const btnRm   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => { wpnRows.splice(wpnRows.indexOf(rowMeta), 1); rowEle.empty().remove(); doUpdateWpn(); });
-			const rowEle  = ee`<div class="ve-flex-v-center mb-1">${iptName}${iptAtk}${iptDmg}${iptNote}${btnRm}</div>`.appendTo(wrpWpnRows);
+			const rowEle  = ee`<div class="ve-flex-v-center ve-mb-1">${iptName}${iptAtk}${iptDmg}${iptNote}${btnRm}</div>`.appendTo(wrpWpnRows);
 			const rowMeta = {getState: () => ({name: iptName.val().trim(), atkBonus: iptAtk.val().trim(), damage: iptDmg.val().trim(), notes: iptNote.val().trim()})};
 			wpnRows.push(rowMeta);
 		}
@@ -2906,10 +2906,10 @@ export class CharacterBuilder extends BuilderBase {
 			// ── Currency ────────────────────────────────────────────────────────
 			const [currRow, currRowInner] = BuilderUi.getLabelledRowTuple("Currency");
 			const currencies = [{k:"cp",l:"CP"},{k:"sp",l:"SP"},{k:"ep",l:"EP"},{k:"gp",l:"GP"},{k:"pp",l:"PP"}];
-			const currEles = ee`<div class="ve-flex ve-flex-wrap w-100">`;
+			const currEles = ee`<div class="ve-flex ve-flex-wrap ve-w-100">`;
 			currencies.forEach(({k, l}) => {
-				const ipt = ee`<input class="form-control input-xs form-control--minimal" type="number" min="0" style="width:60px">`.val(this._state[k] || 0).onn("change", () => { this._state[k] = Math.max(0, UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN:0})); cb(); });
-				currEles.appends(ee`<div class="ve-flex-v-center mr-3 mb-1"><span class="mr-1 ve-muted" style="font-size:.8em">${l}</span>${ipt}</div>`);
+				const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" type="number" min="0" style="width:60px">`.val(this._state[k] || 0).onn("change", () => { this._state[k] = Math.max(0, UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN:0})); cb(); });
+				currEles.appends(ee`<div class="ve-flex-v-center ve-mr-3 ve-mb-1"><span class="ve-mr-1 ve-muted" style="font-size:.8em">${l}</span>${ipt}</div>`);
 			});
 			currRowInner.append(currEles);
 			wrp.append(currRow);
@@ -2922,7 +2922,7 @@ export class CharacterBuilder extends BuilderBase {
 
 				const renderChoiceGroups = (groups, prefix, sourceName) => {
 					if (!groups?.length) return;
-					ee`<div class="ve-muted italic mb-1" style="font-size:.85em">${sourceName}:</div>`.appendTo(seRowInner);
+					ee`<div class="ve-muted ve-italic ve-mb-1" style="font-size:.85em">${sourceName}:</div>`.appendTo(seRowInner);
 					groups.forEach((group, idx) => {
 						const choiceKey = `${prefix}_${idx}`;
 						const choiceKeys = Object.keys(group).filter(k => k !== "_");
@@ -2930,13 +2930,13 @@ export class CharacterBuilder extends BuilderBase {
 						// Mandatory block
 						if (group._) {
 							const lbl = CharacterBuilder._fmtEquipChoiceLabel(group._);
-							if (lbl) ee`<div class="mb-1 ml-1" style="font-size:.85em">${lbl}</div>`.appendTo(seRowInner);
+							if (lbl) ee`<div class="ve-mb-1 ve-ml-1" style="font-size:.85em">${lbl}</div>`.appendTo(seRowInner);
 						}
 
 						// Choice dropdown
 						if (choiceKeys.length > 0) {
 							const sel = document.createElement("select");
-							sel.className = "form-control input-xs form-control--minimal mb-1";
+							sel.className = "ve-form-control ve-input-xs form-control--minimal ve-mb-1";
 							const blank = document.createElement("option");
 							blank.value = ""; blank.textContent = "(choose one)";
 							sel.appendChild(blank);
@@ -2971,21 +2971,21 @@ export class CharacterBuilder extends BuilderBase {
 				this._syncEquippedItems();
 				cb();
 			};
-			const wrpEqRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(eqRowInner);
+			const wrpEqRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(eqRowInner);
 
 			// Auto-granted items (removeable, with equip checkbox for weapons/armor/shields)
 			(this._state.equipment || []).filter(() => false).forEach(item => {
 				const entry = this._getItemEntry(item.name);
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
-				const row = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpEqRows);
+				const row = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
 				if (isEquippable) {
-					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(row);
-					const cbEle = ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!item.equipped);
+					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(row);
+					const cbEle = ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!item.equipped);
 					cbEle.onn("change", () => { item.equipped = !!cbEle.prop("checked"); cb(); });
 					cbEle.appendTo(row);
 				}
-				ee`<span class="mr-2" style="flex:1">${item.name}${item.qty > 1 ? ` ×${item.qty}` : ""}</span>`.appendTo(row);
-				ee`<span class="ve-muted italic mr-2" style="font-size:.85em;flex:1">${item.note || ""}</span>`.appendTo(row);
+				ee`<span class="ve-mr-2" style="flex:1">${item.name}${item.qty > 1 ? ` ×${item.qty}` : ""}</span>`.appendTo(row);
+				ee`<span class="ve-muted ve-italic ve-mr-2" style="font-size:.85em;flex:1">${item.note || ""}</span>`.appendTo(row);
 				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
 					.onn("click", () => {
 						this._state.equipment = (this._state.equipment || []).filter(e => e !== item);
@@ -3000,20 +3000,20 @@ export class CharacterBuilder extends BuilderBase {
 			const addEqRow = (initial) => {
 				const entry = this._getItemEntry(initial?.name || "");
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
-				const iptQty  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
-				const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateEqState);
-				const nameSpan = ee`<span class="bold mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
+				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateEqState);
+				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				const cbEquip = isEquippable
-					? ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateEqState)
+					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateEqState)
 					: null;
 				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
 					eqRows.splice(eqRows.indexOf(rowMeta), 1);
 					rowEle.remove();
 					doUpdateEqState();
 				});
-				const rowEle = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpEqRows);
+				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
 				if (isEquippable) {
-					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
+					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
 					cbEquip.appendTo(rowEle);
 				}
 				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
@@ -3046,33 +3046,33 @@ export class CharacterBuilder extends BuilderBase {
 				this._syncEquippedItems();
 				cb();
 			};
-			const wrpMgRows = ee`<div class="ve-flex-col mb-1"></div>`.appendTo(mgRowInner);
+			const wrpMgRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(mgRowInner);
 
 			const addMgRow = (initial) => {
 				const entry = this._getItemEntry(initial?.name || "");
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
 				const needsAttune = !!(entry?.reqAttune);
-				const iptQty  = ee`<input class="form-control input-xs form-control--minimal mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
-				const iptNote = ee`<input class="form-control input-xs form-control--minimal mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateMgState);
-				const nameSpan = ee`<span class="bold mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
+				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateMgState);
+				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				const cbEquip = isEquippable
-					? ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
+					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
 					: null;
 				const btnAttune = needsAttune
-					? $('<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Requires attunement">Att.</button>')
+					? ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Requires attunement">Att.</button>`
 					: null;
 				if (btnAttune) {
 					if (initial?.attuned) btnAttune.addClass("active");
-					btnAttune.on("click", () => { btnAttune.toggleClass("active"); doUpdateMgState(); });
+					btnAttune.onn("click", () => { btnAttune.toggleClass("active"); doUpdateMgState(); });
 				}
 				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
 					mgRows.splice(mgRows.indexOf(rowMeta), 1);
 					rowEle.remove();
 					doUpdateMgState();
 				});
-				const rowEle = ee`<div class="ve-flex-v-center mb-1"></div>`.appendTo(wrpMgRows);
+				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpMgRows);
 				if (isEquippable) {
-					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
+					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
 					cbEquip.appendTo(rowEle);
 				}
 				if (btnAttune) btnAttune.appendTo(rowEle);
@@ -3213,7 +3213,7 @@ export class CharacterBuilder extends BuilderBase {
 				cb();
 			};
 
-			const wrpRows = ee`<div class="ve-flex-col mb-2"></div>`.appendTo(wrp);
+			const wrpRows = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
 
 			const addRow = (initial) => {
 				const name = typeof initial === "string" ? initial : (initial?.name || "");
@@ -3221,23 +3221,23 @@ export class CharacterBuilder extends BuilderBase {
 				const isAuto   = !!initial?.autoGranted;
 				const spellData = this._getSpellEntry(name);
 
-				const card = ee`<div class="mb-2 p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
+				const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
 				const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
-				ee`<span class="bold mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
+				ee`<span class="ve-bold ve-mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
 
 				if (spellData != null) {
 					const levelStr = spellData.level === 0 ? "Cantrip" : `L${spellData.level}`;
-					ee`<span class="ve-muted mr-2" style="font-size:.8em">${levelStr}</span>`.appendTo(nameRow);
+					ee`<span class="ve-muted ve-mr-2" style="font-size:.8em">${levelStr}</span>`.appendTo(nameRow);
 				}
 				if (spellData && this._isSpellConcentration(spellData))
-					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Concentration">C</span>`.appendTo(nameRow);
+					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Concentration">C</span>`.appendTo(nameRow);
 				if (spellData?.meta?.ritual)
-					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Ritual">R</span>`.appendTo(nameRow);
+					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Ritual">R</span>`.appendTo(nameRow);
 				if (spellData?.components?.m)
-					ee`<span class="ve-muted mr-1" style="font-size:.75em" title="Material component">M</span>`.appendTo(nameRow);
+					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Material component">M</span>`.appendTo(nameRow);
 
-				ee`<span class="ve-muted mr-1" style="font-size:.8em">Prep</span>`.appendTo(nameRow);
-				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb mr-2" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(nameRow);
+				ee`<span class="ve-muted ve-mr-1" style="font-size:.8em">Prep</span>`.appendTo(nameRow);
+				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(nameRow);
 
 				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
 					.onn("click", () => {
@@ -3251,19 +3251,19 @@ export class CharacterBuilder extends BuilderBase {
 					const castStr  = this._fmtSpellCastingTime(spellData);
 					const rangeStr = this._fmtSpellRange(spellData);
 					if (castStr || rangeStr) {
-						const statsRow = ee`<div class="ve-flex-v-center mt-1 ml-2"></div>`.appendTo(card);
+						const statsRow = ee`<div class="ve-flex-v-center ve-mt-1 ve-ml-2"></div>`.appendTo(card);
 						if (castStr) {
-							ee`<span class="ve-muted mr-1" style="font-size:.8em">Cast:</span>`.appendTo(statsRow);
-							ee`<span class="mr-3" style="font-size:.8em">${castStr}</span>`.appendTo(statsRow);
+							ee`<span class="ve-muted ve-mr-1" style="font-size:.8em">Cast:</span>`.appendTo(statsRow);
+							ee`<span class="ve-mr-3" style="font-size:.8em">${castStr}</span>`.appendTo(statsRow);
 						}
 						if (rangeStr) {
-							ee`<span class="ve-muted mr-1" style="font-size:.8em">Range:</span>`.appendTo(statsRow);
+							ee`<span class="ve-muted ve-mr-1" style="font-size:.8em">Range:</span>`.appendTo(statsRow);
 							ee`<span style="font-size:.8em">${rangeStr}</span>`.appendTo(statsRow);
 						}
 					}
 				}
 
-				const iptNotes = ee`<input class="form-control input-xs form-control--minimal mt-1" placeholder="Notes..." style="width:100%">`.val(initial?.notes || "").onn("change", doUpdateState).appendTo(card);
+				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mt-1" placeholder="Notes..." style="width:100%">`.val(initial?.notes || "").onn("change", doUpdateState).appendTo(card);
 
 				const rowMeta = {
 					getState: () => ({
@@ -3339,8 +3339,8 @@ export class CharacterBuilder extends BuilderBase {
 		const wrp = this._ui.wrpOutput.empty();
 
 		if (!this._isDataLoaded) {
-			ee`<div class="ve-flex-vh-center w-100 h-100 py-4">
-				<span class="ve-muted italic">Loading character data...</span>
+			ee`<div class="ve-flex-vh-center ve-w-100 ve-h-100 ve-py-4">
+				<span class="ve-muted ve-italic">Loading character data...</span>
 			</div>`.appendTo(wrp);
 			return;
 		}
@@ -3354,14 +3354,14 @@ export class CharacterBuilder extends BuilderBase {
 			{tabGroup: "output", cbTabChange: this.doUiSave.bind(this)},
 		);
 		const [previewTab, dataTab] = tabs;
-		ee`<div class="ve-flex-v-center w-100 no-shrink">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
+		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
 
 		// ── PDF Preview tab ──────────────────────────────────────────────────
 		this._renderPdfPreview(previewTab.wrpTab);
 
 		// ── Data tab ─────────────────────────────────────────────────────────
-		const tblData = ee`<table class="w-100 stats stats--book mkbru__wrp-output-tab-data"></table>`.appendTo(dataTab.wrpTab);
+		const tblData = ee`<table class="ve-w-100 stats stats--book mkbru__wrp-output-tab-data"></table>`.appendTo(dataTab.wrpTab);
 		const asCode = Renderer.get().render({
 			type: "entries",
 			entries: [{
@@ -3391,26 +3391,26 @@ export class CharacterBuilder extends BuilderBase {
 		const s = this._state;
 
 		// Toolbar
-		const btnJson = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1"><span class="glyphicon glyphicon-download-alt mr-1"></span>JSON</button>`
+		const btnJson = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1"><span class="glyphicon glyphicon-download-alt ve-mr-1"></span>JSON</button>`
 			.onn("click", () => {
 				const out = this._ui._getJsonOutputTemplate();
 				out.character = [DataUtil.cleanJson(MiscUtil.copy(s))];
 				DataUtil.userDownload(DataUtil.getCleanFilename(s.name || "character"), out);
 			});
-		const btnPdf = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1"><span class="glyphicon glyphicon-print mr-1"></span>PDF</button>`
+		const btnPdf = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1"><span class="glyphicon glyphicon-print ve-mr-1"></span>PDF</button>`
 			.onn("click", () => this._doExportPdf());
-		const btnStatblock = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-1" title="Export as creature statblock (Markdown)"><span class="glyphicon glyphicon-list-alt mr-1"></span>Statblock</button>`
+		const btnStatblock = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Export as creature statblock (Markdown)"><span class="glyphicon glyphicon-list-alt ve-mr-1"></span>Statblock</button>`
 			.onn("click", () => this._doExportStatblock());
-		const btnCards = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th mr-1"></span>Cards</button>`
+		const btnCards = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th ve-mr-1"></span>Cards</button>`
 			.onn("click", () => this._doExportCards());
-		ee`<div class="ve-flex-v-center mb-2 pb-1" style="border-bottom:1px solid var(--rgb-border-grey)">
-			<span class="ve-muted italic mr-2" style="font-size:.75em">${(s.styleHint === "classic") ? "D&D 2014 (5e)" : "D&D 2024 (5.5e)"}</span>
-			<div class="ml-auto">${btnJson}${btnPdf}${btnStatblock}${btnCards}</div>
+		ee`<div class="ve-flex-v-center ve-mb-2 ve-pb-1" style="border-bottom:1px solid var(--rgb-border-grey)">
+			<span class="ve-muted ve-italic ve-mr-2" style="font-size:.75em">${(s.styleHint === "classic") ? "D&D 2014 (5e)" : "D&D 2024 (5.5e)"}</span>
+			<div class="ve-ml-auto">${btnJson}${btnPdf}${btnStatblock}${btnCards}</div>
 		</div>`.appendTo(wrp);
 
 		// Status / iframe
-		const dispStatus = ee`<div class="ve-flex-vh-center w-100 py-3"><span class="ve-muted italic">Generating PDF preview\u2026</span></div>`.appendTo(wrp);
-		const iframe = ee`<iframe class="w-100 ve-hidden" style="height:800px;border:none"></iframe>`.appendTo(wrp);
+		const dispStatus = ee`<div class="ve-flex-vh-center ve-w-100 ve-py-3"><span class="ve-muted ve-italic">Generating PDF preview\u2026</span></div>`.appendTo(wrp);
+		const iframe = ee`<iframe class="ve-w-100 ve-hidden" style="height:800px;border:none"></iframe>`.appendTo(wrp);
 
 		// Revoke previous blob URL to avoid memory leaks
 		if (this._pdfBlobUrl) { URL.revokeObjectURL(this._pdfBlobUrl); this._pdfBlobUrl = null; }
