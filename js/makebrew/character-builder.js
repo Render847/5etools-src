@@ -209,7 +209,6 @@ export class CharacterBuilder extends BuilderBase {
 			// meta
 			name: "New Character",
 			styleHint: VetoolsConfig.get("styleSwitcher", "style") ?? SITE_STYLE__ONE,
-			source: this._ui ? this._ui.source : "",
 			// identity
 			playerName: "",
 			classes: [{cls: "", sub: "", level: 1}],
@@ -343,7 +342,6 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	async pHandleSidebarLoadExistingData (character, opts = {}) {
-		character.source = this._ui.source;
 		delete character.uniqueId;
 		const meta = {...(opts.meta || {}), ...this._getInitialMetaState({nameOriginal: character.name})};
 		this.setStateFromLoaded({s: character, m: meta});
@@ -352,8 +350,120 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	// -------------------------------------------------------------------------
+	// Character save / load (localStorage-backed)
+	// -------------------------------------------------------------------------
+
+	async _pGetSavedCharacters () {
+		return await StorageUtil.pGetForPage(CharacterBuilder._STORAGE_KEY_SAVED) || [];
+	}
+
+	async _pSaveCharacter () {
+		const chars = await this._pGetSavedCharacters();
+		const uid = this.__state.uniqueId;
+		const ix = chars.findIndex(c => c.uniqueId === uid);
+		const entry = {
+			uniqueId: uid,
+			name: this.__state.name || "New Character",
+			s: MiscUtil.copy(this.__state),
+			m: MiscUtil.copy(this.__meta),
+		};
+		if (ix >= 0) chars[ix] = entry;
+		else chars.push(entry);
+		await StorageUtil.pSetForPage(CharacterBuilder._STORAGE_KEY_SAVED, chars);
+		this._meta.isModified = false;
+		this._meta.nameOriginal = this.__state.name;
+		this.doUiSave();
+		await this._pDoUpdateSidemenu();
+	}
+
+	async pRenderSideMenu () {
+		if (!this._eleSideMenuStageSaved) {
+			this._eleSideMenuWrpList = ee`<div class="w-100 ve-flex-col">`;
+			this._eleSideMenuStageSaved = ee`<div class="w-100">${this._eleSideMenuWrpList}</div>`;
+		}
+		this._eleSideMenuStageSaved.appendTo(this._ui.wrpSideMenu);
+		await this._pDoUpdateSidemenu();
+	}
+
+	async _pDoUpdateSidemenu () {
+		if (!this._eleSideMenuStageSaved) return;
+		this._sidemenuListRenderCache = this._sidemenuListRenderCache || {};
+		const chars = await this._pGetSavedCharacters();
+		this._eleSideMenuStageSaved.toggleVe(!!chars.length);
+
+		const metasVisible = new Set();
+		chars.forEach((char, ix) => {
+			metasVisible.add(char.uniqueId);
+
+			if (this._sidemenuListRenderCache[char.uniqueId]) {
+				const meta = this._sidemenuListRenderCache[char.uniqueId];
+				meta.row.showVe();
+				if (meta.name !== char.name) { meta.dispName.txt(char.name); meta.name = char.name; }
+				if (meta.position !== ix) { meta.row.css({"order": ix}); meta.position = ix; }
+				return;
+			}
+
+			const btnEdit = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-2" title="Load"><span class="glyphicon glyphicon-pencil"></span></button>`
+				.onn("click", async () => {
+					if (
+						this.getOnNavMessage()
+						&& !await InputUiUtil.pGetUserBoolean({title: "Discard Unsaved Changes", htmlDescription: "You have unsaved changes. Are you sure?", textYes: "Yes", textNo: "Cancel"})
+					) return;
+					this.setStateFromLoaded({s: MiscUtil.copy(char.s), m: MiscUtil.copy(char.m)});
+					this.renderInput();
+					this.renderOutput();
+					this.doUiSave();
+				});
+
+			const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete"><span class="glyphicon glyphicon-trash"></span></button>`
+				.onn("click", async () => {
+					if (!await InputUiUtil.pGetUserBoolean({title: "Delete Character", htmlDescription: `Delete "${char.name}"?`, textYes: "Yes", textNo: "Cancel"})) return;
+					const next = (await this._pGetSavedCharacters()).filter(c => c.uniqueId !== char.uniqueId);
+					await StorageUtil.pSetForPage(CharacterBuilder._STORAGE_KEY_SAVED, next);
+					if (this.__state.uniqueId === char.uniqueId) this.reset();
+					await this._pDoUpdateSidemenu();
+				});
+
+			const dispName = ee`<span class="py-1">${char.name}</span>`;
+			const row = ee`<div class="mkbru__sidebar-entry ve-flex-v-center split px-2" style="order:${ix}">
+				${dispName}
+				<div class="py-1 no-shrink">${btnEdit}${btnDelete}</div>
+			</div>`.appendTo(this._eleSideMenuWrpList);
+
+			this._sidemenuListRenderCache[char.uniqueId] = {dispName, row, name: char.name, position: ix};
+		});
+
+		Object.entries(this._sidemenuListRenderCache)
+			.filter(([uid]) => !metasVisible.has(uid))
+			.forEach(([, meta]) => meta.row.hideVe());
+	}
+
+	async pHandleSidebarDownloadJsonClick () {
+		const chars = await this._pGetSavedCharacters();
+		const out = this._ui._getJsonOutputTemplate();
+		out.character = chars.map(c => DataUtil.cleanJson(MiscUtil.copy(c.s)));
+		DataUtil.userDownload("characters", out);
+	}
+
+	// -------------------------------------------------------------------------
 	// Input rendering
 	// -------------------------------------------------------------------------
+
+	renderInputControls () {
+		const btnSave = ee`<button class="ve-btn ve-btn-xs ve-btn-default mr-2">Save</button>`
+			.onn("click", () => this._pSaveCharacter());
+		this._addHook("meta", "isModified", () => btnSave.txt(this._meta.isModified ? "Save *" : "Save"))();
+
+		const btnNew = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="SHIFT to reset additional state">New Character</button>`
+			.onn("click", async (evt) => {
+				if (!await InputUiUtil.pGetUserBoolean({title: "Reset Builder", htmlDescription: "Are you sure?", textYes: "Yes", textNo: "Cancel"})) return;
+				this.reset({isResetAllMeta: !!evt.shiftKey});
+			});
+
+		ee(this._ui.wrpInputControls.empty())`
+			<div class="ve-flex-v-center">${btnSave}${btnNew}</div>
+		`;
+	}
 
 	_renderInputImpl () {
 		this.doCreateProxies();
@@ -362,7 +472,6 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	_renderInputMain () {
-		this._sourcesCache = MiscUtil.copy(this._ui.allSources);
 		const wrp = this._ui.wrpInput.empty();
 
 		// Data is loaded async — show a spinner until ready, then re-render
@@ -3863,3 +3972,4 @@ export class CharacterBuilder extends BuilderBase {
 		return doc;
 	}
 }
+CharacterBuilder._STORAGE_KEY_SAVED = "characterBuilderSaved";
