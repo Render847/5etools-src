@@ -230,6 +230,7 @@ export class CharacterBuilder extends BuilderBase {
 			// proficiencies
 			savingThrowProfs: [],
 			skillProfs: [],
+			classSkillChoices: [],
 			skillExpertise: [],
 			skillHalfProfs: [],
 			languages: [],
@@ -242,7 +243,6 @@ export class CharacterBuilder extends BuilderBase {
 			initiative: null, // null = auto from dex
 			hp: 0,
 			hpMax: 0,
-			tempHp: 0,
 			hitDice: "",
 			// personality
 			personalityTraits: "",
@@ -330,16 +330,9 @@ export class CharacterBuilder extends BuilderBase {
 		this.__meta = state.m;
 	}
 
-	// Not stored as homebrew entities so no-op
-	doHandleSourcesAdd () {}
-
 	// -------------------------------------------------------------------------
 	// Sidebar
 	// -------------------------------------------------------------------------
-
-	async pHandleSidebarLoadExistingClick () {
-		JqueryUtil.doToast({type: "warning", content: "Character import from 5etools data is not yet supported — use the JSON upload button in the input panel instead."});
-	}
 
 	async pHandleSidebarLoadExistingData (character, opts = {}) {
 		delete character.uniqueId;
@@ -535,7 +528,6 @@ export class CharacterBuilder extends BuilderBase {
 	_buildIdentityTab (wrp, cb) {
 		BuilderUi.getStateIptString("Character Name", cb, this._state, {nullable: false, callback: () => this.pRenderSideMenu()}, "name").appendTo(wrp);
 		BuilderUi.getStateIptString("Player Name",    cb, this._state, {}, "playerName").appendTo(wrp);
-		this._selSource = this.getSourceInput(cb).appendTo(wrp);
 
 		// Edition toggle
 		const editionRow = this._buildEditionToggle(cb);
@@ -562,10 +554,11 @@ export class CharacterBuilder extends BuilderBase {
 
 		// State hook — fires whenever classes array changes
 		this._addHook("state", "classes", () => {
-			this._state.classFeatureItems = [];
-			this._state.hitDice           = "";
-			this._state.spellSlots        = [0,0,0,0,0,0,0,0,0];
-			this._state.pactSlots         = [0,0,0,0,0,0,0,0,0];
+			this._state.classFeatureItems  = [];
+			this._state.hitDice            = "";
+			this._state.spellSlots         = [0,0,0,0,0,0,0,0,0];
+			this._state.pactSlots          = [0,0,0,0,0,0,0,0,0];
+			this._state.classSkillChoices  = [];
 			this._applyClassData();
 			this.renderInput();
 			this.renderOutput();
@@ -588,7 +581,7 @@ export class CharacterBuilder extends BuilderBase {
 				items.forEach((item, ix) => {
 					const itemRow = ee`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
 					const btnExcl = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="Exclude from PDF" style="min-width:42px;flex-shrink:0">Excl.</button>`;
-					if (item.excluded) btnExcl.addClass("active");
+					if (item.excluded) btnExcl.addClass("ve-active");
 					const ta = ee`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
 					ta.val(item.text);
 					btnExcl.onn("click", () => {
@@ -1451,10 +1444,21 @@ export class CharacterBuilder extends BuilderBase {
 
 	// ── Feat grants automation ────────────────────────────────────────────────
 	// Resets and re-populates all feat-granted proficiency/spell buckets from
-	// current feat selections and user choices.  Keeps feat data separate from
-	// manually-entered proficiencies so the two can be merged in the PDF.
+	// current feat selections and user choices.  Feat-granted languages, armor,
+	// weapon, and tool proficiencies are merged into the main state arrays so
+	// they appear in the existing input controls.
 	_applyFeatData () {
 		if (!this._state) return;
+
+		// Strip previously feat-granted values from main arrays before recomputing
+		const _oldFeatLangs   = this._state.featLanguages   || [];
+		const _oldFeatWeapons = this._state.featWeaponProfs  || [];
+		const _oldFeatTools   = this._state.featToolProfs    || [];
+		const _oldFeatArmor   = this._state.featArmorProfs   || [];
+		this._state.languages   = (this._state.languages   || []).filter(v => !_oldFeatLangs.includes(v));
+		this._state.weaponProfs = (this._state.weaponProfs  || []).filter(v => !_oldFeatWeapons.includes(v));
+		this._state.toolProfs   = (this._state.toolProfs    || []).filter(v => !_oldFeatTools.includes(v));
+		this._state.armorProfs  = (this._state.armorProfs   || []).filter(v => !_oldFeatArmor.includes(v));
 
 		// Reset feat-granted buckets
 		this._state.featSkillProfs      = [];
@@ -1571,6 +1575,17 @@ export class CharacterBuilder extends BuilderBase {
 			});
 
 			}
+
+		// Merge feat-granted values into the main arrays so they appear in the input controls
+		const _mergeInto = (mainKey, featArr) => {
+			const main = [...(this._state[mainKey] || [])];
+			featArr.forEach(v => { if (!main.includes(v)) main.push(v); });
+			this._state[mainKey] = main;
+		};
+		_mergeInto("languages",   this._state.featLanguages   || []);
+		_mergeInto("weaponProfs", this._state.featWeaponProfs || []);
+		_mergeInto("toolProfs",   this._state.featToolProfs   || []);
+		_mergeInto("armorProfs",  this._state.featArmorProfs  || []);
 
 		this._syncGrantedSpells();
 		this._sg_syncAbilityScores();
@@ -1729,7 +1744,7 @@ export class CharacterBuilder extends BuilderBase {
 			expertise: {
 				label:       (from, cnt) => cnt > 1 ? `Expertise Skills (×${cnt})` : "Expertise Skill",
 				options:     () => {
-					const allProf = [...new Set([...(this._state.skillProfs||[]), ...(this._state.featSkillProfs||[])])];
+					const allProf = [...new Set([...(this._state.skillProfs||[]), ...(this._state.featSkillProfs||[]), ...(this._state.classSkillChoices||[])])];
 					const pool = allProf.length ? allProf : _SKILLS.map(s => s.name);
 					return pool.map(s => ({value: s, label: s}));
 				},
@@ -1859,6 +1874,8 @@ export class CharacterBuilder extends BuilderBase {
 						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
 						this._state.featChoices[featName][choice.key] = sel.value;
 						this._applyFeatData();
+						this._sg_syncAbilityScores();
+						if (this._sg_doRebuild) this._sg_doRebuild();
 						cb();
 					});
 					choiceRow.appendChild(sel);
@@ -1875,6 +1892,8 @@ export class CharacterBuilder extends BuilderBase {
 						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
 						this._state.featChoices[featName][choice.key] = ipt.value;
 						this._applyFeatData();
+						this._sg_syncAbilityScores();
+						if (this._sg_doRebuild) this._sg_doRebuild();
 						cb();
 					});
 					choiceRow.appendChild(ipt);
@@ -1901,6 +1920,8 @@ export class CharacterBuilder extends BuilderBase {
 		const doUpdateState = () => {
 			this._state.feats = featRows.map(r => r.name).filter(Boolean);
 			this._applyFeatData();
+			this._sg_syncAbilityScores();
+			if (this._sg_doRebuild) this._sg_doRebuild();
 			cb();
 		};
 
@@ -1947,6 +1968,18 @@ export class CharacterBuilder extends BuilderBase {
 		// ── Stat generation (Roll / Std Array / Point Buy / Manual) ──────────
 		this._buildStatGen(wrp, cb);
 
+		// ── ASI Choices (Background / Race) ──────────────────────────────────
+		const choiceWrp = ee`<div class="ve-w-100 stripe-even"></div>`;
+		const onChoiceChange = () => {
+			choiceWrp.empty();
+			this._sg_buildAbilityChoices(choiceWrp, cb, onChoiceChange);
+			this._sg_syncAbilityScores();
+			if (this._sg_doRebuild) this._sg_doRebuild();
+			cb();
+		};
+		this._sg_buildAbilityChoices(choiceWrp, cb, onChoiceChange);
+		wrp.append(choiceWrp);
+
 		// ── Saving Throws ────────────────────────────────────────────────────
 		this._buildSavingThrowsInput(wrp, cb);
 
@@ -1954,52 +1987,28 @@ export class CharacterBuilder extends BuilderBase {
 		this._buildSkillsInput(wrp, cb);
 
 		// ── Other proficiencies ──────────────────────────────────────────────
-		// Helper: read-only row for feat-granted items in a given state key
-		const addFeatRow = (label, stateKey) => {
-			const div  = ee`<div style="font-size:.85em;padding-left:2px;margin-bottom:4px"></div>`;
-			const span = ee`<span class="ve-muted"></span>`;
-			div.append(span);
-			const refresh = () => {
-				const items = this._state[stateKey] || [];
-				if (items.length) { span.txt(label + " (feats): " + items.join(", ")); div.showVe(); }
-				else div.hideVe();
-			};
-			refresh();
-			this._addHook("state", stateKey, refresh);
-			div.appendTo(wrp);
-		};
-
 		BuilderUi.getStateIptStringArray("Languages",   cb, this._state, {shortName: "Language",           nullable: true}, "languages").appendTo(wrp);
-		addFeatRow("Languages",     "featLanguages");
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Armor Prof.");
 			const _ARMOR_CATS = ["Light", "Medium", "Heavy", "Shields"];
 			const btnWrp = ee`<div class="ve-flex"></div>`;
 			_ARMOR_CATS.forEach(cat => {
 				const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${cat}</button>`;
-				const refresh = () => {
-					const all = [...(this._state.armorProfs || []), ...(this._state.featArmorProfs || [])];
-					btn.toggleClass("active", all.includes(cat));
-					btn.prop("disabled", (this._state.featArmorProfs || []).includes(cat));
-				};
+				const refresh = () => btn.toggleClass("ve-active", (this._state.armorProfs || []).includes(cat));
 				btn.onn("click", () => {
 					const cur = this._state.armorProfs || [];
 					this._state.armorProfs = cur.includes(cat) ? cur.filter(v => v !== cat) : [...cur, cat];
 					cb();
 				});
-				this._addHook("state", "armorProfs",     refresh);
-				this._addHook("state", "featArmorProfs", refresh);
+				this._addHook("state", "armorProfs", refresh);
 				refresh();
 				btnWrp.appends(btn);
 			});
 			btnWrp.appendTo(rowInner);
 			row.appendTo(wrp);
 		}
-		addFeatRow("Armor",         "featArmorProfs");
 		BuilderUi.getStateIptStringArray("Weapon Prof.",cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").appendTo(wrp);
-		addFeatRow("Weapons",       "featWeaponProfs");
 		BuilderUi.getStateIptStringArray("Tool Prof.",  cb, this._state, {shortName: "Tool Proficiency",   nullable: true}, "toolProfs").appendTo(wrp);
-		addFeatRow("Tools",         "featToolProfs");
 	}
 
 	// ── Stat generation ───────────────────────────────────────────────────────
@@ -2014,50 +2023,48 @@ export class CharacterBuilder extends BuilderBase {
 			{key: "array",    label: "Std. Array"},
 			{key: "pointbuy", label: "Point Buy"},
 		];
-		wrp.append(modeRow);
 
 		// ── Roll controls (visible only in roll mode) ─────────────────────
-		const rollRow = ee`<div class="ve-flex-v-center ve-mb-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
-		const rollsDisp = ee`<span class="ve-muted" style="font-size:.85em"></span>`;
-		rollRow.appends(ee`<button class="ve-btn ve-btn-xs ve-btn-success ve-mr-2">Roll 4d6×6</button>`
-			.onn("click", () => {
-				const rolls = Array.from({length: 6}, () => {
-					const d = Array.from({length: 4}, () => Math.ceil(Math.random() * 6)).sort((a, b) => b - a);
-					return d[0] + d[1] + d[2];
-				}).sort((a, b) => b - a);
-				this._state.sg_rolls = rolls;
-				_ABILITIES.forEach(abl => { this._state[`sg_roll_${abl}`] = null; });
-				rollsDisp.txt(`Rolled: ${rolls.join(", ")}`);
-				doRebuild();
-			})).appends(rollsDisp);
-		wrp.append(rollRow);
+		const rollRow = ee`<div class="ve-flex-col ve-mt-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
+		const rollsDisp = ee`<span class="ve-muted ve-mt-1" style="font-size:.85em"></span>`;
+		rollRow.appends(
+			ee`<button class="ve-btn ve-btn-xs ve-btn-success ve-w-100">Roll 4d6×6</button>`
+				.onn("click", () => {
+					const rolls = Array.from({length: 6}, () => {
+						const d = Array.from({length: 4}, () => Math.ceil(Math.random() * 6)).sort((a, b) => b - a);
+						return d[0] + d[1] + d[2];
+					}).sort((a, b) => b - a);
+					this._state.sg_rolls = rolls;
+					_ABILITIES.forEach(abl => { this._state[`sg_roll_${abl}`] = null; });
+					rollsDisp.txt(`Rolled: ${rolls.join(", ")}`);
+					doRebuild();
+				}),
+			rollsDisp,
+		);
 
 		// ── Point buy info (visible only in pointbuy mode) ────────────────
-		const pbRow = ee`<div class="ve-flex-v-center ve-mb-1 ${this._state.sg_mode !== "pointbuy" ? "ve-hidden" : ""}">`;
+		const pbRow = ee`<div class="ve-mt-1 ${this._state.sg_mode !== "pointbuy" ? "ve-hidden" : ""}">`;
 		this._sg_pbSpentDisp = ee`<b>0</b>`;
 		pbRow.appends(ee`<span class="ve-muted" style="font-size:.85em">Points spent: ${this._sg_pbSpentDisp} / ${_SG_PB_BUDGET}</span>`);
-		wrp.append(pbRow);
 
-		// ── Grid + choice containers ──────────────────────────────────────
+		// ── Layout: [buttons col] | [grid + choices col] ──────────────────
 		this._sg_rollsDisp = rollsDisp;
-		const gridWrp   = ee`<div class="ve-mb-2"></div>`.appendTo(wrp);
-		const choiceWrp = ee`<div></div>`.appendTo(wrp);
-
-		// Single rebuild function used by mode buttons, roll, and choice changes
+		const btnCol    = ee`<div class="ve-flex-col ve-no-shrink ve-mr-2" style="width:80px">`;
+		const gridWrp   = ee`<div class="ve-mb-2"></div>`;
+		// Single rebuild function used by mode buttons and roll
 		const doRebuild = () => {
 			gridWrp.empty();
 			this._sg_buildGrid(gridWrp, cb);
 			pbRow.toggleVe(this._state.sg_mode === "pointbuy");
 			rollRow.toggleVe(this._state.sg_mode === "roll");
-			choiceWrp.empty();
-			this._sg_buildAbilityChoices(choiceWrp, cb, doRebuild);
 			// Sync state so the PDF / output reflects the new totals immediately
 			this._sg_syncAbilityScores();
 			cb();
 		};
+		this._sg_doRebuild = doRebuild;
 
 		modeList.forEach(({key, label}) => {
-			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${label}</button>`
+			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-w-100 ve-mb-1">${label}</button>`
 				.onn("click", () => {
 					if (this._state.sg_mode === key) return;
 					this._state.sg_mode = key;
@@ -2065,8 +2072,13 @@ export class CharacterBuilder extends BuilderBase {
 					doRebuild();
 				});
 			modeBtns[key] = btn;
-			modeRowInner.appends(btn);
+			btnCol.append(btn);
 		});
+		btnCol.append(rollRow);
+		btnCol.append(pbRow);
+
+		modeRowInner.appends(ee`<div class="ve-flex ve-w-100">${btnCol}<div class="ve-flex-col" style="flex:1">${gridWrp}</div></div>`);
+		wrp.append(modeRow);
 
 		this._sg_updateModeBtns(modeBtns);
 
@@ -2075,7 +2087,6 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		this._sg_buildGrid(gridWrp, cb);
-		this._sg_buildAbilityChoices(choiceWrp, cb, doRebuild);
 	}
 
 	_sg_updateModeBtns (btns) {
@@ -2202,7 +2213,7 @@ export class CharacterBuilder extends BuilderBase {
 		const hdr = ee`<div class="ve-flex-v-center ve-mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
 		hdr.appends(ee`<span style="width:46px"> </span>`);
 		const baseLabel = {manual: "Score", roll: "Assign", array: "Array", pointbuy: "Score"}[mode];
-		hdr.appends(ee`<span class="ve-text-center" style="min-width:80px">${baseLabel}</span>`);
+		hdr.appends(ee`<span class="ve-text-center" style="width:80px">${baseLabel}</span>`);
 		if (showExtra) {
 			hdr.appends(ee`<span class="ve-text-center" style="width:46px">${_isNew ? "+BG" : "+Race"}</span>`);
 			if (hasFeat) hdr.appends(ee`<span class="ve-text-center" style="width:42px">+Feat</span>`);
@@ -2250,12 +2261,12 @@ export class CharacterBuilder extends BuilderBase {
 							ipt.val(v);
 							doUpdate();
 						});
-					baseCell = ee`<span style="min-width:80px">${ipt}</span>`;
+					baseCell = ee`<span style="width:80px">${ipt}</span>`;
 					break;
 				}
 				case "roll": {
 					const rolls = this._state.sg_rolls || [];
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
 						<option value="">— assign —</option>
 						${rolls.map((v, i) => `<option value="${i}">${v}</option>`).join("")}
 					</select>`;
@@ -2266,11 +2277,11 @@ export class CharacterBuilder extends BuilderBase {
 						this._state[`sg_roll_${abl}`] = v === "" ? null : Number(v);
 						doUpdate();
 					});
-					baseCell = ee`<span style="min-width:80px">${sel}</span>`;
+					baseCell = ee`<span style="width:80px">${sel}</span>`;
 					break;
 				}
 				case "array": {
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
 						<option value="">— assign —</option>
 						${_STANDARD_ARRAY.map(v => `<option value="${v}">${v}</option>`).join("")}
 					</select>`;
@@ -2281,11 +2292,11 @@ export class CharacterBuilder extends BuilderBase {
 						this._state[`sg_arr_${abl}`] = v === "" ? null : Number(v);
 						doUpdate();
 					});
-					baseCell = ee`<span style="min-width:80px">${sel}</span>`;
+					baseCell = ee`<span style="width:80px">${sel}</span>`;
 					break;
 				}
 				case "pointbuy": {
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
 						${_SG_PB_SCORES.map(v => `<option value="${v}">${v} (${_SG_PB_COSTS[v]}pts)</option>`).join("")}
 					</select>`;
 					sel.val(String(this._state[`sg_pb_${abl}`] ?? 8));
@@ -2293,7 +2304,7 @@ export class CharacterBuilder extends BuilderBase {
 						this._state[`sg_pb_${abl}`] = Number(sel.val());
 						doUpdate();
 					});
-					baseCell = ee`<span style="min-width:80px">${sel}</span>`;
+					baseCell = ee`<span style="width:80px">${sel}</span>`;
 					break;
 				}
 			}
@@ -2494,16 +2505,16 @@ export class CharacterBuilder extends BuilderBase {
 					const idx   = profs.indexOf(abl);
 					if (idx >= 0) profs.splice(idx, 1); else profs.push(abl);
 					this._state.savingThrowProfs = profs;
-					btnProf.toggleClass("active", isSaveProficient());
+					btnProf.toggleClass("ve-active", isSaveProficient());
 					dispBonus.txt(_fmtMod(getBonus()));
 					cb();
 				});
-			if (isSaveProficient()) btnProf.addClass("active");
+			if (isSaveProficient()) btnProf.addClass("ve-active");
 
 			this._addHook("state", abl,                    () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "classes",              () => dispBonus.txt(_fmtMod(getBonus())));
 			this._addHook("state", "profBonusOverride",    () => dispBonus.txt(_fmtMod(getBonus())));
-			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
+			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("ve-active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
 
 			ee`<div class="ve-flex-col ve-flex-vh-center ve-mb-2 ve-mr-2">
 				<span class="ve-mb-1 ve-bold ve-text-center">${abl.toUpperCase()}</span>
@@ -2516,19 +2527,61 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	_buildSkillsInput (wrp, cb) {
-		if (this._state._skillChoiceCount) {
-			const from    = this._state._skillChoiceFrom;
-			const fromStr = from ? from.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ") : "any skill";
-			ee`<div class="ve-muted ve-italic ve-px-2 ve-mb-1" style="font-size:.85em">
-				Your class grants <b>${this._state._skillChoiceCount}</b> skill proficiency choice(s) from: ${fromStr}
-			</div>`.appendTo(wrp);
+		// ── Class Skill Choices ────────────────────────────────────────────────
+		{
+			const [choiceRow, choiceRowInner] = BuilderUi.getLabelledRowTuple("Class Skills");
+			const count = this._state._skillChoiceCount || 0;
+			const allowedFrom = this._state._skillChoiceFrom;
+			const skillOptions = allowedFrom
+				? _SKILLS.filter(s => allowedFrom.some(f => f.toLowerCase() === s.name.toLowerCase()))
+				: [..._SKILLS];
+
+			if (!count) {
+				choiceRowInner.appends(ee`<span class="ve-muted ve-italic" style="font-size:.85em">No class skill choices available.</span>`);
+			} else {
+				const sels = [];
+				const savedChoices = this._state.classSkillChoices || [];
+
+				const refreshDisabled = () => {
+					const taken = new Set(sels.map(s => s.val()).filter(Boolean));
+					sels.forEach(sel => {
+						const myVal = sel.val();
+						Array.from(sel.options).forEach(opt => {
+							if (!opt.value) return;
+							opt.disabled = taken.has(opt.value) && opt.value !== myVal;
+						});
+					});
+				};
+
+				for (let i = 0; i < count; i++) {
+					const saved = skillOptions.find(s => s.name === savedChoices[i]) ? savedChoices[i] : "";
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:130px">
+						<option value="">— None —</option>
+						${skillOptions.map(({name}) => `<option value="${name}"${name === saved ? " selected" : ""}>${name}</option>`).join("")}
+					</select>`;
+					sel.onn("change", () => {
+						this._state.classSkillChoices = sels.map(s => s.val());
+						refreshDisabled();
+						cb();
+					});
+					sels.push(sel);
+					choiceRowInner.appends(sel);
+				}
+
+				refreshDisabled();
+			}
+
+			wrp.append(choiceRow);
 		}
 
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Skills", {isMarked: true});
 		const halfProfBtns = [];
 
 		_SKILLS.forEach(({name, ability}) => {
-			const isProficient = () => (this._state.skillProfs    || []).includes(name) || (this._state.featSkillProfs || []).includes(name);
+			const isProficient = () =>
+				(this._state.skillProfs         || []).includes(name) ||
+				(this._state.featSkillProfs      || []).includes(name) ||
+				(this._state.classSkillChoices   || []).includes(name);
 			const isExpert     = () => (this._state.skillExpertise || []).includes(name) || (this._state.featExpertise  || []).includes(name);
 			const isHalfProf   = () => (this._state.skillHalfProfs || []).includes(name);
 
@@ -2557,12 +2610,12 @@ export class CharacterBuilder extends BuilderBase {
 						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
-					btnProf.toggleClass("active",   isProficient());
-					btnExpert.toggleClass("active", isExpert());
+					btnProf.toggleClass("ve-active",   isProficient());
+					btnExpert.toggleClass("ve-active", isExpert());
 					updateBonus();
 					cb();
 				});
-			if (isProficient()) btnProf.addClass("active");
+			if (isProficient()) btnProf.addClass("ve-active");
 
 			const btnExpert = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Expertise">Expert.</button>`
 				.onn("click", () => {
@@ -2573,16 +2626,17 @@ export class CharacterBuilder extends BuilderBase {
 						this._state.skillProfs     = (this._state.skillProfs     || []).filter(s => s !== name);
 						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
-					btnProf.toggleClass("active",   isProficient());
-					btnExpert.toggleClass("active", isExpert());
+					btnProf.toggleClass("ve-active",   isProficient());
+					btnExpert.toggleClass("ve-active", isExpert());
 					updateBonus();
 					cb();
 				});
-			if (isExpert()) btnExpert.addClass("active");
-			this._addHook("state", "featSkillProfs", () => { btnProf.toggleClass("active",   isProficient()); updateBonus(); });
-			this._addHook("state", "featExpertise",  () => { btnExpert.toggleClass("active", isExpert());     updateBonus(); });
+			if (isExpert()) btnExpert.addClass("ve-active");
+			this._addHook("state", "featSkillProfs",    () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
+			this._addHook("state", "featExpertise",     () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
+			this._addHook("state", "classSkillChoices", () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
 			const btnHalfProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Half Proficiency">Half.</button>`;
-			if (isHalfProf()) btnHalfProf.addClass("active");
+			if (isHalfProf()) btnHalfProf.addClass("ve-active");
 			halfProfBtns.push({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus});
 
 			ee`<div class="ve-flex-v-center ve-mb-1">
@@ -2603,13 +2657,13 @@ export class CharacterBuilder extends BuilderBase {
 					this._state.skillProfs     = (this._state.skillProfs || []).filter(s => s !== name);
 					this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 				}
-				btnHalfProf.toggleClass("active", isHalfProf());
-				btnProf.toggleClass("active",     isProficient());
-				btnExpert.toggleClass("active",   isExpert());
+				btnHalfProf.toggleClass("ve-active", isHalfProf());
+				btnProf.toggleClass("ve-active",     isProficient());
+				btnExpert.toggleClass("ve-active",   isExpert());
 				updateBonus();
 				cb();
 			});
-			this._addHook("state", "skillHalfProfs", () => btnHalfProf.toggleClass("active", isHalfProf()));
+			this._addHook("state", "skillHalfProfs", () => btnHalfProf.toggleClass("ve-active", isHalfProf()));
 		});
 
 		wrp.append(row);
@@ -3062,8 +3116,8 @@ export class CharacterBuilder extends BuilderBase {
 					? ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Requires attunement">Att.</button>`
 					: null;
 				if (btnAttune) {
-					if (initial?.attuned) btnAttune.addClass("active");
-					btnAttune.onn("click", () => { btnAttune.toggleClass("active"); doUpdateMgState(); });
+					if (initial?.attuned) btnAttune.addClass("ve-active");
+					btnAttune.onn("click", () => { btnAttune.toggleClass("ve-active"); doUpdateMgState(); });
 				}
 				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
 					mgRows.splice(mgRows.indexOf(rowMeta), 1);
@@ -3077,7 +3131,7 @@ export class CharacterBuilder extends BuilderBase {
 				}
 				if (btnAttune) btnAttune.appendTo(rowEle);
 				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("active") : false})};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("ve-active") : false})};
 				mgRows.push(rowMeta);
 			};
 			(this._state.magicEquipment || []).forEach(item => addMgRow(item));
@@ -3316,19 +3370,6 @@ export class CharacterBuilder extends BuilderBase {
 		BuilderUi.getStateIptEntries("Appearance Notes", cb, this._state, {placeholder: "Physical description..."}, "appearance").appendTo(wrp);
 	}
 
-	// ── Appearance tab ────────────────────────────────────────────────────────
-
-	_buildAppearanceTab (wrp, cb) {
-		BuilderUi.getStateIptString("Age",    cb, this._state, {placeholder: "e.g. 30"}, "age").appendTo(wrp);
-		BuilderUi.getStateIptString("Height", cb, this._state, {placeholder: "e.g. 5'10\""}, "height").appendTo(wrp);
-		BuilderUi.getStateIptString("Weight", cb, this._state, {placeholder: "e.g. 160 lbs"}, "weight").appendTo(wrp);
-		BuilderUi.getStateIptString("Eyes",   cb, this._state, {placeholder: "e.g. Brown"}, "eyes").appendTo(wrp);
-		BuilderUi.getStateIptString("Skin",   cb, this._state, {placeholder: "e.g. Tan"}, "skin").appendTo(wrp);
-		BuilderUi.getStateIptString("Hair",   cb, this._state, {placeholder: "e.g. Black"}, "hair").appendTo(wrp);
-		BuilderUi.getStateIptEnum("Size", cb, this._state, {nullable: false, vals: _SIZES, fnDisplay: v => String(v)}, "size").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Appearance Notes", cb, this._state, {placeholder: "Physical description..."}, "appearance").appendTo(wrp);
-	}
-
 	// -------------------------------------------------------------------------
 	// Output rendering
 	// -------------------------------------------------------------------------
@@ -3453,7 +3494,7 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		const allSaveProfs = new Set([...(s.savingThrowProfs || []), ...(s.featSavingThrowProfs || [])]);
-		const allSkillProfs = new Set([...(s.skillProfs || []), ...(s.featSkillProfs || [])]);
+		const allSkillProfs = new Set([...(s.skillProfs || []), ...(s.featSkillProfs || []), ...(s.classSkillChoices || [])]);
 		const allExpertise  = new Set([...(s.skillExpertise || []), ...(s.featExpertise || [])]);
 		const allHalfProfs  = new Set(s.skillHalfProfs || []);
 
@@ -3471,7 +3512,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		const passPerc = 10 + _mod(s.wis || 10) + (allSkillProfs.has("Perception") ? (allExpertise.has("Perception") ? prof * 2 : prof) : 0);
 		const ac = s.equippedAC != null ? s.equippedAC + (s.equippedShield ? 2 : 0) : s.ac;
-		const languages = [...(s.languages || []), ...(s.featLanguages || [])].join(", ") || "\u2014";
+		const languages = [...new Set([...(s.languages || []), ...(s.featLanguages || [])])].join(", ") || "\u2014";
 		const classLine = (s.classes || (s.class ? [{cls: s.class, sub: s.subclass, level: s.level}] : []))
 			.filter(c => c.cls)
 			.map(c => `${c.cls}${c.sub ? ` (${c.sub})` : ""} ${c.level}`)
@@ -3616,14 +3657,14 @@ export class CharacterBuilder extends BuilderBase {
 		const profBonus  = s.profBonusOverride ?? _profBonus(totalLevel);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
 		const initiative = s.initiative ?? abilMods.dex;
-		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : (s.skillProfs||[]).includes("Perception") ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
+		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
 		const passPer    = 10 + abilMods.wis + profBonus * _percMult;
 		const spellMod   = s.spellcastingAbility ? abilMods[s.spellcastingAbility] : null;
 		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
 		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
 
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
-		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk);
+		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk) || (s.classSkillChoices||[]).includes(sk);
 		const hasExpert   = sk => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
 		const hasHalfProf = sk => (s.skillHalfProfs||[]).includes(sk);
 		const saveBonus  = abl => abilMods[abl] + (hasSave(abl) ? profBonus : 0);
