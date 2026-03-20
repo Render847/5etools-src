@@ -295,6 +295,8 @@ export class CharacterBuilder extends BuilderBase {
 			featExpertise: [],
 			featResistances: [],
 			featHpBonus: 0,
+			featSpeedBonus: 0,
+			featInitiativeBonus: 0,
 				// spells
 			spellcastingAbility: "",
 			spellSlots: [0,0,0,0,0,0,0,0,0],
@@ -1458,21 +1460,10 @@ export class CharacterBuilder extends BuilderBase {
 
 	// ── Feat grants automation ────────────────────────────────────────────────
 	// Resets and re-populates all feat-granted proficiency/spell buckets from
-	// current feat selections and user choices.  Feat-granted languages, armor,
-	// weapon, and tool proficiencies are merged into the main state arrays so
-	// they appear in the existing input controls.
+	// current feat selections and user choices.  The feat* arrays are kept
+	// separate from the user-editable main arrays; the output sheet unions them.
 	_applyFeatData () {
 		if (!this._state) return;
-
-		// Strip previously feat-granted values from main arrays before recomputing
-		const _oldFeatLangs   = this._state.featLanguages   || [];
-		const _oldFeatWeapons = this._state.featWeaponProfs  || [];
-		const _oldFeatTools   = this._state.featToolProfs    || [];
-		const _oldFeatArmor   = this._state.featArmorProfs   || [];
-		this._state.languages   = (this._state.languages   || []).filter(v => !_oldFeatLangs.includes(v));
-		this._state.weaponProfs = (this._state.weaponProfs  || []).filter(v => !_oldFeatWeapons.includes(v));
-		this._state.toolProfs   = (this._state.toolProfs    || []).filter(v => !_oldFeatTools.includes(v));
-		this._state.armorProfs  = (this._state.armorProfs   || []).filter(v => !_oldFeatArmor.includes(v));
 
 		// Reset feat-granted buckets
 		this._state.featSkillProfs      = [];
@@ -1481,9 +1472,11 @@ export class CharacterBuilder extends BuilderBase {
 		this._state.featArmorProfs      = [];
 		this._state.featWeaponProfs     = [];
 		this._state.featSavingThrowProfs = [];
-		this._state.featExpertise       = [];
-		this._state.featResistances     = [];
-		this._state.featHpBonus         = 0;
+		this._state.featExpertise        = [];
+		this._state.featResistances      = [];
+		this._state.featHpBonus          = 0;
+		this._state.featSpeedBonus       = 0;
+		this._state.featInitiativeBonus  = 0;
 
 		const allChoices = this._state.featChoices || {};
 		const featNames  = [
@@ -1498,7 +1491,7 @@ export class CharacterBuilder extends BuilderBase {
 		const push = (arr, val) => { if (val && !arr.includes(val)) arr.push(val); };
 
 		for (const featName of featNames) {
-			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+			const feat = this._getFeatEntry(featName);
 			if (!feat) continue;
 			const chosen = allChoices[featName] || {};
 			// Helper: read both single-slot (key) and indexed slots (key_0, key_1, ...) for a choice
@@ -1640,16 +1633,30 @@ export class CharacterBuilder extends BuilderBase {
 
 			}
 
-		// Merge feat-granted values into the main arrays so they appear in the input controls
-		const _mergeInto = (mainKey, featArr) => {
-			const main = [...(this._state[mainKey] || [])];
-			featArr.forEach(v => { if (!main.includes(v)) main.push(v); });
-			this._state[mainKey] = main;
-		};
-		_mergeInto("languages",   this._state.featLanguages   || []);
-		_mergeInto("weaponProfs", this._state.featWeaponProfs || []);
-		_mergeInto("toolProfs",   this._state.featToolProfs   || []);
-		_mergeInto("armorProfs",  this._state.featArmorProfs  || []);
+		// ── Hardcoded feat bonuses (no machine-readable data in feat JSON) ──────
+		// These feats grant flat stat bonuses expressed only in their entries text.
+		const _hasFeat = name => featNames.some(n => n.toLowerCase() === name.toLowerCase());
+		const profBonusForFeat = _profBonus(this._getTotalLevel());
+
+		// Tough (PHB + XPHB): +2 HP per character level
+		if (_hasFeat("Tough")) this._state.featHpBonus += this._getTotalLevel() * 2;
+
+		// Mobile (PHB 2014) / Speedy (XPHB 2024): +10 ft. walking speed
+		if (_hasFeat("Mobile") || _hasFeat("Speedy")) this._state.featSpeedBonus += 10;
+
+		// Alert — edition determines the bonus:
+		//   PHB (classic): flat +5 to initiative
+		//   XPHB (modern): +proficiency bonus to initiative
+		if (_hasFeat("Alert")) {
+			const alertFeat = this._getFeatEntry("Alert");
+			if (alertFeat) {
+				if (SourceUtil.isClassicSource(alertFeat.source)) {
+					this._state.featInitiativeBonus += 5;
+				} else {
+					this._state.featInitiativeBonus += profBonusForFeat;
+				}
+			}
+		}
 
 		this._syncGrantedSpells();
 		this._sg_syncAbilityScores();
@@ -1679,7 +1686,7 @@ export class CharacterBuilder extends BuilderBase {
 		const allChoices = this._state.featChoices || {};
 		const featNames  = [...(this._state.bgFeat ? [this._state.bgFeat] : []), ...(this._state.feats || [])].filter(Boolean);
 		for (const featName of featNames) {
-			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+			const feat = this._getFeatEntry(featName);
 			if (!feat?.additionalSpells) continue;
 			const chosen = allChoices[featName] || {};
 			const groups = feat.additionalSpells;
@@ -1737,7 +1744,7 @@ export class CharacterBuilder extends BuilderBase {
 		const lines = [];
 		const allChoices = this._state.featChoices || {};
 		featNames.forEach(name => {
-			const feat = this._allFeats.find(f => f.name.toLowerCase() === name.toLowerCase());
+			const feat = this._getFeatEntry(name);
 			const chosen = allChoices[name] || {};
 			const chosenParts = [...new Set(Object.values(chosen).filter(Boolean))];
 			const chosenSuffix = chosenParts.length ? ` (${chosenParts.join(", ")})` : "";
@@ -1760,7 +1767,7 @@ export class CharacterBuilder extends BuilderBase {
 	// keyed by feat-property name maps each found pattern to display info, so
 	// new feat properties only require adding one entry to PROP_META.
 	_getFeatChoices (featName) {
-		const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+		const feat = this._getFeatEntry(featName);
 		if (!feat) return [];
 
 		const toTitle  = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -2154,28 +2161,51 @@ export class CharacterBuilder extends BuilderBase {
 		this._buildSkillsInput(wrp, cb);
 
 		// ── Other proficiencies ──────────────────────────────────────────────
-		BuilderUi.getStateIptStringArray("Languages",   cb, this._state, {shortName: "Language",           nullable: true}, "languages").appendTo(wrp);
+		// Helper: adds a small reactive "From feats: …" label below a row that
+		// updates whenever the given feat state key changes.
+		const appendFeatGrantedLabel = (parentRow, featKey) => {
+			const lbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(parentRow);
+			const refresh = () => {
+				const vals = this._state[featKey] || [];
+				lbl.toggleVe(vals.length > 0);
+				lbl.txt(vals.length ? `From feats: ${vals.join(", ")}` : "");
+			};
+			this._addHook("state", featKey, refresh);
+			refresh();
+		};
+
+		const langRow = BuilderUi.getStateIptStringArray("Languages", cb, this._state, {shortName: "Language", nullable: true}, "languages").appendTo(wrp);
+		appendFeatGrantedLabel(langRow, "featLanguages");
+
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Armor Prof.");
 			const _ARMOR_CATS = ["Light", "Medium", "Heavy", "Shields"];
 			const btnWrp = ee`<div class="ve-flex"></div>`;
 			_ARMOR_CATS.forEach(cat => {
 				const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${cat}</button>`;
-				const refresh = () => btn.toggleClass("ve-active", (this._state.armorProfs || []).includes(cat));
+				const hasArmor = () =>
+					(this._state.armorProfs     || []).includes(cat) ||
+					(this._state.featArmorProfs  || []).includes(cat);
+				const refresh = () => btn.toggleClass("ve-active", hasArmor());
 				btn.onn("click", () => {
 					const cur = this._state.armorProfs || [];
 					this._state.armorProfs = cur.includes(cat) ? cur.filter(v => v !== cat) : [...cur, cat];
 					cb();
 				});
-				this._addHook("state", "armorProfs", refresh);
+				this._addHook("state", "armorProfs",     refresh);
+				this._addHook("state", "featArmorProfs", refresh);
 				refresh();
 				btnWrp.appends(btn);
 			});
 			btnWrp.appendTo(rowInner);
 			row.appendTo(wrp);
 		}
-		BuilderUi.getStateIptStringArray("Weapon Prof.",cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").appendTo(wrp);
-		BuilderUi.getStateIptStringArray("Tool Prof.",  cb, this._state, {shortName: "Tool Proficiency",   nullable: true}, "toolProfs").appendTo(wrp);
+
+		const weapRow = BuilderUi.getStateIptStringArray("Weapon Prof.", cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").appendTo(wrp);
+		appendFeatGrantedLabel(weapRow, "featWeaponProfs");
+
+		const toolRow = BuilderUi.getStateIptStringArray("Tool Prof.", cb, this._state, {shortName: "Tool Proficiency", nullable: true}, "toolProfs").appendTo(wrp);
+		appendFeatGrantedLabel(toolRow, "featToolProfs");
 	}
 
 	// ── Stat generation ───────────────────────────────────────────────────────
@@ -2328,7 +2358,7 @@ export class CharacterBuilder extends BuilderBase {
 		].filter(Boolean);
 		let total = 0;
 		for (const featName of featNames) {
-			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
+			const feat = this._getFeatEntry(featName);
 			if (!feat?.ability) continue;
 			const abilArr = Array.isArray(feat.ability) ? feat.ability : [feat.ability];
 					const chosenEntry = allChoices[featName] || {};
@@ -2935,6 +2965,7 @@ export class CharacterBuilder extends BuilderBase {
 						const f = _levelDice[i];
 						parts.push(`(${f != null ? Math.floor(f / 2) + 1 : "?"}${conStr})`);
 					}
+					if (this._state.featHpBonus) parts.push(`${this._state.featHpBonus} (feats)`);
 					ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">${parts.join("+")}</div>`.appendTo(wrpHpContent);
 				} else {
 					ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">Select a class first</div>`.appendTo(wrpHpContent);
@@ -2988,8 +3019,31 @@ export class CharacterBuilder extends BuilderBase {
 		wrp.append(hpRow);
 
 		BuilderUi.getStateIptNumber("Armor Class", cb, this._state, {nullable: false, placeholder: "10"}, "ac").appendTo(wrp);
-		BuilderUi.getStateIptNumber("Speed (ft.)", cb, this._state, {nullable: false, placeholder: "30"}, "speed").appendTo(wrp);
-		BuilderUi.getStateIptNumber("Initiative Override", cb, this._state, {nullable: true, placeholder: "Auto (Dex mod)"}, "initiative").appendTo(wrp);
+
+		{
+			const speedRow = BuilderUi.getStateIptNumber("Speed (ft.)", cb, this._state, {nullable: false, placeholder: "30"}, "speed").appendTo(wrp);
+			const speedLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(speedRow);
+			const refreshSpeed = () => {
+				const bonus = this._state.featSpeedBonus || 0;
+				speedLbl.toggleVe(bonus !== 0);
+				speedLbl.txt(bonus ? `From feats: +${bonus} ft. (total ${(this._state.speed || 30) + bonus} ft.)` : "");
+			};
+			this._addHook("state", "featSpeedBonus", refreshSpeed);
+			this._addHook("state", "speed",          refreshSpeed);
+			refreshSpeed();
+		}
+
+		{
+			const initRow = BuilderUi.getStateIptNumber("Initiative Override", cb, this._state, {nullable: true, placeholder: "Auto (Dex mod)"}, "initiative").appendTo(wrp);
+			const initLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(initRow);
+			const refreshInit = () => {
+				const bonus = this._state.featInitiativeBonus || 0;
+				initLbl.toggleVe(bonus !== 0);
+				initLbl.txt(bonus ? `From feats: +${bonus} to initiative` : "");
+			};
+			this._addHook("state", "featInitiativeBonus", refreshInit);
+			refreshInit();
+		}
 
 		// Prof bonus
 		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._getTotalLevel())})`}, "profBonusOverride").appendTo(wrp);
@@ -3342,6 +3396,20 @@ export class CharacterBuilder extends BuilderBase {
 	_getSpellEntry (name) {
 		if (!this._allSpells || !name) return null;
 		return this._allSpells.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
+	}
+
+	// Returns the edition-appropriate feat entry for a given name.
+	// Prefers the source matching the active edition (classic vs. modern),
+	// with a fallback to the first match — same pattern as _sg_getSpeciesEntry etc.
+	_getFeatEntry (featName) {
+		if (!this._allFeats || !featName) return null;
+		const matches = this._allFeats.filter(f => f.name.toLowerCase() === featName.toLowerCase());
+		if (!matches.length) return null;
+		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		return (isNew
+			? matches.find(f => !SourceUtil.isClassicSource(f.source))
+			: matches.find(f => SourceUtil.isClassicSource(f.source))
+		) || matches[0];
 	}
 
 	_getItemEntry (name) {
@@ -3702,7 +3770,7 @@ export class CharacterBuilder extends BuilderBase {
 			``,
 			`**Armor Class** ${ac}  `,
 			`**Hit Points** ${s.hpMax || 0} (${s.hitDice || `${_stLevel(s)}d8`})  `,
-			`**Speed** ${s.speed || 30} ft.  `,
+			`**Speed** ${(s.speed || 30) + (s.featSpeedBonus || 0)} ft.  `,
 			``,
 			`---`,
 			``,
@@ -3832,7 +3900,7 @@ export class CharacterBuilder extends BuilderBase {
 			: (s[abl] || 10));
 		const profBonus  = s.profBonusOverride ?? _profBonus(totalLevel);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
-		const initiative = s.initiative ?? abilMods.dex;
+		const initiative = (s.initiative ?? abilMods.dex) + (s.featInitiativeBonus || 0);
 		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
 		const passPer    = 10 + abilMods.wis + profBonus * _percMult;
 		const spellMod   = s.spellcastingAbility ? abilMods[s.spellcastingAbility] : null;
@@ -3967,7 +4035,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Combat stats
 		inField(fmod(profBonus),   43.0, 150.9,  74.5, 173.3, 13, true);
 		inField(fmod(initiative),  245.1, 135.0, 287.8, 157.3, 12, true);
-		inField(v(s.speed,"30"),   338.1, 135.0, 386.5, 157.3, 12, true);
+		inField(String((s.speed||30) + (s.featSpeedBonus||0)), 338.1, 135.0, 386.5, 157.3, 12, true);
 		inField(v(s.size,""),      436.7, 135.2, 479.5, 157.5,  9, true);
 		inField(String(passPer),   528.8, 135.2, 581.8, 157.5, 12, true);
 
