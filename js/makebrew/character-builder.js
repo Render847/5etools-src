@@ -62,6 +62,17 @@ const _CASTER_CLASSES = new Set([
 	"Bard","Cleric","Druid","Paladin","Ranger","Sorcerer","Warlock","Wizard",
 	"Artificer",
 ]);
+const _COMMON_TOOLS = [
+	"Alchemist's Supplies","Brewer's Supplies","Calligrapher's Supplies",
+	"Carpenter's Tools","Cartographer's Tools","Cobbler's Tools","Cook's Utensils",
+	"Glassblower's Tools","Jeweler's Tools","Leatherworker's Tools","Mason's Tools",
+	"Painter's Supplies","Potter's Tools","Smith's Tools","Tinker's Tools",
+	"Weaver's Tools","Woodcarver's Tools",
+	"Disguise Kit","Forgery Kit","Herbalism Kit","Navigator's Tools","Poisoner's Kit","Thieves' Tools",
+	"Vehicles (Land)","Vehicles (Water)","Vehicles (Air)",
+	"Bagpipes","Drum","Dulcimer","Flute","Lute","Lyre","Horn","Pan Flute","Shawm","Viol",
+	"Dice Set","Dragonchess Set","Playing Card Set","Three-Dragon Ante Set",
+];
 
 // Stat generation constants
 const _STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
@@ -282,6 +293,8 @@ export class CharacterBuilder extends BuilderBase {
 			featWeaponProfs: [],
 			featSavingThrowProfs: [],
 			featExpertise: [],
+			featResistances: [],
+			featHpBonus: 0,
 				// spells
 			spellcastingAbility: "",
 			spellSlots: [0,0,0,0,0,0,0,0,0],
@@ -642,7 +655,7 @@ export class CharacterBuilder extends BuilderBase {
 			const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 			const seen = new Set();
 			return this._allClasses.filter(c => {
-				const edOk = isNew ? c.edition === "one" : c.edition === "classic";
+				const edOk = isNew ? !SourceUtil.isClassicSource(c.source) : SourceUtil.isClassicSource(c.source);
 				if (!edOk || seen.has(c.name)) return false;
 				seen.add(c.name);
 				return true;
@@ -656,7 +669,7 @@ export class CharacterBuilder extends BuilderBase {
 			const all = this._allSubclasses[key] || [];
 			const seen = new Set();
 			return all.filter(sc => {
-				const edOk = isNew ? sc.edition === "one" : sc.edition === "classic";
+				const edOk = isNew ? !SourceUtil.isClassicSource(sc.source) : SourceUtil.isClassicSource(sc.source);
 				if (!edOk || seen.has(sc.name)) return false;
 				seen.add(sc.name);
 				return true;
@@ -957,7 +970,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Prefer edition-matching entry; fall back to any match
 		const matches = this._allClasses.filter(c => c.name === clsName);
 		if (!matches.length) return null;
-		const preferred = matches.find(c => isNew ? c.edition === "one" : c.edition === "classic");
+		const preferred = matches.find(c => isNew ? !SourceUtil.isClassicSource(c.source) : SourceUtil.isClassicSource(c.source));
 		return preferred || matches[0];
 	}
 
@@ -969,7 +982,7 @@ export class CharacterBuilder extends BuilderBase {
 			if (!clsName) return null;
 			const matches = this._allClasses.filter(x => x.name === clsName);
 			if (!matches.length) return null;
-			const preferred = matches.find(x => isNew ? x.edition === "one" : x.edition === "classic");
+			const preferred = matches.find(x => isNew ? !SourceUtil.isClassicSource(x.source) : SourceUtil.isClassicSource(x.source));
 			return preferred || matches[0];
 		});
 	}
@@ -1181,8 +1194,8 @@ export class CharacterBuilder extends BuilderBase {
 				const _scList = this._allSubclasses[clsKey] || [];
 				const _nameMatches = _scList.filter(s => (s.name || "").toLowerCase() === subName);
 				const _sc = _isNew
-					? (_nameMatches.find(s => s.edition === "one") || _nameMatches[0])
-					: (_nameMatches.find(s => s.edition === "classic") || _nameMatches.find(s => s.edition !== "one") || _nameMatches[0]);
+					? (_nameMatches.find(s => !SourceUtil.isClassicSource(s.source)) || _nameMatches[0])
+					: (_nameMatches.find(s => SourceUtil.isClassicSource(s.source)) || _nameMatches[0]);
 				if (_sc) {
 					const _scShort  = (_sc.shortName || "").toLowerCase();
 					const _scSource = _sc.source || "";
@@ -1324,8 +1337,8 @@ export class CharacterBuilder extends BuilderBase {
 		const matches = this._allBackgrounds.filter(b => b.name === bgName);
 		if (!matches.length) return;
 		const bg = isNew
-			? (matches.find(b => b.edition === "one") || matches[0])
-			: (matches.find(b => b.edition === "classic") || matches.find(b => b.edition !== "one") || matches[0]);
+			? (matches.find(b => !SourceUtil.isClassicSource(b.source)) || matches[0])
+			: (matches.find(b => SourceUtil.isClassicSource(b.source)) || matches[0]);
 
 		// Skill proficiencies — keys are skill names (lowercase), value true means proficient
 		const bgSkills = [];
@@ -1389,8 +1402,8 @@ export class CharacterBuilder extends BuilderBase {
 		const matches = this._allSpecies.filter(r => r.name === raceName);
 		if (!matches.length) return;
 		const race = isNew
-			? (matches.find(r => r.edition === "one") || matches[0])
-			: (matches.find(r => r.edition === "classic") || matches.find(r => r.edition !== "one") || matches[0]);
+			? (matches.find(r => !SourceUtil.isClassicSource(r.source)) || matches[0])
+			: (matches.find(r => SourceUtil.isClassicSource(r.source)) || matches[0]);
 
 		// Size
 		if (race.size?.length) {
@@ -1440,6 +1453,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		this._syncGrantedSpells();
 		this._sg_syncAbilityScores();
+		this._rebuildHpSection?.();
 	}
 
 	// ── Feat grants automation ────────────────────────────────────────────────
@@ -1468,6 +1482,8 @@ export class CharacterBuilder extends BuilderBase {
 		this._state.featWeaponProfs     = [];
 		this._state.featSavingThrowProfs = [];
 		this._state.featExpertise       = [];
+		this._state.featResistances     = [];
+		this._state.featHpBonus         = 0;
 
 		const allChoices = this._state.featChoices || {};
 		const featNames  = [
@@ -1476,7 +1492,7 @@ export class CharacterBuilder extends BuilderBase {
 		].filter(Boolean);
 
 		const toTitle    = s => s.charAt(0).toUpperCase() + s.slice(1);
-		const ARMOR_MAP  = {light: "Light Armor", medium: "Medium Armor", heavy: "Heavy Armor", shield: "Shields"};
+		const ARMOR_MAP  = {light: "Light", medium: "Medium", heavy: "Heavy", shield: "Shields"};
 
 		// Helper: add to a state array, deduplicating
 		const push = (arr, val) => { if (val && !arr.includes(val)) arr.push(val); };
@@ -1485,14 +1501,24 @@ export class CharacterBuilder extends BuilderBase {
 			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
 			if (!feat) continue;
 			const chosen = allChoices[featName] || {};
+			// Helper: read both single-slot (key) and indexed slots (key_0, key_1, ...) for a choice
+			const getChosenList = key => {
+				const vals = [];
+				if (chosen[key]) vals.push(chosen[key]);
+				for (let i = 0; chosen[key + "_" + i] !== undefined; i++) {
+					if (chosen[key + "_" + i]) vals.push(chosen[key + "_" + i]);
+				}
+				return vals;
+			};
 
 			// ── Skill proficiencies ──────────────────────────────────────
 			(feat.skillProficiencies || []).forEach(sp => {
 				Object.keys(sp).forEach(k => {
 					if (k === "choose") {
-						const val = chosen.skillProficiencies;
-						const mapped = val && _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
-						if (mapped) push(this._state.featSkillProfs, mapped);
+						getChosenList("skillProficiencies").forEach(val => {
+							const mapped = val && _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
+							if (mapped) push(this._state.featSkillProfs, mapped);
+						});
 					} else if (k !== "any" && k !== "anyProficientSkill") {
 						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
 						if (mapped) push(this._state.featSkillProfs, mapped);
@@ -1502,20 +1528,30 @@ export class CharacterBuilder extends BuilderBase {
 
 			// ── Skill/Tool/Language combined block (e.g. Skilled) ────────
 			(feat.skillToolLanguageProficiencies || []).forEach(block => {
-				// Only concrete keys (not choose/any)
+				// Fixed concrete keys
 				Object.keys(block).forEach(k => {
-					if (k === "choose") return; // user picks via text input
+					if (k === "choose") return;
 					const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
 					if (mapped) push(this._state.featSkillProfs, mapped);
 				});
+				// User-chosen picks: route each to the correct array by type
+				if (block.choose) {
+					getChosenList("skillToolLanguageProficiencies").forEach(val => {
+						if (!val) return;
+						const asSkill = _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
+						if (asSkill) push(this._state.featSkillProfs, asSkill);
+						else push(this._state.featToolProfs, val);
+					});
+				}
 			});
 
 			// ── Tool proficiencies ───────────────────────────────────────
 			(feat.toolProficiencies || []).forEach(tp => {
 				Object.keys(tp).forEach(k => {
 					if (k === "choose" || k === "any" || k === "anyMusicalInstrument") {
-						const val = chosen.toolProficiencies;
-						if (val) push(this._state.featToolProfs, val);
+						getChosenList("toolProficiencies").forEach(val => {
+							if (val) push(this._state.featToolProfs, val);
+						});
 					} else {
 						push(this._state.featToolProfs, k.split("|")[0]);
 					}
@@ -1526,8 +1562,9 @@ export class CharacterBuilder extends BuilderBase {
 			(feat.languageProficiencies || []).forEach(lp => {
 				Object.keys(lp).forEach(k => {
 					if (k === "anyStandard" || k === "any" || k === "choose") {
-						const val = chosen.languageProficiencies;
-						if (val) push(this._state.featLanguages, val);
+						getChosenList("languageProficiencies").forEach(val => {
+							if (val) push(this._state.featLanguages, val);
+						});
 					} else {
 						push(this._state.featLanguages, toTitle(k));
 					}
@@ -1554,8 +1591,9 @@ export class CharacterBuilder extends BuilderBase {
 			// ── Saving throw proficiencies (e.g. Resilient) ───────────────
 			(feat.savingThrowProficiencies || []).forEach(sp => {
 				if (sp.choose) {
-					const val = chosen.savingThrowProficiencies;
-					if (val) push(this._state.featSavingThrowProfs, _ABILITY_FULL[val] || toTitle(val));
+					getChosenList("savingThrowProficiencies").forEach(val => {
+						if (val) push(this._state.featSavingThrowProfs, _ABILITY_FULL[val] || toTitle(val));
+					});
 				} else {
 					Object.keys(sp).forEach(k => push(this._state.featSavingThrowProfs, _ABILITY_FULL[k] || toTitle(k)));
 				}
@@ -1565,14 +1603,40 @@ export class CharacterBuilder extends BuilderBase {
 			(feat.expertise || []).forEach(ex => {
 				Object.keys(ex).forEach(k => {
 					if (k === "anyProficientSkill" || k === "choose" || k === "any") {
-						const val = chosen.expertise;
-						if (val) push(this._state.featExpertise, val);
+						getChosenList("expertise").forEach(val => {
+							if (val) push(this._state.featExpertise, val);
+						});
 					} else {
 						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
 						if (mapped) push(this._state.featExpertise, mapped);
 					}
 				});
 			});
+
+			// ── Damage resistances ───────────────────────────────────────
+			(feat.resist || []).forEach(res => {
+				Object.keys(res).forEach(k => {
+					if (k === "choose") {
+						getChosenList("resist").forEach(val => {
+							if (val) push(this._state.featResistances, val);
+						});
+					} else {
+						push(this._state.featResistances, k);
+					}
+				});
+			});
+
+			// ── HP bonus (e.g. Tough) ────────────────────────────────────
+			if (feat.hp) {
+				const hpArr = Array.isArray(feat.hp) ? feat.hp : [feat.hp];
+				hpArr.forEach(hpEntry => {
+					if (typeof hpEntry.perLevel === "number") {
+						this._state.featHpBonus += hpEntry.perLevel * this._getTotalLevel();
+					} else if (typeof hpEntry.value === "number") {
+						this._state.featHpBonus += hpEntry.value;
+					}
+				});
+			}
 
 			}
 
@@ -1627,6 +1691,12 @@ export class CharacterBuilder extends BuilderBase {
 					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, featName));
 				});
 			});
+			// User-chosen spells via spell choose slots (e.g. Magic Initiate)
+			let spellIdx = 0;
+			while (chosen[`featSpell_${spellIdx}`] !== undefined) {
+				push(chosen[`featSpell_${spellIdx}`], featName);
+				spellIdx++;
+			}
 		}
 
 		// Species-granted spells
@@ -1718,9 +1788,16 @@ export class CharacterBuilder extends BuilderBase {
 				placeholder: (from, cnt) => `Pick ${cnt} skill(s)`,
 			},
 			skillToolLanguageProficiencies: {
-				label:       (from, cnt) => `Proficiency (×${cnt})`,
-				options:     null,
-				placeholder: (from, cnt) => `Pick ${cnt} from: ${[...new Set((from||[]).map(f => ANY_LABELS[f] || toTitle(f)))].join(", ")}`,
+				label:       (from, cnt) => cnt > 1 ? `Proficiency (×${cnt})` : "Proficiency",
+				options:     from => {
+					const opts = [];
+					const hasAnySkill = !from || from.includes("anySkill");
+					const hasAnyTool  = !from || from.includes("anyTool") || from.includes("anyMusicalInstrument");
+					if (hasAnySkill) opts.push(..._SKILLS.map(s => ({value: s.name, label: s.name})));
+					if (hasAnyTool)  opts.push(..._COMMON_TOOLS.map(t => ({value: t, label: t})));
+					if (from) from.filter(f => !ANY_LABELS[f]).forEach(f => { const n = toTitle(f); if (!opts.some(o => o.value === n)) opts.push({value: n, label: n}); });
+					return opts.length ? opts : null;
+				},
 			},
 			toolProficiencies: {
 				label:       (from, cnt) => cnt > 1 ? `Tools (×${cnt})` : "Tool",
@@ -1758,27 +1835,13 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		// ── Recursive walker ────────────────────────────────────────────────
-		const choices   = [];
-		const addedKeys = new Set();
+		const choices      = [];
+		const pendingEmits = []; // queued so total slot counts are known before key assignment
 
+		// Queue one entry per choose-block; keys are assigned in the two-pass below.
 		const emit = (propKey, from, count, amount) => {
-			if (addedKeys.has(propKey)) return; // one descriptor per property root
-			addedKeys.add(propKey);
-			const meta = PROP_META[propKey];
-			if (!meta) return;
-
-			const cnt = count || 1;
-			const label   = meta.label(from, cnt, amount);
-			let   options = typeof meta.options === "function" ? meta.options(from) : null;
-			const phFn    = meta.placeholder;
-			let   placeholder = phFn ? phFn(from, cnt) : null;
-
-			// If count > 1 and we have a fixed list, collapse to a text input
-			if (options && cnt > 1) {
-				placeholder = placeholder || `e.g. ${options.slice(0,2).map(o => o.label).join(", ")}`;
-				options = null;
-			}
-			choices.push({key: propKey, label, options, placeholder});
+			if (!PROP_META[propKey]) return;
+			pendingEmits.push({propKey, from, count: count || 1, amount});
 		};
 
 		const walk = (val, propKey) => {
@@ -1812,17 +1875,117 @@ export class CharacterBuilder extends BuilderBase {
 				if (v.length > 1 && v.every(g => g.name)) {
 					choices.push({key: "spellList", label: "Spell List",
 						options: v.map(g => ({value: g.name, label: g.name})), placeholder: null});
-					addedKeys.add("spellList");
 				}
 				// Any group's spellcasting ability may itself be a choice
 				const abilGroup = v.find(g => Array.isArray(g.ability?.choose));
 				if (abilGroup) emit("spellcastingAbility", abilGroup.ability.choose, 1, null);
+				// Spell choose slots
+				const chosenSpellList = (this._state.featChoices?.[featName] || {}).spellList;
+				const activeSpellGroups = v.length === 1 ? v
+					: (chosenSpellList ? v.filter(g => g.name === chosenSpellList) : []);
+				let spellIdx = 0;
+				for (const grp of activeSpellGroups) {
+					for (const prop of ["known", "innate", "prepared", "expanded"]) {
+						if (!grp[prop]) continue;
+						CharacterBuilder._eachSpellChoose(grp[prop], ({filter, count}) => {
+							const lbl = CharacterBuilder._spellChooseLabel(filter);
+							const opts = this._getSpellOptions(filter);
+							for (let i = 0; i < count; i++) {
+								choices.push({key: `featSpell_${spellIdx++}`, label: lbl,
+									options: opts, placeholder: opts ? null : `Type ${lbl} name`});
+							}
+						});
+					}
+				}
 			} else {
 				walk(v, k);
 			}
 		}
 
+		// ── Two-pass key assignment ──────────────────────────────────────────
+		// First pass: total slot count per propKey determines bare vs. indexed keys.
+		const slotTotals = {};
+		pendingEmits.forEach(({propKey, count}) => { slotTotals[propKey] = (slotTotals[propKey] || 0) + count; });
+
+		// Second pass: build choice descriptors with stable keys.
+		const slotStarts = {};
+		pendingEmits.forEach(({propKey, from, count, amount}) => {
+			const meta      = PROP_META[propKey];
+			const startIdx  = slotStarts[propKey] ?? 0;
+			slotStarts[propKey] = startIdx + count;
+			const total     = slotTotals[propKey];
+			const getOpts   = () => typeof meta.options === "function" ? meta.options(from) : null;
+			const phFn      = meta.placeholder;
+			if (total === 1) {
+				// Exactly one slot — use bare key for backwards compatibility with saved state
+				const options     = getOpts();
+				const placeholder = phFn ? phFn(from, 1) : null;
+				choices.push({key: propKey, label: meta.label(from, 1, amount), options, placeholder});
+			} else {
+				// Multiple total slots — all use indexed keys so every slot is reachable
+				for (let i = 0; i < count; i++) {
+					const idx         = startIdx + i;
+					const options     = getOpts();
+					const placeholder = phFn ? phFn(from, 1) : (options ? `e.g. ${options.slice(0, 2).map(o => o.label).join(", ")}` : null);
+					choices.push({key: `${propKey}_${idx}`, label: `${meta.label(from, 1, amount)} (${idx + 1}/${total})`, options, placeholder});
+				}
+			}
+		});
+
 		return choices;
+	}
+
+	// Walk an additionalSpells section looking for {choose: filterStr, count?} entries.
+	static _eachSpellChoose (obj, cb) {
+		if (!obj || typeof obj !== "object") return;
+		if (Array.isArray(obj)) { obj.forEach(v => CharacterBuilder._eachSpellChoose(v, cb)); return; }
+		if (typeof obj.choose === "string") { cb({filter: obj.choose, count: obj.count ?? 1}); return; }
+		Object.values(obj).forEach(v => CharacterBuilder._eachSpellChoose(v, cb));
+	}
+
+	// Turn a spell filter string like "level=0|class=Cleric" into a readable label.
+	static _spellChooseLabel (filter) {
+		const parts = {};
+		(filter || "").split("|").forEach(p => { const i = p.indexOf("="); if (i > 0) parts[p.slice(0, i)] = p.slice(i + 1); });
+		const level = parseInt(parts.level ?? -1);
+		const cls   = parts.class || "";
+		const lvl   = level === 0 ? "Cantrip" : level > 0 ? `Level ${level} Spell` : "Spell";
+		return cls ? `${cls} ${lvl}` : lvl;
+	}
+
+	// Filter this._allSpells by a filter string like "level=0|class=Cleric".
+	// Edition-aware: uses SourceUtil.isClassicSource to include only sources matching the active edition,
+	// then deduplicates by name keeping the edition-preferred entry.
+	// Returns [{value, label}, ...] sorted alphabetically, or null if no spells loaded.
+	_getSpellOptions (filter) {
+		if (!this._allSpells?.length) return null;
+		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		const parts = {};
+		(filter || "").split("|").forEach(p => { const i = p.indexOf("="); if (i > 0) parts[p.slice(0, i).toLowerCase()] = p.slice(i + 1); });
+		const levelFilter = parts.level !== undefined ? parseInt(parts.level) : null;
+		const classFilter = (parts.class || "").toLowerCase();
+		const matches = this._allSpells.filter(sp => {
+			if (levelFilter !== null && sp.level !== levelFilter) return false;
+			if (classFilter) {
+				const inList = sp.classes?.fromClassList?.some(c => c.name.toLowerCase() === classFilter);
+				if (!inList) return false;
+			}
+			return true;
+		});
+		if (!matches.length) return null;
+		// Deduplicate by name, keeping the edition-preferred version.
+		// isNew (2024): prefer non-classic sources; classic (2014): prefer classic sources.
+		const byName = new Map();
+		for (const sp of matches) {
+			const key = sp.name.toLowerCase();
+			if (!byName.has(key)) { byName.set(key, sp); continue; }
+			const existing = byName.get(key);
+			const spPref      = isNew ? !SourceUtil.isClassicSource(sp.source)       : SourceUtil.isClassicSource(sp.source);
+			const existPref   = isNew ? !SourceUtil.isClassicSource(existing.source)  : SourceUtil.isClassicSource(existing.source);
+			if (spPref && !existPref) byName.set(key, sp);
+		}
+		return [...byName.values()].sort((a, b) => SortUtil.ascSortLower(a.name, b.name))
+			.map(sp => ({value: sp.name, label: sp.name}));
 	}
 
 	// Convert a classFeature entry object to plain text, stripping 5etools tags
@@ -1841,64 +2004,68 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Appends choice inputs (select or text) for each choice a feat requires.
 		// Each choice gets its own indented row. State stored as featChoices[featName][choiceKey].
+		// Wraps everything in a .cb-feat-choices-wrp div so it can be cleared and rebuilt.
 		const appendChoiceInputs = (featName, container) => {
-			const choiceList = this._getFeatChoices(featName);
-			if (!choiceList.length) return;
+			const wrp = ee`<div class="cb-feat-choices-wrp"></div>`.appendTo(container);
 			const stored = () => (this._state.featChoices || {})[featName] || {};
 
-			for (const choice of choiceList) {
-				const choiceRow = ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3 cb-feat-choice-lbl"></div>`.appendTo(container);
+			const build = () => {
+				wrp.innerHTML = "";
+				const choiceList = this._getFeatChoices(featName);
+				if (!choiceList.length) return;
 
-				const lbl = document.createElement("span");
-				lbl.className = "ve-mr-2 ve-muted";
-				lbl.style.cssText = "font-size:.85em;white-space:nowrap;min-width:8em";
-				lbl.textContent = choice.label + ":";
-				choiceRow.appendChild(lbl);
+				for (const choice of choiceList) {
+					const choiceRow = ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3"></div>`.appendTo(wrp);
 
-				if (choice.options) {
-					// Fixed list → <select>
-					const sel = document.createElement("select");
-					sel.className = "cb-feat-choice-sel ve-form-control ve-input-xs form-control--minimal";
-					sel.style.flex = "1";
-					const blank = document.createElement("option");
-					blank.value = ""; blank.textContent = "(choose)";
-					sel.appendChild(blank);
-					choice.options.forEach(o => {
-						const opt = document.createElement("option");
-						opt.value = o.value; opt.textContent = o.label;
-						sel.appendChild(opt);
-					});
-					sel.value = stored()[choice.key] || "";
-					sel.addEventListener("change", () => {
+					const lbl = document.createElement("span");
+					lbl.className = "ve-mr-2 ve-muted";
+					lbl.style.cssText = "font-size:.85em;white-space:nowrap;min-width:8em";
+					lbl.textContent = choice.label + ":";
+					choiceRow.appendChild(lbl);
+
+					const onchange = (key, value) => {
 						if (!this._state.featChoices) this._state.featChoices = {};
 						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
-						this._state.featChoices[featName][choice.key] = sel.value;
+						this._state.featChoices[featName][key] = value;
 						this._applyFeatData();
 						this._sg_syncAbilityScores();
 						if (this._sg_doRebuild) this._sg_doRebuild();
 						cb();
-					});
-					choiceRow.appendChild(sel);
-				} else {
-					// Open / multi-pick → <input type="text">
-					const ipt = document.createElement("input");
-					ipt.type = "text";
-					ipt.className = "cb-feat-choice-sel ve-form-control ve-input-xs form-control--minimal";
-					ipt.style.flex = "1";
-					ipt.placeholder = choice.placeholder || "(type here)";
-					ipt.value = stored()[choice.key] || "";
-					ipt.addEventListener("change", () => {
-						if (!this._state.featChoices) this._state.featChoices = {};
-						if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
-						this._state.featChoices[featName][choice.key] = ipt.value;
-						this._applyFeatData();
-						this._sg_syncAbilityScores();
-						if (this._sg_doRebuild) this._sg_doRebuild();
-						cb();
-					});
-					choiceRow.appendChild(ipt);
+						// Rebuild inputs if spellList changed (spell slots depend on selected group)
+						if (key === "spellList") build();
+					};
+
+					if (choice.options) {
+						// Fixed list → <select>
+						const sel = document.createElement("select");
+						sel.className = "ve-form-control ve-input-xs form-control--minimal";
+						sel.style.flex = "1";
+						const blank = document.createElement("option");
+						blank.value = ""; blank.textContent = "(choose)";
+						sel.appendChild(blank);
+						choice.options.forEach(o => {
+							const opt = document.createElement("option");
+							opt.value = o.value; opt.textContent = o.label;
+							sel.appendChild(opt);
+						});
+						sel.value = stored()[choice.key] || "";
+						sel.addEventListener("change", () => onchange(choice.key, sel.value));
+						choiceRow.appendChild(sel);
+					} else {
+						// Open / multi-pick → <input type="text">
+						const ipt = document.createElement("input");
+						ipt.type = "text";
+						ipt.className = "ve-form-control ve-input-xs form-control--minimal";
+						ipt.style.flex = "1";
+						ipt.placeholder = choice.placeholder || "(type here)";
+						ipt.value = stored()[choice.key] || "";
+						ipt.addEventListener("change", () => onchange(choice.key, ipt.value));
+						choiceRow.appendChild(ipt);
+					}
 				}
-			}
+			};
+
+			build();
 		};
 
 		// Background-granted feat: card at the top, hidden when no bgFeat
@@ -1912,7 +2079,7 @@ export class CharacterBuilder extends BuilderBase {
 			bgFeatCard.toggleVe(!!name);
 			bgFeatSpan.textContent = name;
 			// Remove any old choice rows, then add fresh ones
-			Array.from(bgFeatCard.querySelectorAll(".cb-feat-choice-lbl, .cb-feat-choice-sel")).forEach(n => n.remove());
+			Array.from(bgFeatCard.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
 			if (name) appendChoiceInputs(name, bgFeatCard);
 		};
 		refreshBgFeatRow();
@@ -2124,8 +2291,8 @@ export class CharacterBuilder extends BuilderBase {
 		const matches = (this._allSpecies || []).filter(r => r.name === name);
 		if (!matches.length) return null;
 		return isNew
-			? (matches.find(r => r.edition === "one") || matches[0])
-			: (matches.find(r => r.edition === "classic") || matches.find(r => r.edition !== "one") || matches[0]);
+			? (matches.find(r => !SourceUtil.isClassicSource(r.source)) || matches[0])
+			: (matches.find(r => SourceUtil.isClassicSource(r.source)) || matches[0]);
 	}
 
 	_sg_getBgEntry () {
@@ -2134,8 +2301,8 @@ export class CharacterBuilder extends BuilderBase {
 		const matches = (this._allBackgrounds || []).filter(b => b.name === name);
 		if (!matches.length) return null;
 		return isNew
-			? (matches.find(b => b.edition === "one") || matches[0])
-			: (matches.find(b => b.edition === "classic") || matches.find(b => b.edition !== "one") || matches[0]);
+			? (matches.find(b => !SourceUtil.isClassicSource(b.source)) || matches[0])
+			: (matches.find(b => SourceUtil.isClassicSource(b.source)) || matches[0]);
 	}
 
 	_sg_getAsiBonus (abl) {
@@ -2164,10 +2331,18 @@ export class CharacterBuilder extends BuilderBase {
 			const feat = this._allFeats.find(f => f.name.toLowerCase() === featName.toLowerCase());
 			if (!feat?.ability) continue;
 			const abilArr = Array.isArray(feat.ability) ? feat.ability : [feat.ability];
-			const chosen  = ((allChoices[featName] || {}).ability || "").trim().toLowerCase();
+					const chosenEntry = allChoices[featName] || {};
+			// Collect all chosen ability values (single key + indexed keys for multi-slot)
+			const chosenAbils = [];
+			if (chosenEntry.ability) chosenAbils.push(chosenEntry.ability.trim().toLowerCase());
+			for (let i = 0; chosenEntry["ability_" + i] !== undefined; i++) {
+				const v = (chosenEntry["ability_" + i] || "").trim().toLowerCase();
+				if (v) chosenAbils.push(v);
+			}
+			const chosenCount = chosenAbils.filter(v => v === abl).length;
 			for (const abilObj of abilArr) {
 				if (typeof abilObj[abl] === "number") total += abilObj[abl];
-				if (abilObj.choose?.from && chosen === abl) total += abilObj.choose.amount ?? 1;
+				if (abilObj.choose?.from) total += (abilObj.choose.amount ?? 1) * chosenCount;
 			}
 		}
 		return total;
@@ -2754,6 +2929,7 @@ export class CharacterBuilder extends BuilderBase {
 						calcMax += f != null ? Math.floor(f / 2) + 1 : 0;
 					}
 					calcMax += conMod * totalLevel;
+					calcMax += this._state.featHpBonus || 0;
 					const parts = [`(${_levelDice[0]}${conStr})`];
 					for (let i = 1; i < _levelDice.length; i++) {
 						const f = _levelDice[i];
@@ -2774,7 +2950,7 @@ export class CharacterBuilder extends BuilderBase {
 				ee`<span class="ve-muted ve-mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.appendTo(wrpRolls);
 
 				const recalc = () => {
-					calcMax = lvl1Max + hpRolls.slice(0, totalLevel - 1).reduce((s, v) => s + (v || 0), 0) + conMod * totalLevel;
+					calcMax = lvl1Max + hpRolls.slice(0, totalLevel - 1).reduce((s, v) => s + (v || 0), 0) + conMod * totalLevel + (this._state.featHpBonus || 0);
 					const parts = [`(${lvl1Max}${conStr})`];
 					for (let i = 0; i < totalLevel - 1; i++) parts.push(`(${hpRolls[i] ?? "?"}${conStr})`);
 					dispBreakdown.txt(parts.join("+"));
