@@ -299,6 +299,7 @@ export class CharacterBuilder extends BuilderBase {
 			featInitiativeBonus: 0,
 				// spells
 			spellcastingAbility: "",
+			spellcastingAbilities: [],
 			spellSlots: [0,0,0,0,0,0,0,0,0],
 			pactSlots: [0,0,0,0,0,0,0,0,0],
 			spellSlotsUsed: [0,0,0,0,0,0,0,0,0],
@@ -954,7 +955,8 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.armorProfs          = [];
 			this._state.weaponProfs         = [];
 			this._state.savingThrowProfs    = [];
-			this._state.spellcastingAbility = "";
+			this._state.spellcastingAbility  = "";
+			this._state.spellcastingAbilities = [];
 		}
 		this._applyClassData();
 		this._applyBackgroundData();
@@ -1008,6 +1010,10 @@ export class CharacterBuilder extends BuilderBase {
 		const totalLvl = this._getTotalLevel();
 
 		// ── Spellcasting ability ─────────────────────────────────────────────
+		// Collect all unique spellcasting abilities across every class entry
+		this._state.spellcastingAbilities = [...new Set(
+			classEntries.filter(Boolean).map(c => c.spellcastingAbility).filter(Boolean)
+		)];
 		if (primaryCls.spellcastingAbility && !this._state.spellcastingAbility) {
 			this._state.spellcastingAbility = primaryCls.spellcastingAbility;
 		}
@@ -3475,8 +3481,10 @@ export class CharacterBuilder extends BuilderBase {
 	_fmtSpellCastingTime (spell) {
 		if (!spell?.time?.length) return "";
 		const t = spell.time[0];
-		let unit = t.unit;
-		if (unit === "bonus action") unit = "BA";
+		const unit = t.unit;
+		if (unit === "action")   return "Action";
+		if (unit === "bonus")    return "Bonus Action";
+		if (unit === "reaction") return "Reaction";
 		return `${t.number} ${unit}`;
 	}
 
@@ -3511,57 +3519,42 @@ export class CharacterBuilder extends BuilderBase {
 				cb();
 			};
 
-			const wrpRows = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
+			const LEVEL_LABELS = ["Cantrip", "1st Level", "2nd Level", "3rd Level", "4th Level", "5th Level", "6th Level", "7th Level", "8th Level", "9th Level"];
+
+			// Pre-create all level sections; hide until populated
+			const wrpSections = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
+			const sections = LEVEL_LABELS.map((label) => {
+				const wrpSection = ee`<div class="ve-mb-2"></div>`.hideVe().appendTo(wrpSections);
+				ee`<div class="ve-bold ve-mb-1" style="font-size:.85em;border-bottom:1px solid var(--col-border-default,#555);padding-bottom:2px">${label}</div>`.appendTo(wrpSection);
+				const wrpRows = ee`<div class="ve-flex-col"></div>`.appendTo(wrpSection);
+				return {wrpSection, wrpRows, rowCount: 0};
+			});
 
 			const addRow = (initial) => {
 				const name = typeof initial === "string" ? initial : (initial?.name || "");
 				if (!name) return;
-				const isAuto   = !!initial?.autoGranted;
+				const isAuto    = !!initial?.autoGranted;
 				const spellData = this._getSpellEntry(name);
+				const level     = Math.min(spellData?.level ?? 0, 9);
+				const section   = sections[level];
 
-				const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
-				const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
-				ee`<span class="ve-bold ve-mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
+				if (section.rowCount === 0) section.wrpSection.showVe();
+				section.rowCount++;
 
-				if (spellData != null) {
-					const levelStr = spellData.level === 0 ? "Cantrip" : `L${spellData.level}`;
-					ee`<span class="ve-muted ve-mr-2" style="font-size:.8em">${levelStr}</span>`.appendTo(nameRow);
-				}
-				if (spellData && this._isSpellConcentration(spellData))
-					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Concentration">C</span>`.appendTo(nameRow);
-				if (spellData?.meta?.ritual)
-					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Ritual">R</span>`.appendTo(nameRow);
-				if (spellData?.components?.m)
-					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Material component">M</span>`.appendTo(nameRow);
-
-				ee`<span class="ve-muted ve-mr-1" style="font-size:.8em">Prep</span>`.appendTo(nameRow);
-				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(nameRow);
-
+				const row = ee`<div class="ve-flex-v-center ve-py-1" style="gap:6px;border-bottom:1px solid var(--col-border-default,#333)"></div>`.appendTo(section.wrpRows);
+				ee`<span class="ve-bold" style="min-width:140px;flex:0 0 auto">${name}</span>`.appendTo(row);
+				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.val(initial?.notes || "").onn("change", doUpdateState).appendTo(row);
+				ee`<span class="ve-muted" style="font-size:.8em;white-space:nowrap">Prep</span>`.appendTo(row);
+				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(row);
 				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
 					.onn("click", () => {
 						spellRows.splice(spellRows.indexOf(rowMeta), 1);
-						card.remove();
+						row.remove();
+						section.rowCount--;
+						if (section.rowCount === 0) section.wrpSection.hideVe();
 						doUpdateState();
 					})
-					.appendTo(nameRow);
-
-				if (spellData) {
-					const castStr  = this._fmtSpellCastingTime(spellData);
-					const rangeStr = this._fmtSpellRange(spellData);
-					if (castStr || rangeStr) {
-						const statsRow = ee`<div class="ve-flex-v-center ve-mt-1 ve-ml-2"></div>`.appendTo(card);
-						if (castStr) {
-							ee`<span class="ve-muted ve-mr-1" style="font-size:.8em">Cast:</span>`.appendTo(statsRow);
-							ee`<span class="ve-mr-3" style="font-size:.8em">${castStr}</span>`.appendTo(statsRow);
-						}
-						if (rangeStr) {
-							ee`<span class="ve-muted ve-mr-1" style="font-size:.8em">Range:</span>`.appendTo(statsRow);
-							ee`<span style="font-size:.8em">${rangeStr}</span>`.appendTo(statsRow);
-						}
-					}
-				}
-
-				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mt-1" placeholder="Notes..." style="width:100%">`.val(initial?.notes || "").onn("change", doUpdateState).appendTo(card);
+					.appendTo(row);
 
 				const rowMeta = {
 					getState: () => ({
@@ -3903,7 +3896,18 @@ export class CharacterBuilder extends BuilderBase {
 		const initiative = (s.initiative ?? abilMods.dex) + (s.featInitiativeBonus || 0);
 		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
 		const passPer    = 10 + abilMods.wis + profBonus * _percMult;
-		const spellMod   = s.spellcastingAbility ? abilMods[s.spellcastingAbility] : null;
+		// Collect all unique spellcasting abilities: from class data, feat choices, fallback to primary
+		const spellAbilList = (() => {
+			const abils = new Set(s.spellcastingAbilities || []);
+			const activeFeatNames = new Set([...(s.bgFeat ? [s.bgFeat] : []), ...(s.feats || [])].filter(Boolean));
+			Object.entries(s.featChoices || {}).forEach(([featName, chosen]) => {
+				if (!activeFeatNames.has(featName)) return;
+				if (chosen.spellcastingAbility) abils.add(chosen.spellcastingAbility);
+			});
+			if (!abils.size && s.spellcastingAbility) abils.add(s.spellcastingAbility);
+			return [...abils].filter(Boolean);
+		})();
+		const spellMod   = spellAbilList.length ? abilMods[spellAbilList[0]] : null;
 		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
 		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
 
@@ -4172,10 +4176,22 @@ export class CharacterBuilder extends BuilderBase {
 		doc.setTextColor(10,10,10);
 
 		// Spellcasting — values aligned to their label midpoints, not the tall field rects
-		inFieldAtY(s.spellcastingAbility ? _ABILITY_FULL[s.spellcastingAbility] : "", 24.9, 135.1, 27.8, 8, true);
-		inFieldAtY(spellMod!=null ? fmod(spellMod+profBonus) : "", 13, 48, 63.5, 9, true);
-		inFieldAtY(spellDC!=null  ? String(spellDC) : "",         13, 48, 91.7, 9, true);
-		inFieldAtY(spellAtk!=null ? fmod(spellAtk)  : "",         13, 48, 119.8, 9, true);
+		if (spellAbilList.length <= 1) {
+			inFieldAtY(spellAbilList[0] ? _ABILITY_FULL[spellAbilList[0]] : "", 24.9, 135.1, 27.8, 8, true);
+			inFieldAtY(spellMod!=null ? fmod(spellMod+profBonus) : "", 13, 48, 63.5, 9, true);
+			inFieldAtY(spellDC!=null  ? String(spellDC) : "",         13, 48, 91.7, 9, true);
+			inFieldAtY(spellAtk!=null ? fmod(spellAtk)  : "",         13, 48, 119.8, 9, true);
+		} else {
+			// Multiple spellcasting abilities — join with " / ", shrink font to fit
+			const abilNames = spellAbilList.map(a => _ABILITY_FULL[a] || a).join(" / ");
+			inFieldAtY(abilNames, 24.9, 135.1, 27.8, abilNames.length > 22 ? 6 : 7, true);
+			const mods = spellAbilList.map(a => fmod(abilMods[a] + profBonus)).join("/");
+			const dcs  = spellAbilList.map(a => String(8 + profBonus + abilMods[a])).join("/");
+			const atks = spellAbilList.map(a => fmod(profBonus + abilMods[a])).join("/");
+			inFieldAtY(mods, 13, 48, 63.5,  8, true);
+			inFieldAtY(dcs,  13, 48, 91.7,  8, true);
+			inFieldAtY(atks, 13, 48, 119.8, 8, true);
+		}
 
 		// Spell slots — Total fields
 		// Slot total fields ordered L1-L9. Each group has top/mid/bot rows:
@@ -4214,7 +4230,7 @@ export class CharacterBuilder extends BuilderBase {
 			if (top>770) return;
 			inField(sp.level!=null?(sp.level===0?"C":String(sp.level)):"",  17.7,top, 38.1,bot, 7);
 			inFieldL(v(sp.name).slice(0,28),           42.9,top,152.4,bot, 7);
-			inFieldL(v(sp.castingTime).slice(0,10),   157.0,top,186.9,bot, 6.5);
+			inFieldL(v(sp.castingTime).slice(0,12),   157.0,top,186.9,bot, 6.5);
 			inFieldL(v(sp.range).slice(0,10),         191.6,top,233.5,bot, 6.5);
 			inFieldL(v(sp.notes).slice(0,20),         309.2,top,396.7,bot, 6.5);
 		});
