@@ -242,6 +242,8 @@ export class CharacterBuilder extends BuilderBase {
 			savingThrowProfs: [],
 			skillProfs: [],
 			classSkillChoices: [],
+			classExpertise: [],
+			_classExpertiseCount: 0,
 			skillExpertise: [],
 			skillHalfProfs: [],
 			languages: [],
@@ -265,8 +267,13 @@ export class CharacterBuilder extends BuilderBase {
 			cp: 0, sp: 0, ep: 0, gp: 0, pp: 0,
 			equipment: [],
 			// class features / species traits — per-item arrays with exclude flag
-			classFeatureItems: [],   // [{text, excluded}] — auto-filled from class data
+			classFeatureItems: [],        // [{text, excluded}] — auto-filled from class data
+			optionalFeatureChoices: {},   // {featureType: [chosenName, ...]}
+			_optionalFeatureSlots: [],    // computed: [{name, featureType[], count}]
+			asiChoices: [],              // [{mode:"asi"|"feat", str,dex,con,int,wis,cha, featName, featAbility}]
+			_asiCount: 0,                // computed: number of ASI slots from class at current level
 			speciesTraitItems: [],   // [{text, excluded}] — auto-filled from species data
+		speciesChoices: {},      // {speciesSpell_0: "Thorn Whip", ...} — user-chosen species spells
 			// shield (toggled in Combat tab)
 			shield: false,
 			// magic item attunement slots
@@ -502,22 +509,26 @@ export class CharacterBuilder extends BuilderBase {
 		this._resetTabs({tabGroup: "input"});
 		const tabs = this._renderTabs(
 			[
-				new TabUiUtil.TabMeta({name: "Identity",   hasBorder: true}),
+				new TabUiUtil.TabMeta({name: "Origin",   hasBorder: true}),
+				new TabUiUtil.TabMeta({name: "Class",   hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Abilities",  hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Combat",     hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Equipment",  hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Feats",      hasBorder: true}),
 				new TabUiUtil.TabMeta({name: "Spells",     hasBorder: true}),
-				new TabUiUtil.TabMeta({name: "Personality and Appearance",hasBorder: true}),
+				new TabUiUtil.TabMeta({name: "Description",hasBorder: true}),
 			],
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
-		const [identityTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab] = tabs;
+		const [identityTab, classOptsTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab] = tabs;
 		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
 
 		// ── IDENTITY ──────────────────────────────────────────────────────────
 		this._buildIdentityTab(identityTab.wrpTab, cb);
+		
+		// ── CLASS ──────────────────────────────────────────────────────────
+		this._buildClassTab(classOptsTab.wrpTab, cb);
 
 		// ── ABILITIES & PROFICIENCIES ─────────────────────────────────────────
 		this._buildAbilitiesTab(abilitiesTab.wrpTab, cb);
@@ -537,6 +548,237 @@ export class CharacterBuilder extends BuilderBase {
 		// ── PERSONALITY ───────────────────────────────────────────────────────
 		this._buildPersonalityTab(personalityTab.wrpTab, cb);
 
+	}
+
+	// ── Class tab ─────────────────────────────────────────────────────────────
+
+	_buildClassTab (wrp, cb) {
+		// Class input — mirrored from Origin tab (shared state, separate DOM instance)
+		this._buildClassInput(wrp, cb);
+
+		// Per-item feature list builder — renders each item as a row with an eye-icon toggle button
+		const buildItemList = (label, stateKey, emptyMsg) => {
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple(label);
+			const listWrp = ee`<div class="ve-flex-col ve-w-100"></div>`;
+			let _skipRefresh = false;
+
+			const refresh = () => {
+				if (_skipRefresh) return;
+				listWrp.empty();
+				const items = this._state[stateKey] || [];
+				if (!items.length) {
+					listWrp.append(ee`<div class="ve-muted ve-small ve-italic">${emptyMsg}</div>`);
+					return;
+				}
+				items.forEach((item, ix) => {
+					const itemRow = ee`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
+					const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="${item.excluded ? "Show in PDF" : "Hide from PDF"}" style="flex-shrink:0"><span class="glyphicon ${item.excluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`;
+					const ta = ee`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
+					ta.val(item.text);
+					btnEye.onn("click", () => {
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, excluded: !it.excluded} : it);
+						this._state[stateKey] = cur;
+						const nowExcluded = cur[ix]?.excluded;
+						btnEye.attr("title", nowExcluded ? "Show in PDF" : "Hide from PDF");
+						btnEye.find("span").attr("class", `glyphicon ${nowExcluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}`);
+						cb();
+					});
+					ta.onn("input", () => {
+						_skipRefresh = true;
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val()} : it);
+						this._state[stateKey] = cur;
+						_skipRefresh = false;
+						cb();
+					});
+					itemRow.append(btnEye, ta);
+					listWrp.append(itemRow);
+				});
+			};
+
+			refresh();
+			this._addHook("state", stateKey, refresh);
+			listWrp.appendTo(rowInner);
+			return row;
+		};
+
+		// Class Features
+		buildItemList("Class Features", "classFeatureItems", "Auto-filled when a class is selected.").appendTo(wrp);
+
+		// Optional Feature Choices (Fighting Style, Metamagic, Eldritch Invocations, etc.)
+		{
+			const [optRow, optRowInner] = BuilderUi.getLabelledRowTuple("Class Feature Options");
+			const wrpGroups = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(optRowInner);
+
+			const buildOptFeatUI = () => {
+				wrpGroups.empty();
+				const slots = this._state._optionalFeatureSlots || [];
+				optRow.toggleVe(slots.length > 0);
+				if (!slots.length) return;
+
+				const isNew    = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+				const choices  = this._state.optionalFeatureChoices || {};
+
+				slots.forEach(slot => {
+					const key = slot.key;
+
+					// Build option list from the appropriate data source
+					let opts;
+					if (slot.dataSource === "feat") {
+						opts = (this._allFeats || []).filter(f => (slot.category || []).includes(f.category));
+					} else {
+						opts = (this._allOptFeatures || []).filter(f =>
+							(f.featureType || []).some(ft => (slot.featureType || []).includes(ft)),
+						);
+					}
+					// Edition-filtered options; fall back to all if nothing matches
+					const editionOpts = opts.filter(f =>
+						isNew ? !SourceUtil.isClassicSource(f.source) : SourceUtil.isClassicSource(f.source),
+					);
+					if (editionOpts.length) opts = editionOpts;
+
+					const slotChoices = choices[key] || [];
+					ee`<span class="ve-muted ve-bold ve-mt-1" style="font-size:.8em">${slot.name}</span>`.appendTo(wrpGroups);
+					const wrpSels = ee`<div class="ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.appendTo(wrpGroups);
+
+					const sels = [];
+					const refreshDisabled = () => {
+						const taken = new Set(sels.map(s => s.val()).filter(Boolean));
+						sels.forEach(sel => {
+							const myVal = sel.val();
+							Array.from(sel.options).forEach(opt => {
+								if (!opt.value) return;
+								opt.disabled = taken.has(opt.value) && opt.value !== myVal;
+							});
+						});
+					};
+
+					for (let i = 0; i < slot.count; i++) {
+						const savedVal = opts.find(f => f.name === slotChoices[i]) ? slotChoices[i] : "";
+						const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px">
+							<option value="">— Choose —</option>
+							${opts.map(f => `<option value="${f.name}"${f.name === savedVal ? " selected" : ""}>${f.name}</option>`).join("")}
+						</select>`;
+						sel.onn("change", () => {
+							const updated = {...(this._state.optionalFeatureChoices || {})};
+							updated[key] = sels.map(s => s.val()).filter(Boolean);
+							this._state.optionalFeatureChoices = updated;
+							refreshDisabled();
+							cb();
+						});
+						sels.push(sel);
+						wrpSels.append(sel);
+					}
+					refreshDisabled();
+				});
+			};
+
+			buildOptFeatUI();
+			this._addHook("state", "_optionalFeatureSlots", buildOptFeatUI);
+			this._addHook("state", "styleHint",             buildOptFeatUI);
+			optRow.appendTo(wrp);
+		}
+
+	// Ability Score Improvements
+	{
+		const [asiRow, asiRowInner] = BuilderUi.getLabelledRowTuple("Ability Score Improvements");
+		const wrpAsiRows = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(asiRowInner);
+
+		const buildAsiUI = () => {
+			wrpAsiRows.empty();
+			const count = this._state._asiCount || 0;
+			asiRow.toggleVe(count > 0);
+			if (!count) return;
+
+			const isNew    = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+			const allFeats = (this._allFeats || []).filter(f =>
+				isNew ? !SourceUtil.isClassicSource(f.source) : SourceUtil.isClassicSource(f.source),
+			);
+
+			for (let ix = 0; ix < count; ix++) {
+				const ix_ = ix;
+				const getChoice = () => (this._state.asiChoices || [])[ix_] || {mode: "asi"};
+				const setChoice = (patch) => {
+					const cur = [...(this._state.asiChoices || [])];
+					while (cur.length <= ix_) cur.push({mode: "asi"});
+					cur[ix_] = {...cur[ix_], ...patch};
+					this._state.asiChoices = cur;
+					this._sg_syncAbilityScores();
+					this._applyFeatData();
+					cb();
+				};
+
+				const slotWrp = ee`<div class="ve-flex-v-start ve-py-1 ve-border-b ve-mb-1"></div>`.appendTo(wrpAsiRows);
+				const choice  = getChoice();
+
+				// Mode toggle
+				const btnAsi  = ee`<button class="ve-btn ve-btn-xs ve-mr-1 ${choice.mode === "asi" ? "ve-btn-primary" : "ve-btn-default"}">ASI</button>`;
+				const btnFeat = ee`<button class="ve-btn ve-btn-xs ${choice.mode === "feat" ? "ve-btn-primary" : "ve-btn-default"}">Feat</button>`;
+
+				// ASI inputs — six ability cells, total capped at 2
+				const stgAsi  = ee`<div class="ve-flex-v-center ve-flex-wrap ve-gap-1 ve-ml-2"></div>`;
+				const stgFeat = ee`<div class="ve-flex-v-center ve-flex-wrap ve-gap-1 ve-ml-2"></div>`;
+
+				const iptsByAbl = {};
+				_ABILITIES.forEach(abl => {
+					const ipt = ee`<input class="ve-form-control form-control--minimal ve-input-xs ve-text-center" type="number" min="0" max="2" style="width:44px">`.val(String(getChoice()[abl] || 0));
+					ipt.onn("change", () => {
+						const v      = Math.max(0, Math.min(2, parseInt(ipt.val()) || 0));
+						const others = _ABILITIES.filter(a => a !== abl).reduce((s, a) => s + (getChoice()[a] || 0), 0);
+						const capped = Math.min(v, Math.max(0, 2 - others));
+						ipt.val(String(capped));
+						setChoice({[abl]: capped});
+						_ABILITIES.forEach(a => { if (iptsByAbl[a]) iptsByAbl[a].val(String(getChoice()[a] || 0)); });
+					});
+					iptsByAbl[abl] = ipt;
+					stgAsi.append(ee`<label class="ve-flex-col ve-text-center" style="min-width:36px">
+						<span style="font-size:.7em;font-weight:bold">${abl.toUpperCase()}</span>
+						${ipt}
+					</label>`);
+				});
+
+				// Feat select + optional ability sub-select
+				const featSel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:180px">
+					<option value="">— Choose feat —</option>
+					${allFeats.map(f => `<option value="${f.name}"${f.name === getChoice().featName ? " selected" : ""}>${f.name}</option>`).join("")}
+				</select>`;
+				stgFeat.append(featSel);
+				const wrpFeatAbil = ee`<div class="ve-flex-v-center ve-ml-1"></div>`.appendTo(stgFeat);
+				const refreshFeatAbilSel = () => {
+					wrpFeatAbil.empty();
+					const feat    = (this._allFeats || []).find(f => f.name === featSel.val());
+					const abilArr = feat?.ability ? (Array.isArray(feat.ability) ? feat.ability : [feat.ability]) : [];
+					const from    = [...new Set(abilArr.flatMap(a => a.choose?.from || []))];
+					if (!from.length) return;
+					const selAbil = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:80px">
+						<option value="">— ability —</option>
+						${from.map(a => `<option value="${a}"${a === getChoice().featAbility ? " selected" : ""}>${a.toUpperCase()}</option>`).join("")}
+					</select>`;
+					selAbil.onn("change", () => setChoice({featAbility: selAbil.val()}));
+					wrpFeatAbil.append(selAbil);
+				};
+				featSel.onn("change", () => { setChoice({featName: featSel.val(), featAbility: ""}); refreshFeatAbilSel(); });
+				refreshFeatAbilSel();
+
+				// Toggle visibility by mode
+				const applyMode = (mode) => {
+					btnAsi.toggleClass("ve-btn-primary",  mode === "asi").toggleClass("ve-btn-default",  mode !== "asi");
+					btnFeat.toggleClass("ve-btn-primary", mode === "feat").toggleClass("ve-btn-default", mode !== "feat");
+					stgAsi.toggleVe(mode === "asi");
+					stgFeat.toggleVe(mode === "feat");
+				};
+				applyMode(choice.mode);
+				btnAsi.onn("click",  () => { setChoice({mode: "asi"});  applyMode("asi");  });
+				btnFeat.onn("click", () => { setChoice({mode: "feat"}); applyMode("feat"); });
+
+				slotWrp.append(ee`<div class="ve-btn-group ve-no-shrink">${btnAsi}${btnFeat}</div>`, stgAsi, stgFeat);
+			}
+		};
+
+		buildAsiUI();
+		this._addHook("state", "_asiCount", buildAsiUI);
+		this._addHook("state", "styleHint", buildAsiUI);
+		asiRow.appendTo(wrp);
+	}
 	}
 
 	// ── Identity tab ──────────────────────────────────────────────────────────
@@ -580,29 +822,31 @@ export class CharacterBuilder extends BuilderBase {
 			this.renderOutput();
 		});
 
-		// Per-item feature list builder — renders each item as a row with an Exclude button
-		const buildItemList = (label, stateKey, emptyMsg) => {
-			const [row, rowInner] = BuilderUi.getLabelledRowTuple(label);
+		// Species Traits
+		{
+			const stateKey = "speciesTraitItems";
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Species Traits");
 			const listWrp = ee`<div class="ve-flex-col ve-w-100"></div>`;
 			let _skipRefresh = false;
-
 			const refresh = () => {
 				if (_skipRefresh) return;
 				listWrp.empty();
 				const items = this._state[stateKey] || [];
 				if (!items.length) {
-					listWrp.append(ee`<div class="ve-muted ve-small ve-italic">${emptyMsg}</div>`);
+					listWrp.append(ee`<div class="ve-muted ve-small ve-italic">Auto-filled when a species is selected.</div>`);
 					return;
 				}
 				items.forEach((item, ix) => {
 					const itemRow = ee`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
-					const btnExcl = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="Exclude from PDF" style="min-width:42px;flex-shrink:0">Excl.</button>`;
-					if (item.excluded) btnExcl.addClass("ve-active");
+					const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="${item.excluded ? "Show in PDF" : "Hide from PDF"}" style="flex-shrink:0"><span class="glyphicon ${item.excluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`;
 					const ta = ee`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
 					ta.val(item.text);
-					btnExcl.onn("click", () => {
+					btnEye.onn("click", () => {
 						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, excluded: !it.excluded} : it);
 						this._state[stateKey] = cur;
+						const nowExcluded = cur[ix]?.excluded;
+						btnEye.attr("title", nowExcluded ? "Show in PDF" : "Hide from PDF");
+						btnEye.find("span").attr("class", `glyphicon ${nowExcluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}`);
 						cb();
 					});
 					ta.onn("input", () => {
@@ -612,31 +856,27 @@ export class CharacterBuilder extends BuilderBase {
 						_skipRefresh = false;
 						cb();
 					});
-					itemRow.append(btnExcl, ta);
+					itemRow.append(btnEye, ta);
 					listWrp.append(itemRow);
 				});
 			};
-
 			refresh();
 			this._addHook("state", stateKey, refresh);
 			listWrp.appendTo(rowInner);
-			return row;
-		};
+			row.appendTo(wrp);
+		}
 
-		// Class Features
-		buildItemList("Class Features", "classFeatureItems", "Auto-filled when a class is selected.").appendTo(wrp);
-
-		// Species Traits
-		buildItemList("Species Traits", "speciesTraitItems", "Auto-filled when a species is selected.").appendTo(wrp);
+		// Species spell-choice dropdowns — shown below species traits
+		if (this._speciesSpellChoiceRow) this._speciesSpellChoiceRow.appendTo(wrp);
 	}
 
 	_buildEditionToggle (cb) {
-		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Edition / Ruleset");
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Edition");
 
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 
-		const btnClassic = ee`<button class="ve-btn ve-btn-xs ${!isNew ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">2014 (5e)</button>`;
-		const btnNew     = ee`<button class="ve-btn ve-btn-xs ${isNew  ? "ve-btn-primary" : "ve-btn-default"}">2024 (5.5e)</button>`;
+		const btnClassic = ee`<button class="ve-btn ve-btn-xs ${!isNew ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">5e (2014)</button>`;
+		const btnNew     = ee`<button class="ve-btn ve-btn-xs ${isNew  ? "ve-btn-primary" : "ve-btn-default"}">5.5e (2024)</button>`;
 
 		const doUpdate = () => {
 			const using2024 = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
@@ -694,7 +934,7 @@ export class CharacterBuilder extends BuilderBase {
 				const selClass    = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
 				const selSubclass = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
 				const selLevel    = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="width:55px;flex:0 0 55px"></select>`;
-				const btnRemove   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}">✕</button>`;
+				const btnRemove   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}"><span class="glyphicon glyphicon-trash"></span></button>`;
 
 				const _othersTotal = (this._state.classes || [])
 					.filter((_, j) => j !== ix)
@@ -897,6 +1137,7 @@ export class CharacterBuilder extends BuilderBase {
 			if (newVal === this._state.species) return;
 			this._state.species          = newVal;
 			this._state.speciesTraitItems = [];
+			this._state.speciesChoices    = {};
 			this._state.size          = "Medium";
 			this._state.speed         = 30;
 			this._state.languages     = [];
@@ -923,8 +1164,60 @@ export class CharacterBuilder extends BuilderBase {
 
 		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
 		wrp.append(row);
+
+		// Species spell-choice dropdowns (e.g. "choose a druid cantrip" from Lorwyn lineage)
+		const [spellChoiceRow, spellChoiceRowInner] = BuilderUi.getLabelledRowTuple("Species Spells");
+		const wrpSpellChoices = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(spellChoiceRowInner);
+
+		const buildSpeciesSpellChoiceUI = () => {
+			wrpSpellChoices.empty();
+			const speciesEntry = this._sg_getSpeciesEntry();
+			const choices = this._getSpeciesSpellChoices(speciesEntry);
+			spellChoiceRow.toggleVe(choices.length > 0);
+			if (!choices.length) return;
+
+			const saved = this._state.speciesChoices || {};
+			choices.forEach(({key, label, options}) => {
+				const savedVal = options?.find(o => o.value === saved[key]) ? saved[key] : "";
+				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
+					<option value="">— Choose ${label} —</option>
+					${(options || []).map(o => `<option value="${o.value}"${o.value === savedVal ? " selected" : ""}>${o.label}</option>`).join("")}
+				</select>`;
+				sel.onn("change", () => {
+					const updated = {...(this._state.speciesChoices || {})};
+					updated[key] = sel.val();
+					this._state.speciesChoices = updated;
+					this._syncGrantedSpells();
+					cb();
+				});
+				wrpSpellChoices.append(sel);
+			});
+		};
+
+		buildSpeciesSpellChoiceUI();
+		this._addHook("state", "species",  buildSpeciesSpellChoiceUI);
+		this._addHook("state", "styleHint", buildSpeciesSpellChoiceUI);
+		this._speciesSpellChoiceRow = spellChoiceRow;
 	}
 
+	// Returns [{key, label, options}] for each spell-choose slot in a species entry's additionalSpells.
+	_getSpeciesSpellChoices (speciesEntry) {
+		if (!speciesEntry?.additionalSpells?.length) return [];
+		const choices = [];
+		let idx = 0;
+		for (const grp of speciesEntry.additionalSpells) {
+			// Only use the active named group if applicable (multi-group species)
+			for (const prop of ["known", "innate", "prepared", "expanded"]) {
+				if (!grp[prop]) continue;
+				CharacterBuilder._eachSpellChoose(grp[prop], ({filter}) => {
+					const lbl = CharacterBuilder._spellChooseLabel(filter);
+					const opts = this._getSpellOptions(filter);
+					choices.push({key: `speciesSpell_${idx++}`, label: lbl, options: opts});
+				});
+			}
+		}
+		return choices;
+	}
 
 	_autoSetSpellcastingAbility () {
 		const cls = (this._state.classes?.[0]?.cls) || "";
@@ -1173,8 +1466,25 @@ export class CharacterBuilder extends BuilderBase {
 			}
 		}
 
+		// TODO [TEMPORARY - HARDCODED]: Replace with general class feature parser
+		// Expertise count: Rogue (L1+2, L6+2), Bard (L3+2, L10+2)
+		{
+			let expertiseCount = 0;
+			(this._state.classes || []).forEach(c => {
+				const lvl  = c.level || 0;
+				const name = c.cls   || "";
+				if (name === "Rogue") { if (lvl >= 1) expertiseCount += 2; if (lvl >= 6) expertiseCount += 2; }
+				if (name === "Bard")  { if (lvl >= 3) expertiseCount += 2; if (lvl >= 10) expertiseCount += 2; }
+			});
+			this._state._classExpertiseCount = expertiseCount;
+			// Trim saved choices if count shrinks
+			if ((this._state.classExpertise || []).length > expertiseCount)
+				this._state.classExpertise = (this._state.classExpertise || []).slice(0, expertiseCount);
+		}
+
 		// ── Class features (from ALL classes) ───────────────────────────────
 		const featureLines = [];
+		let asiCount = 0;
 		const _pushFeature = (featureLvl, feature) => {
 			const name = feature.name || "";
 			const text = CharacterBuilder._renderFeatureToPlainText(feature);
@@ -1194,6 +1504,7 @@ export class CharacterBuilder extends BuilderBase {
 				if (featureLvl > clsLvl) return;
 				(Array.isArray(lvlFeatures) ? lvlFeatures : []).forEach(feature => {
 					if (feature.gainSubclassFeature) return;
+					if ((feature.name || "").toLowerCase() === "ability score improvement") asiCount++;
 					_pushFeature(featureLvl, feature);
 				});
 			});
@@ -1227,6 +1538,67 @@ export class CharacterBuilder extends BuilderBase {
 		const oldItems = this._state.classFeatureItems || [];
 		const oldExcluded = new Set(oldItems.filter(i => i.excluded).map(i => i.text));
 		this._state.classFeatureItems = featureLines.map(text => ({text, excluded: oldExcluded.has(text)}));
+
+		// ── Optional feature slots (Fighting Style, Metamagic, Eldritch Invocations, etc.) ─────
+		{
+			const _getProgCount = (progression, level) => {
+				if (!progression) return 0;
+				if (Array.isArray(progression)) return progression[Math.max(0, level - 1)] || 0;
+				let max = 0;
+				Object.entries(progression).forEach(([k, v]) => { if (parseInt(k) <= level) max = v; });
+				return max;
+			};
+			const _isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+			const slots  = [];
+			const _pushOptSlot = (prog, lvl) => {
+				const count = _getProgCount(prog.progression, lvl);
+				if (!count) return;
+				slots.push({name: prog.name, featureType: prog.featureType, count, dataSource: "optFeature", key: (prog.featureType || [])[0]});
+			};
+			const _pushFeatSlot = (prog, lvl) => {
+				const count = _getProgCount(prog.progression, lvl);
+				if (!count) return;
+				slots.push({name: prog.name, category: prog.category, count, dataSource: "feat", key: (prog.category || [])[0]});
+			};
+			classes.forEach((c, i) => {
+				const entry = classEntries[i];
+				if (!entry) return;
+				const lvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+				(entry.optionalfeatureProgression || []).forEach(prog => _pushOptSlot(prog, lvl));
+				(entry.featProgression            || []).forEach(prog => _pushFeatSlot(prog, lvl));
+				// Subclass progressions
+				const subName = (c.sub || "").toLowerCase();
+				if (subName) {
+					const clsKey       = (entry.name || "").toLowerCase();
+					const _nameMatches = (this._allSubclasses[clsKey] || []).filter(s => (s.name || "").toLowerCase() === subName);
+					const _sc = _isNew
+						? (_nameMatches.find(s => !SourceUtil.isClassicSource(s.source)) || _nameMatches[0])
+						: (_nameMatches.find(s =>  SourceUtil.isClassicSource(s.source)) || _nameMatches[0]);
+					if (_sc) {
+						(_sc.optionalfeatureProgression || []).forEach(prog => _pushOptSlot(prog, lvl));
+						(_sc.featProgression            || []).forEach(prog => _pushFeatSlot(prog, lvl));
+					}
+				}
+			});
+			this._state._optionalFeatureSlots = slots;
+			// Trim saved choices that exceed the new count
+			const validKeys  = new Set(slots.map(s => s.key).filter(Boolean));
+			const curChoices = {};
+			slots.forEach(slot => {
+				const prev = (this._state.optionalFeatureChoices || {})[slot.key] || [];
+				curChoices[slot.key] = prev.slice(0, slot.count);
+			});
+			// Drop any keys not present in the new slot set
+			Object.keys(this._state.optionalFeatureChoices || {}).forEach(k => {
+				if (!validKeys.has(k)) delete curChoices[k];
+			});
+			this._state.optionalFeatureChoices = curChoices;
+		}
+
+		// ── ASI count ────────────────────────────────────────────────────────────
+		this._state._asiCount = asiCount;
+		if ((this._state.asiChoices || []).length > asiCount)
+			this._state.asiChoices = (this._state.asiChoices || []).slice(0, asiCount);
 
 		this._syncGrantedEquipment();
 		this._rebuildHpSection?.();
@@ -1488,6 +1860,8 @@ export class CharacterBuilder extends BuilderBase {
 		const featNames  = [
 			...(this._state.bgFeat ? [this._state.bgFeat] : []),
 			...(this._state.feats || []),
+			// ASI-slot feats
+			...(this._state.asiChoices || []).filter(c => c.mode === "feat" && c.featName).map(c => c.featName),
 		].filter(Boolean);
 
 		const toTitle    = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -1690,7 +2064,11 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Feat-granted spells
 		const allChoices = this._state.featChoices || {};
-		const featNames  = [...(this._state.bgFeat ? [this._state.bgFeat] : []), ...(this._state.feats || [])].filter(Boolean);
+		const featNames  = [
+			...(this._state.bgFeat ? [this._state.bgFeat] : []),
+			...(this._state.feats || []),
+			...(this._state.asiChoices || []).filter(c => c.mode === "feat" && c.featName).map(c => c.featName),
+		].filter(Boolean);
 		for (const featName of featNames) {
 			const feat = this._getFeatEntry(featName);
 			if (!feat?.additionalSpells) continue;
@@ -1715,9 +2093,18 @@ export class CharacterBuilder extends BuilderBase {
 		// Species-granted spells
 		const speciesEntry = this._sg_getSpeciesEntry();
 		if (speciesEntry?.additionalSpells) {
+			const speciesChoices = this._state.speciesChoices || {};
+			let spellIdx = 0;
 			speciesEntry.additionalSpells.forEach(grp => {
 				["innate", "known", "prepared", "expanded"].forEach(prop => {
-					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, speciesEntry.name));
+					if (!grp[prop]) return;
+					// Hardcoded spells
+					cs(grp[prop]).forEach(n => push(n, speciesEntry.name));
+					// User-chosen spells via choose slots
+					CharacterBuilder._eachSpellChoose(grp[prop], () => {
+						const chosen = speciesChoices[`speciesSpell_${spellIdx++}`];
+						if (chosen) push(chosen, speciesEntry.name);
+					});
 				});
 			});
 		}
@@ -2352,9 +2739,17 @@ export class CharacterBuilder extends BuilderBase {
 		}
 	}
 
+	// Sum ability score bonuses from class Ability Score Improvement slots (mode === "asi").
+	_sg_getClassAsiBonus (abl) {
+		return (this._state.asiChoices || [])
+			.filter(c => c.mode === "asi")
+			.reduce((sum, c) => sum + (c[abl] || 0), 0);
+	}
+
 	// Sum ability score bonuses granted by active feats for one ability.
 	// Handles both static grants ({str:1}) and choose.from grants (stored in
 	// featChoices[featName]["ability"] as the chosen ability abbreviation).
+	// Also includes feats chosen via class ASI slots (mode === "feat").
 	_sg_getFeatBonus (abl) {
 		if (!this._allFeats) return 0;
 		const allChoices = this._state.featChoices || {};
@@ -2381,6 +2776,18 @@ export class CharacterBuilder extends BuilderBase {
 				if (abilObj.choose?.from) total += (abilObj.choose.amount ?? 1) * chosenCount;
 			}
 		}
+		// ASI-slot feats
+		for (const choice of (this._state.asiChoices || [])) {
+			if (choice.mode !== "feat" || !choice.featName) continue;
+			const feat = this._getFeatEntry(choice.featName);
+			if (!feat?.ability) continue;
+			const abilArr = Array.isArray(feat.ability) ? feat.ability : [feat.ability];
+			for (const abilObj of abilArr) {
+				if (typeof abilObj[abl] === "number") total += abilObj[abl];
+				if (abilObj.choose?.from && choice.featAbility === abl)
+					total += abilObj.choose.amount ?? 1;
+			}
+		}
 		return total;
 	}
 
@@ -2392,7 +2799,8 @@ export class CharacterBuilder extends BuilderBase {
 		_ABILITIES.forEach(abl => {
 			this._state[abl] = Math.min(20, this._sg_getBase(abl)
 				+ this._sg_getAsiBonus(abl)
-				+ this._sg_getFeatBonus(abl));
+				+ this._sg_getFeatBonus(abl)
+				+ this._sg_getClassAsiBonus(abl));
 		});
 	}
 
@@ -2415,10 +2823,12 @@ export class CharacterBuilder extends BuilderBase {
 
 		const _isNew    = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 		const asiBonus  = _ABILITIES.map(a => this._sg_getAsiBonus(a));
-		const featBonus = _ABILITIES.map(a => this._sg_getFeatBonus(a));
-		const hasAsi    = asiBonus.some(b => b !== 0);
-		const hasFeat   = featBonus.some(b => b !== 0);
-		const showExtra = !isManual || hasAsi || hasFeat;
+		const featBonus     = _ABILITIES.map(a => this._sg_getFeatBonus(a));
+		const classAsiBonus = _ABILITIES.map(a => this._sg_getClassAsiBonus(a));
+		const hasAsi        = asiBonus.some(b => b !== 0);
+		const hasFeat       = featBonus.some(b => b !== 0);
+		const hasClassAsi   = classAsiBonus.some(b => b !== 0);
+		const showExtra     = !isManual || hasAsi || hasFeat || hasClassAsi;
 
 		// ── Header row ───────────────────────────────────────────────────
 		const hdr = ee`<div class="ve-flex-v-center ve-mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
@@ -2427,7 +2837,8 @@ export class CharacterBuilder extends BuilderBase {
 		hdr.appends(ee`<span class="ve-text-center" style="width:80px">${baseLabel}</span>`);
 		if (showExtra) {
 			hdr.appends(ee`<span class="ve-text-center" style="width:46px">${_isNew ? "+BG" : "+Race"}</span>`);
-			if (hasFeat) hdr.appends(ee`<span class="ve-text-center" style="width:42px">+Feat</span>`);
+			if (hasFeat)     hdr.appends(ee`<span class="ve-text-center" style="width:42px">+Feat</span>`);
+			if (hasClassAsi) hdr.appends(ee`<span class="ve-text-center" style="width:42px">+ASI</span>`);
 			hdr.appends(ee`<span class="ve-text-center" style="width:46px">Total</span>`);
 		}
 		hdr.appends(ee`<span class="ve-text-center" style="width:36px">Mod</span>`);
@@ -2440,7 +2851,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			const getScore = () => {
 				const base = isManual ? (this._state[abl] ?? 10) : this._sg_getBase(abl);
-				return base + this._sg_getAsiBonus(abl) + this._sg_getFeatBonus(abl);
+				return base + this._sg_getAsiBonus(abl) + this._sg_getFeatBonus(abl) + this._sg_getClassAsiBonus(abl);
 			};
 
 			let dispTotal = null;
@@ -2523,10 +2934,12 @@ export class CharacterBuilder extends BuilderBase {
 			row.appends(baseCell);
 
 			if (showExtra) {
-				const aB = asiBonus[ablIdx];
-				const fB = featBonus[ablIdx];
+				const aB  = asiBonus[ablIdx];
+				const fB  = featBonus[ablIdx];
+				const cAB = classAsiBonus[ablIdx];
 				row.appends(ee`<span class="ve-text-center ve-muted" style="width:46px">${aB >= 0 ? "+" : ""}${aB}</span>`);
-				if (hasFeat) row.appends(ee`<span class="ve-text-center ve-muted" style="width:42px">${fB >= 0 ? "+" : ""}${fB}</span>`);
+				if (hasFeat)     row.appends(ee`<span class="ve-text-center ve-muted" style="width:42px">${fB >= 0 ? "+" : ""}${fB}</span>`);
+				if (hasClassAsi) row.appends(ee`<span class="ve-text-center ve-muted" style="width:42px">${cAB >= 0 ? "+" : ""}${cAB}</span>`);
 				row.appends(dispTotal);
 			}
 			row.appends(dispMod);
@@ -2741,6 +3154,12 @@ export class CharacterBuilder extends BuilderBase {
 		// ── Class Skill Choices ────────────────────────────────────────────────
 		{
 			const [choiceRow, choiceRowInner] = BuilderUi.getLabelledRowTuple("Class Skills");
+			choiceRowInner.css("flex-direction", "column");
+
+			// ── Skills sub-section ──────────────────────────────────────────
+			ee`<span class="ve-muted ve-bold" style="font-size:.8em">Skills</span>`.appendTo(choiceRowInner);
+			const wrpSkillSels = ee`<div class="ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.appendTo(choiceRowInner);
+
 			const count = this._state._skillChoiceCount || 0;
 			const allowedFrom = this._state._skillChoiceFrom;
 			const skillOptions = allowedFrom
@@ -2748,7 +3167,7 @@ export class CharacterBuilder extends BuilderBase {
 				: [..._SKILLS];
 
 			if (!count) {
-				choiceRowInner.appends(ee`<span class="ve-muted ve-italic" style="font-size:.85em">No class skill choices available.</span>`);
+				wrpSkillSels.appends(ee`<span class="ve-muted ve-italic" style="font-size:.85em">No class skill choices available.</span>`);
 			} else {
 				const sels = [];
 				const savedChoices = this._state.classSkillChoices || [];
@@ -2776,11 +3195,64 @@ export class CharacterBuilder extends BuilderBase {
 						cb();
 					});
 					sels.push(sel);
-					choiceRowInner.appends(sel);
+					wrpSkillSels.appends(sel);
 				}
 
 				refreshDisabled();
 			}
+
+			// ── Expertise sub-section (TODO [TEMPORARY - HARDCODED]: Replace with general class feature parser) ──
+			const expertHeading  = ee`<span class="ve-muted ve-bold" style="font-size:.8em">Expertise</span>`.appendTo(choiceRowInner);
+			const wrpExpertSels  = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(choiceRowInner);
+
+			const buildExpertiseDropdowns = () => {
+				wrpExpertSels.empty();
+				const expertCount = this._state._classExpertiseCount || 0;
+				expertHeading.toggleVe(expertCount > 0);
+				wrpExpertSels.toggleVe(expertCount > 0);
+				if (!expertCount) return;
+
+				const allProfSkills = _SKILLS.filter(s =>
+					(this._state.skillProfs        || []).includes(s.name) ||
+					(this._state.featSkillProfs    || []).includes(s.name) ||
+					(this._state.classSkillChoices || []).includes(s.name),
+				);
+				const saved = this._state.classExpertise || [];
+				const sels  = [];
+
+				const refreshDisabled = () => {
+					const taken = new Set([...sels.map(s => s.val()).filter(Boolean), ...(this._state.featExpertise || [])]);
+					sels.forEach(sel => {
+						const myVal = sel.val();
+						Array.from(sel.options).forEach(opt => {
+							if (!opt.value) return;
+							opt.disabled = taken.has(opt.value) && opt.value !== myVal;
+						});
+					});
+				};
+
+				for (let i = 0; i < expertCount; i++) {
+					const savedVal = allProfSkills.find(s => s.name === saved[i]) ? saved[i] : "";
+					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:130px">
+						<option value="">— None —</option>
+						${allProfSkills.map(({name}) => `<option value="${name}"${name === savedVal ? " selected" : ""}>${name}</option>`).join("")}
+					</select>`;
+					sel.onn("change", () => {
+						this._state.classExpertise = sels.map(s => s.val()).filter(Boolean);
+						refreshDisabled();
+						cb();
+					});
+					sels.push(sel);
+					wrpExpertSels.append(sel);
+				}
+				refreshDisabled();
+			};
+
+			buildExpertiseDropdowns();
+			this._addHook("state", "_classExpertiseCount", buildExpertiseDropdowns);
+			this._addHook("state", "classSkillChoices",    buildExpertiseDropdowns);
+			this._addHook("state", "skillProfs",           buildExpertiseDropdowns);
+			this._addHook("state", "featSkillProfs",       buildExpertiseDropdowns);
 
 			wrp.append(choiceRow);
 		}
@@ -2793,7 +3265,7 @@ export class CharacterBuilder extends BuilderBase {
 				(this._state.skillProfs         || []).includes(name) ||
 				(this._state.featSkillProfs      || []).includes(name) ||
 				(this._state.classSkillChoices   || []).includes(name);
-			const isExpert     = () => (this._state.skillExpertise || []).includes(name) || (this._state.featExpertise  || []).includes(name);
+			const isExpert     = () => (this._state.skillExpertise || []).includes(name) || (this._state.featExpertise || []).includes(name) || (this._state.classExpertise || []).includes(name);
 			const isHalfProf   = () => (this._state.skillHalfProfs || []).includes(name);
 
 			const getBonus = () => {
@@ -2846,6 +3318,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._addHook("state", "featSkillProfs",    () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
 			this._addHook("state", "featExpertise",     () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
 			this._addHook("state", "classSkillChoices", () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
+			this._addHook("state", "classExpertise",    () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
 			const btnHalfProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Half Proficiency">Half.</button>`;
 			if (isHalfProf()) btnHalfProf.addClass("ve-active");
 			halfProfBtns.push({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus});
@@ -3732,7 +4205,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		const allSaveProfs = new Set([...(s.savingThrowProfs || []), ...(s.featSavingThrowProfs || [])]);
 		const allSkillProfs = new Set([...(s.skillProfs || []), ...(s.featSkillProfs || []), ...(s.classSkillChoices || [])]);
-		const allExpertise  = new Set([...(s.skillExpertise || []), ...(s.featExpertise || [])]);
+		const allExpertise  = new Set([...(s.skillExpertise || []), ...(s.featExpertise || []), ...(s.classExpertise || [])]);
 		const allHalfProfs  = new Set(s.skillHalfProfs || []);
 
 		const savesStr = ["str", "dex", "con", "int", "wis", "cha"]
@@ -3864,6 +4337,24 @@ export class CharacterBuilder extends BuilderBase {
 			if (e) _push(e, UrlUtil.PG_BACKGROUNDS, "background", "#a74b8d", "farmer");
 		}
 
+		// Optional feature choices (Fighting Style, Metamagic, Eldritch Invocations, etc.)
+		{
+			const slotsByKey = Object.fromEntries((s._optionalFeatureSlots || []).map(sl => [sl.key, sl]));
+			Object.entries(s.optionalFeatureChoices || {}).forEach(([key, names]) => {
+				const slot = slotsByKey[key];
+				(names || []).filter(Boolean).forEach(name => {
+					const nm = name.toLowerCase();
+					if (slot?.dataSource === "feat") {
+						const e = _pick((this._allFeats || []).filter(x => x.name.toLowerCase() === nm));
+						if (e) _push(e, UrlUtil.PG_FEATS, "feat", "#aca300", "mighty-force");
+					} else {
+						const e = _pick((this._allOptFeatures || []).filter(x => x.name.toLowerCase() === nm));
+						if (e) _push(e, UrlUtil.PG_OPT_FEATURES, "optionalfeature", "#3b6e4a", "magic-palm");
+					}
+				});
+			});
+		}
+
 		const _TYPE_ORDER = ["race", "background", "optionalfeature", "feat", "creature", "spell", "item"];
 		listItems.sort((a, b) => {
 			const oa = _TYPE_ORDER.indexOf(a.entityType);
@@ -3889,12 +4380,12 @@ export class CharacterBuilder extends BuilderBase {
 		const _stLevel = s => (s.classes || [{level: s.level || 1}]).reduce((a, c) => a + Math.max(1, parseInt(c.level) || 1), 0);
 		const totalLevel = _stLevel(s);
 		const totalAbl   = (abl) => Math.min(20, (s.sg_mode || "manual") === "manual"
-			? (s[abl] || 10) + this._sg_getAsiBonus(abl) + this._sg_getFeatBonus(abl)
+			? (s[abl] || 10) + this._sg_getAsiBonus(abl) + this._sg_getFeatBonus(abl) + this._sg_getClassAsiBonus(abl)
 			: (s[abl] || 10));
 		const profBonus  = s.profBonusOverride ?? _profBonus(totalLevel);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
 		const initiative = (s.initiative ?? abilMods.dex) + (s.featInitiativeBonus || 0);
-		const _percMult  = (s.skillExpertise||[]).includes("Perception") ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
+		const _percMult  = ((s.skillExpertise||[]).includes("Perception") || (s.featExpertise||[]).includes("Perception") || (s.classExpertise||[]).includes("Perception")) ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception") || (s.featSkillProfs||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
 		const passPer    = 10 + abilMods.wis + profBonus * _percMult;
 		// Collect all unique spellcasting abilities: from class data, feat choices, fallback to primary
 		const spellAbilList = (() => {
@@ -3913,7 +4404,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
 		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk) || (s.classSkillChoices||[]).includes(sk);
-		const hasExpert   = sk => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk);
+		const hasExpert   = sk => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk) || (s.classExpertise||[]).includes(sk);
 		const hasHalfProf = sk => (s.skillHalfProfs||[]).includes(sk);
 		const saveBonus  = abl => abilMods[abl] + (hasSave(abl) ? profBonus : 0);
 		const skillBonus = sk  => { const a=_SKILLS.find(x=>x.name===sk)?.ability||"str"; if (hasExpert(sk)) return abilMods[a]+profBonus*2; if (hasSkill(sk)) return abilMods[a]+profBonus; if (hasHalfProf(sk)) return abilMods[a]+Math.floor(profBonus/2); return abilMods[a]; };
@@ -4163,7 +4654,13 @@ export class CharacterBuilder extends BuilderBase {
 		});
 
 		// Class features (two columns), species traits, feats
-		const _cfTexts = (s.classFeatureItems || []).filter(i => !i.excluded).map(i => i.text);
+		const _cfTexts = [
+			...(s.classFeatureItems || []).filter(i => !i.excluded).map(i => i.text),
+			...(s._optionalFeatureSlots || []).flatMap(slot => {
+				const chosen = ((s.optionalFeatureChoices || {})[slot.key] || []).filter(Boolean);
+				return chosen.length ? [`${slot.name}: ${chosen.join(", ")}`] : [];
+			}),
+		];
 		const _cfHalf  = Math.ceil(_cfTexts.length / 2);
 		inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),     232.1,361.2,407.9,563.8, 6.5);
 		inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),        418.5,361.2,593.7,563.4, 6.5);
