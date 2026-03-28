@@ -592,7 +592,7 @@ export class CharacterBuilder extends BuilderBase {
 					});
 					ta.onn("input", () => {
 						_skipRefresh = true;
-						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val()} : it);
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val(), _autoText: it._autoText ?? it.text} : it);
 						this._state[stateKey] = cur;
 						_skipRefresh = false;
 						cb();
@@ -870,7 +870,7 @@ export class CharacterBuilder extends BuilderBase {
 					});
 					ta.onn("input", () => {
 						_skipRefresh = true;
-						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val()} : it);
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val(), _autoText: it._autoText ?? it.text} : it);
 						this._state[stateKey] = cur;
 						_skipRefresh = false;
 						cb();
@@ -1555,8 +1555,13 @@ export class CharacterBuilder extends BuilderBase {
 		});
 
 		const oldItems = this._state.classFeatureItems || [];
-		const oldExcluded = new Set(oldItems.filter(i => i.excluded).map(i => i.text));
-		this._state.classFeatureItems = featureLines.map(text => ({text, excluded: oldExcluded.has(text)}));
+		const oldByAutoText = new Map(oldItems.filter(i => i._autoText).map(i => [i._autoText, i]));
+		const oldExcluded = new Set(oldItems.filter(i => i.excluded && !i._autoText).map(i => i.text));
+		this._state.classFeatureItems = featureLines.map(text => {
+			const old = oldByAutoText.get(text);
+			if (old) return old; // preserve user-edited text and excluded status
+			return {text, _autoText: text, excluded: oldExcluded.has(text)};
+		});
 
 		// -- Optional feature slots (Fighting Style, Metamagic, Eldritch Invocations, etc.) -----
 		{
@@ -4281,10 +4286,25 @@ export class CharacterBuilder extends BuilderBase {
 			.onn("click", () => this._doExportPdf());
 		const btnStatblock = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Export as creature statblock (Markdown)"><span class="glyphicon glyphicon-list-alt ve-mr-1"></span>Statblock</button>`
 			.onn("click", () => this._doExportStatblock());
-		const btnCards = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th ve-mr-1"></span>Cards</button>`
+		const btnCards = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th ve-mr-1"></span>Cards</button>`
 			.onn("click", () => this._doExportCards());
+
+		if (this._pdfSheetMode == null) this._pdfSheetMode = localStorage.getItem(CharacterBuilder._STORAGE_KEY_PDF_SHEET_MODE) || "standard";
+		const btnStandard  = ee`<button class="ve-btn ve-btn-xs ve-mr-1" title="Standard class features layout">Standard</button>`;
+		const btnExtended  = ee`<button class="ve-btn ve-btn-xs" title="Extended class features layout">Extended</button>`;
+		const applySheetMode = (mode) => {
+			this._pdfSheetMode = mode;
+			localStorage.setItem(CharacterBuilder._STORAGE_KEY_PDF_SHEET_MODE, mode);
+			btnStandard.toggleClass("ve-btn-primary", mode === "standard").toggleClass("ve-btn-default", mode !== "standard");
+			btnExtended.toggleClass("ve-btn-primary", mode === "extended").toggleClass("ve-btn-default", mode !== "extended");
+		};
+		btnStandard.onn("click", () => { applySheetMode("standard"); regenerate(); });
+		btnExtended.onn("click", () => { applySheetMode("extended"); regenerate(); });
+		applySheetMode(this._pdfSheetMode);
+
 		ee`<div class="ve-flex-v-center ve-mb-2 ve-pb-1" style="border-bottom:1px solid var(--rgb-border-grey)">
 			<span class="ve-muted ve-italic ve-mr-2" style="font-size:.75em">${(s.styleHint === "classic") ? "D&D 2014 (5e)" : "D&D 2024 (5.5e)"}</span>
+			<div class="ve-btn-group ve-mr-2">${btnStandard}${btnExtended}</div>
 			<div class="ve-ml-auto">${btnJson}${btnPdf}${btnStatblock}${btnCards}</div>
 		</div>`.appendTo(wrp);
 
@@ -4292,11 +4312,29 @@ export class CharacterBuilder extends BuilderBase {
 		const dispStatus = ee`<div class="ve-flex-vh-center ve-w-100 ve-py-3"><span class="ve-muted ve-italic">Generating PDF preview\u2026</span></div>`.appendTo(wrp);
 		const iframe = ee`<iframe class="ve-w-100 ve-hidden" style="height:800px;border:none"></iframe>`.appendTo(wrp);
 
+		const regenerate = () => {
+			dispStatus.showVe(); iframe.hideVe();
+			if (this._pdfBlobUrl) { URL.revokeObjectURL(this._pdfBlobUrl); this._pdfBlobUrl = null; }
+			const genId = ++this._pdfGenId;
+			this._pBuildPdf(this._pdfSheetMode).then(doc => {
+				if (genId !== this._pdfGenId) return;
+				const url = doc.output("bloburl");
+				this._pdfBlobUrl = url;
+				iframe.attr("src", url);
+				dispStatus.hideVe();
+				iframe.showVe();
+			}).catch(err => {
+				if (genId !== this._pdfGenId) return;
+				dispStatus.empty().appends(`<span class="ve-error">PDF preview failed - use the Download PDF button above.</span>`);
+				console.error("PDF preview:", err);
+			});
+		};
+
 		// Revoke previous blob URL to avoid memory leaks
 		if (this._pdfBlobUrl) { URL.revokeObjectURL(this._pdfBlobUrl); this._pdfBlobUrl = null; }
 		const genId = ++this._pdfGenId;
 
-		this._pBuildPdf().then(doc => {
+		this._pBuildPdf(this._pdfSheetMode).then(doc => {
 			if (genId !== this._pdfGenId) return; // stale render
 			const url = doc.output("bloburl");
 			this._pdfBlobUrl = url;
@@ -4501,7 +4539,7 @@ export class CharacterBuilder extends BuilderBase {
 		}
 	}
 
-	async _pBuildPdf () {
+	async _pBuildPdf (sheetMode = "standard") {
 		const s = this._state;
 		// For manual mode the raw state value is the base score; add race/bg/feat
 		// bonuses so the PDF reflects the true total.  For other modes _sg_syncAbilityScores
@@ -4580,7 +4618,7 @@ export class CharacterBuilder extends BuilderBase {
 			const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b);
 		}));
 		const [P1, P2] = await Promise.all([
-			_loadSheetImg("js/character/standard-sheet-p1.jpg"),
+			_loadSheetImg(sheetMode === "extended" ? "js/character/extended-class-sheet-p1.jpg" : "js/character/standard-sheet-p1.jpg"),
 			_loadSheetImg("js/character/sheet-p2.jpg"),
 		]);
 		const S = 215.9/612; // pt -> mm
@@ -4805,10 +4843,15 @@ export class CharacterBuilder extends BuilderBase {
 			}),
 		];
 		const _cfHalf  = Math.ceil(_cfTexts.length / 2);
-		inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),     232.1,361.2,407.9,563.8, 6.5);
-		inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),        418.5,361.2,593.7,563.4, 6.5);
-		inFieldML((s.speciesTraitItems || []).filter(i => !i.excluded).map(i => i.text).join("\n"), 232.4,606.2,395.9,770.3, 6.5);
-		inFieldML(this._buildFeatsDescription(),              419.1,605.5,595.3,770.9, 6.5);
+		if (sheetMode === "extended") {
+			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1,361.2,407.9,770.3, 6.5);
+			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5,361.2,593.7,770.9, 6.5);
+		} else {
+			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1,361.2,407.9,563.8, 6.5);
+			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5,361.2,593.7,563.4, 6.5);
+			inFieldML((s.speciesTraitItems || []).filter(i => !i.excluded).map(i => i.text).join("\n"), 232.4,606.2,395.9,770.3, 6.5);
+			inFieldML(this._buildFeatsDescription(),            419.1,605.5,595.3,770.9, 6.5);
+		}
 
 		// ═══════════════════ PAGE 2 ═══════════════════
 		doc.addPage();
@@ -4914,3 +4957,4 @@ export class CharacterBuilder extends BuilderBase {
 	}
 }
 CharacterBuilder._STORAGE_KEY_SAVED = "characterBuilderSaved";
+CharacterBuilder._STORAGE_KEY_PDF_SHEET_MODE = "characterBuilderPdfSheetMode";
