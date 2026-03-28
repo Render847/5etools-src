@@ -1,5 +1,5 @@
 import {BuilderBase} from "./makebrew/makebrew-builder-base.js";
-import { CharacterBuilder } from "./makebrew/character-builder.js";
+import { CharacterBuilder } from "./character/character-builder.js";
 import {TagCondition, TaggerUtils} from "./converter/converterutils-tags.js";
 
 class PageUi {
