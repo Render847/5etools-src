@@ -551,18 +551,15 @@ class MakeCards extends BaseComponent {
 			});
 		}
 
-		const isWeapon = !!item.mastery?.length || !!item.weaponCategory || item.weapon;
 		const itemEntries = [];
-		if (!isWeapon) {
-			if (item._fullEntries || (item.entries && item.entries.length)) {
-				itemEntries.push(...(item._fullEntries || item.entries));
-			}
-			if (item._fullAdditionalEntries || item.additionalEntries) {
-				itemEntries.push(...(item._fullAdditionalEntries || item.additionalEntries));
-			}
+		if (item._fullEntries || (item.entries && item.entries.length)) {
+			itemEntries.push(...(item._fullEntries || item.entries));
+		}
+		if (item._fullAdditionalEntries || item.additionalEntries) {
+			itemEntries.push(...(item._fullAdditionalEntries || item.additionalEntries));
 		}
 
-		const bodyEntries = masteryEntries.length ? masteryEntries : itemEntries;
+		const bodyEntries = [...itemEntries, ...masteryEntries];
 
 		return [
 			typeRarityHtml ? this._ct_htmlToText(this._ct_subtitle(typeRarityHtml)) : null,
@@ -944,9 +941,17 @@ MakeCards.utils = class {
 	}
 
 	static enhanceItemAlt (item) {
+		// Preserve own description entries (e.g. from specific variants' inherits.entries),
+		// filtering out {type:"wrapper"} objects added by Renderer.item.enhanceItem.
+		const ownEntries = (item._fullEntries || []).filter(e => !(e && typeof e === "object" && e.type === "wrapper"));
 		delete item._fullEntries;
+		if (ownEntries.length) item._fullEntries = ownEntries;
 
-		if (item.type) {
+		// Weapon type/property boilerplate is suppressed for weapons — only non-weapon
+		// items (armor, focuses, potions, rings) get their type/property text appended.
+		const isWeapon = !!item.weaponCategory || !!item.weapon;
+
+		if (!isWeapon && item.type) {
 			const {abbreviation, source} = DataUtil.itemType.unpackUid(item.type, {isLower: true});
 			const fromCustom = MiscUtil.get(MakeCards.utils._itemTypeMap, source, abbreviation);
 			if (fromCustom || Renderer.item.getType(item.type)) {
@@ -955,7 +960,7 @@ MakeCards.utils = class {
 			}
 		}
 
-		if (item.property) {
+		if (!isWeapon && item.property) {
 			item.property.forEach(p => {
 				const uid = p?.uid || p;
 				const {abbreviation, source} = DataUtil.itemProperty.unpackUid(uid, {isLower: true});

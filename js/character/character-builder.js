@@ -251,6 +251,8 @@ export class CharacterBuilder extends BuilderBase {
 			armorProfs: [],
 			weaponProfs: [],
 			toolProfs: [],
+			bgToolProfs: [],         // auto-managed: background-granted tool proficiencies
+			excludedBgToolProfs: [], // user-excluded background tool proficiencies
 			// combat
 			ac: 10,
 			speed: 30,
@@ -294,7 +296,8 @@ export class CharacterBuilder extends BuilderBase {
 			equippedWeapons: [],     // [{name,atkBonus,damage,notes}] - from equipped weapons
 			// weapons table
 			weapons: [],
-			weaponHidden: [],  // names hidden from PDF
+			weaponHidden: [],     // names hidden from PDF
+			weaponOverrides: {},  // {[name]: {atkBonus?, damage?, notes?}} - override auto-computed values
 			// feats
 			feats: [],
 			bgFeat: "",
@@ -1101,8 +1104,9 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.skillProfs     = [];
 			this._state.skillExpertise = [];
 			this._state.skillHalfProfs = [];
-			this._state.toolProfs      = [];
-			this._state.languages      = [];
+			this._state.bgToolProfs          = [];
+			this._state.excludedBgToolProfs  = [];
+			this._state.languages            = [];
 			this._state.bgFeat         = "";
 			this._state.bg_choice_from     = [];
 			this._state.bg_choice_weighted = [];
@@ -1159,6 +1163,8 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.speciesChoices    = {};
 			this._state.size          = "Medium";
 			this._state.speed         = 30;
+			this._state._speciesSpeed = null;  // reset so _applySpeciesData always applies new species defaults
+			this._state._speciesSize  = null;
 			this._state.languages     = [];
 			this._state.race_choice_from     = [];
 			this._state.race_choice_weighted = [];
@@ -1797,7 +1803,7 @@ export class CharacterBuilder extends BuilderBase {
 		const newSkills = [...new Set([...existingSkills, ...bgSkills])];
 		if (newSkills.length !== existingSkills.length) this._state.skillProfs = newSkills;
 
-		// Tool proficiencies
+		// Tool proficiencies — stored in bgToolProfs (auto-managed) to keep toolProfs user-editable
 		const bgTools = [];
 		(bg.toolProficiencies || []).forEach(tp => {
 			Object.keys(tp).forEach(k => {
@@ -1805,9 +1811,12 @@ export class CharacterBuilder extends BuilderBase {
 				bgTools.push(k.split("|")[0]);
 			});
 		});
+		const excludedBg = new Set((this._state.excludedBgToolProfs || []).map(t => t.toLowerCase()));
+		this._state.bgToolProfs = bgTools.filter(t => !excludedBg.has(t.toLowerCase()));
+		// Migrate: remove exact-match entries from toolProfs that are now tracked in bgToolProfs
 		if (bgTools.length) {
-			const existing = this._state.toolProfs || [];
-			this._state.toolProfs = [...new Set([...existing, ...bgTools])];
+			const bgToolSet = new Set(bgTools.map(t => t.toLowerCase()));
+			this._state.toolProfs = (this._state.toolProfs || []).filter(t => !bgToolSet.has(t.toLowerCase()));
 		}
 
 		// Language proficiencies
@@ -1849,16 +1858,21 @@ export class CharacterBuilder extends BuilderBase {
 			? (matches.find(r => !SourceUtil.isClassicSource(r.source)) || matches[0])
 			: (matches.find(r => SourceUtil.isClassicSource(r.source)) || matches[0]);
 
-		// Size
+		// Size — only overwrite if the user hasn't customised away from the species default
 		if (race.size?.length) {
 			const SIZE_MAP = {F:"Fine",D:"Diminutive",T:"Tiny",S:"Small",M:"Medium",L:"Large",H:"Huge",G:"Gargantuan",C:"Colossal",V:"Varies"};
-			this._state.size = SIZE_MAP[race.size[0]] || "Medium";
+			const sizeVal = SIZE_MAP[race.size[0]] || "Medium";
+			const oldSpeciesSize = this._state._speciesSize;
+			this._state._speciesSize = sizeVal;
+			if (oldSpeciesSize == null || this._state.size === oldSpeciesSize) this._state.size = sizeVal;
 		}
 
-		// Speed
+		// Speed — only overwrite if the user hasn't customised away from the species default
 		if (race.speed !== undefined) {
 			const spd = typeof race.speed === "object" ? (race.speed.walk ?? 30) : race.speed;
-			this._state.speed = spd;
+			const oldSpeciesSpeed = this._state._speciesSpeed;
+			this._state._speciesSpeed = spd;
+			if (oldSpeciesSpeed == null || this._state.speed === oldSpeciesSpeed) this._state.speed = spd;
 		}
 
 		// Language proficiencies
@@ -1892,7 +1906,14 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		if (traitLines.length) {
-			this._state.speciesTraitItems = traitLines.map(text => ({text, excluded: false}));
+			const oldTraits = this._state.speciesTraitItems || [];
+			const oldByAutoText = new Map(oldTraits.filter(i => i._autoText).map(i => [i._autoText, i]));
+			const oldExcluded = new Set(oldTraits.filter(i => i.excluded && !i._autoText).map(i => i.text));
+			this._state.speciesTraitItems = traitLines.map(text => {
+				const old = oldByAutoText.get(text);
+				if (old) return old;
+				return {text, _autoText: text, excluded: oldExcluded.has(text)};
+			});
 		}
 
 		this._syncGrantedSpells();
@@ -2114,16 +2135,16 @@ export class CharacterBuilder extends BuilderBase {
 	_syncGrantedSpells () {
 		if (!this._state) return;
 
-		// Strip previously auto-granted spells, keep user-added ones
-		this._state.spells = (this._state.spells || []).filter(sp => !sp.autoGranted);
-
 		const cs = CharacterBuilder._collectSpells;
-		const push = (name, source) => {
+
+		// 1. Collect all desired grants as [{name, source}], deduped by name
+		const desiredGrants = [];
+		const pushDesired = (name, source) => {
 			if (!name) return;
-			// Use the canonical cased name from spell data if available
 			const canonical = this._getSpellEntry(name)?.name || name;
-			if (this._state.spells.some(sp => sp.name.toLowerCase() === canonical.toLowerCase())) return;
-			this._state.spells.push({name: canonical, notes: `from ${source}`, autoGranted: true, prepared: false});
+			if (!desiredGrants.some(g => g.name.toLowerCase() === canonical.toLowerCase())) {
+				desiredGrants.push({name: canonical, source});
+			}
 		};
 
 		// Feat-granted spells
@@ -2143,13 +2164,13 @@ export class CharacterBuilder extends BuilderBase {
 				: groups;
 			active.forEach(grp => {
 				["innate", "known", "prepared", "expanded"].forEach(prop => {
-					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, featName));
+					if (grp[prop]) cs(grp[prop]).forEach(n => pushDesired(n, featName));
 				});
 			});
 			// User-chosen spells via spell choose slots (e.g. Magic Initiate)
 			let spellIdx = 0;
 			while (chosen[`featSpell_${spellIdx}`] !== undefined) {
-				push(chosen[`featSpell_${spellIdx}`], featName);
+				pushDesired(chosen[`featSpell_${spellIdx}`], featName);
 				spellIdx++;
 			}
 		}
@@ -2162,12 +2183,10 @@ export class CharacterBuilder extends BuilderBase {
 			speciesEntry.additionalSpells.forEach(grp => {
 				["innate", "known", "prepared", "expanded"].forEach(prop => {
 					if (!grp[prop]) return;
-					// Hardcoded spells
-					cs(grp[prop]).forEach(n => push(n, speciesEntry.name));
-					// User-chosen spells via choose slots
+					cs(grp[prop]).forEach(n => pushDesired(n, speciesEntry.name));
 					CharacterBuilder._eachSpellChoose(grp[prop], () => {
 						const chosen = speciesChoices[`speciesSpell_${spellIdx++}`];
-						if (chosen) push(chosen, speciesEntry.name);
+						if (chosen) pushDesired(chosen, speciesEntry.name);
 					});
 				});
 			});
@@ -2178,12 +2197,29 @@ export class CharacterBuilder extends BuilderBase {
 		if (bgEntry?.additionalSpells) {
 			bgEntry.additionalSpells.forEach(grp => {
 				["innate", "known", "prepared", "expanded"].forEach(prop => {
-					if (grp[prop]) cs(grp[prop]).forEach(n => push(n, bgEntry.name));
+					if (grp[prop]) cs(grp[prop]).forEach(n => pushDesired(n, bgEntry.name));
 				});
 			});
 		}
 
-		// Rebuild the spells tab UI if already rendered
+		// 2. Diff: keep user-added spells, match desired grants against existing auto-granted
+		// spells (preserving user edits), adding fresh entries only for newly-granted spells.
+		const existingGranted = (this._state.spells || []).filter(sp => sp.autoGranted);
+		const matched = new Set();
+		const newSpells = (this._state.spells || []).filter(sp => !sp.autoGranted);
+
+		for (const grant of desiredGrants) {
+			const key = grant.name.toLowerCase();
+			const existingIdx = existingGranted.findIndex((sp, i) => !matched.has(i) && sp.name.toLowerCase() === key);
+			if (existingIdx >= 0) {
+				matched.add(existingIdx);
+				newSpells.push(existingGranted[existingIdx]); // preserve user edits
+			} else {
+				newSpells.push({name: grant.name, notes: `from ${grant.source}`, autoGranted: true, prepared: false});
+			}
+		}
+
+		this._state.spells = newSpells;
 		this._rebuildSpellsTab?.();
 	}
 
@@ -2617,12 +2653,24 @@ export class CharacterBuilder extends BuilderBase {
 		// -- Other proficiencies ----------------------------------------------
 		// Helper: adds a small reactive "From feats: …" label below a row that
 		// updates whenever the given feat state key changes.
-		const appendFeatGrantedLabel = (parentRow, featKey) => {
-			const lbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(parentRow);
+		const appendFeatGrantedLabel = (parentRow, featKey, prefix = "From feats", onRemove = null) => {
+			const lbl = ee`<div class="ve-pl-1 ve-mt-1"></div>`.appendTo(parentRow);
 			const refresh = () => {
+				lbl.empty();
 				const vals = this._state[featKey] || [];
 				lbl.toggleVe(vals.length > 0);
-				lbl.txt(vals.length ? `From feats: ${vals.join(", ")}` : "");
+				if (!vals.length) return;
+				if (onRemove) {
+					for (const val of vals) {
+						const chip = ee`<span class="ve-flex-v-center ve-gap-1 ve-mr-2" style="font-size:.85em"></span>`.appendTo(lbl);
+						chip.txt(val);
+						ee`<button class="ve-btn ve-btn-xxs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+							.onn("click", () => onRemove(val))
+							.appendTo(chip);
+					}
+				} else {
+					lbl.addClass("ve-muted ve-italic").txt(`${prefix}: ${vals.join(", ")}`);
+				}
 			};
 			this._addHook("state", featKey, refresh);
 			refresh();
@@ -2660,6 +2708,27 @@ export class CharacterBuilder extends BuilderBase {
 
 		const toolRow = BuilderUi.getStateIptStringArray("Tool Prof.", cb, this._state, {shortName: "Tool Proficiency", nullable: true}, "toolProfs").appendTo(wrp);
 		appendFeatGrantedLabel(toolRow, "featToolProfs");
+		// Background-granted tool chips — each has a trash button to exclude it
+		const bgToolChipWrp = ee`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-pl-1 ve-mt-1"></div>`.appendTo(toolRow);
+		const refreshBgToolChips = () => {
+			bgToolChipWrp.empty();
+			const tools = this._state.bgToolProfs || [];
+			bgToolChipWrp.toggleVe(tools.length > 0);
+			tools.forEach(tool => {
+				const chip = ee`<span class="ve-flex-v-center ve-gap-1" style="font-size:.85em"></span>`;
+				chip.txt(tool);
+				ee`<button class="ve-btn ve-btn-xxs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+					.onn("click", () => {
+						this._state.excludedBgToolProfs = [...(this._state.excludedBgToolProfs || []), tool];
+						this._applyBackgroundData();
+						cb();
+					})
+					.appendTo(chip);
+				bgToolChipWrp.append(chip);
+			});
+		};
+		this._addHook("state", "bgToolProfs", refreshBgToolChips);
+		refreshBgToolChips();
 
 		// Class-granted any-tool choice slots (e.g. Bard's musical instruments, Monk's artisan's tools)
 		{
@@ -3666,8 +3735,27 @@ export class CharacterBuilder extends BuilderBase {
 
 			if (!autoEntries.length) return;
 
-			autoEntries.forEach(name => {
+			for (const name of autoEntries) {
 				const isHidden = hidden.has(name);
+				const ov = (this._state.weaponOverrides || {})[name] || {};
+
+				const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(ov.atkBonus || "");
+				const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(ov.damage || "");
+				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(ov.notes || "");
+
+				const doUpdateOverride = () => {
+					const cur = MiscUtil.copy(this._state.weaponOverrides || {});
+					const atk = iptAtk.val().trim(), dmg = iptDmg.val().trim(), notes = iptNote.val().trim();
+					if (atk || dmg || notes) cur[name] = {atkBonus: atk, damage: dmg, notes};
+					else delete cur[name];
+					this._state.weaponOverrides = cur;
+					cb();
+				};
+
+				iptAtk.onn("input", doUpdateOverride);
+				iptDmg.onn("input", doUpdateOverride);
+				iptNote.onn("input", doUpdateOverride);
+
 				const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="${isHidden ? "Show in PDF" : "Hide from PDF"}"><span class="glyphicon ${isHidden ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`
 					.onn("click", () => {
 						const cur = new Set(this._state.weaponHidden || []);
@@ -3677,10 +3765,10 @@ export class CharacterBuilder extends BuilderBase {
 						buildAutoWpnSection();
 					});
 				ee`<div class="ve-flex-v-center ve-mb-1">
-					<span style="flex:1;font-size:.85em">${name}</span>
-					${btnEye}
+					<span style="flex:2;font-size:.85em" class="${isHidden ? "ve-muted ve-strikethrough" : ""}">${name}</span>
+					${iptAtk}${iptDmg}${iptNote}${btnEye}
 				</div>`.appendTo(wrpAutoWpn);
-			});
+			}
 		};
 
 		buildAutoWpnSection();
@@ -3711,42 +3799,33 @@ export class CharacterBuilder extends BuilderBase {
 	// -- Equipment tab ---------------------------------------------------------
 
 	// -- Auto-granted equipment sync -------------------------------------------
-	// Removes all {autoGranted:true} entries from this._state.equipment and
-	// re-adds the items selected via equipmentChoices from the class and
-	// background startingEquipment.defaultData / startingEquipment arrays.
+	// Diff-syncs {autoGranted:true} equipment entries — computes desired grants from class/background
+	// startingEquipment, removes grants no longer valid, preserves user edits on existing grants,
+	// and adds newly-valid grants.
 	_syncGrantedEquipment () {
 		if (!this._state) return;
 
-		// Preserve equipped flags so they survive the rebuild
-		const prevEquipped = new Set(
-			(this._state.equipment || []).filter(e => e.autoGranted && e.equipped).map(e => e.name),
-		);
-
-		this._state.equipment = (this._state.equipment || []).filter(e => !e.autoGranted);
-
 		const choices = this._state.equipmentChoices || {};
-
+		const desiredGrants = [];
 		let totalGrantedCp = 0;
 
 		const addGroup = (group, prefix, idx, source) => {
 			const choiceKey = `${prefix}_${idx}`;
 			const keys = Object.keys(group).filter(k => k !== "_");
-			// Mandatory items (underscore key only)
 			if (group._) {
 				for (const item of group._) {
 					if (item && typeof item === "object" && item.value != null) { totalGrantedCp += item.value; continue; }
 					const parsed = CharacterBuilder._parseEquipItem(item);
-					if (parsed) this._state.equipment.push({...parsed, note: `from ${source}`, autoGranted: true});
+					if (parsed) desiredGrants.push({...parsed, note: `from ${source}`, autoGranted: true});
 				}
 			}
-			// Choice items - only add the selected option
 			if (keys.length > 0) {
 				const chosen = choices[choiceKey];
 				if (chosen && group[chosen]) {
 					for (const item of group[chosen]) {
 						if (item && typeof item === "object" && item.value != null) { totalGrantedCp += item.value; continue; }
 						const parsed = CharacterBuilder._parseEquipItem(item);
-						if (parsed) this._state.equipment.push({...parsed, note: `from ${source}`, autoGranted: true});
+						if (parsed) desiredGrants.push({...parsed, note: `from ${source}`, autoGranted: true});
 					}
 				}
 			}
@@ -3756,20 +3835,32 @@ export class CharacterBuilder extends BuilderBase {
 		if (cls?.startingEquipment?.defaultData) {
 			cls.startingEquipment.defaultData.forEach((grp, i) => addGroup(grp, "cls", i, cls.name));
 		}
-
 		const bg = this._sg_getBgEntry();
 		if (bg?.startingEquipment) {
 			bg.startingEquipment.forEach((grp, i) => addGroup(grp, "bg", i, bg.name));
 		}
 
+		// Diff: keep user-added items, then match desired grants against existing auto-granted items
+		// (preserving user edits), adding fresh entries only for newly-granted items.
+		const existingGrants = (this._state.equipment || []).filter(e => e.autoGranted);
+		const matched = new Set();
+		const newEquipment = (this._state.equipment || []).filter(e => !e.autoGranted);
+
+		for (const grant of desiredGrants) {
+			const key = grant.name.toLowerCase();
+			const existingIdx = existingGrants.findIndex((e, i) => !matched.has(i) && e.name.toLowerCase() === key);
+			if (existingIdx >= 0) {
+				matched.add(existingIdx);
+				newEquipment.push(existingGrants[existingIdx]); // preserve user edits
+			} else {
+				newEquipment.push(grant); // newly granted
+			}
+		}
+
+		this._state.equipment = newEquipment;
 		this._state.gp = Math.floor(totalGrantedCp / 100);
 		this._state.sp = Math.floor((totalGrantedCp % 100) / 10);
 		this._state.cp = totalGrantedCp % 10;
-
-		// Restore equipped flags
-		(this._state.equipment || []).filter(e => e.autoGranted).forEach(e => {
-			if (prevEquipped.has(e.name)) e.equipped = true;
-		});
 
 		this._rebuildEquipmentTab?.();
 	}
@@ -3841,7 +3932,10 @@ export class CharacterBuilder extends BuilderBase {
 			const [eqRow, eqRowInner] = BuilderUi.getLabelledRowTuple("Equipment", {isMarked: true});
 			const eqRows = [];
 			const doUpdateEqState = () => {
-				this._state.equipment = eqRows.map(r => r.getState()).filter(it => it.name);
+				const activeItems = eqRows.map(r => r.getState()).filter(it => it.name);
+				// Excluded auto-granted items are not in eqRows; pass them through directly from state
+				const excludedItems = (this._state.equipment || []).filter(e => e.autoGranted && e.excluded);
+				this._state.equipment = [...activeItems, ...excludedItems];
 				this._syncEquippedItems();
 				cb();
 			};
@@ -3870,19 +3964,28 @@ export class CharacterBuilder extends BuilderBase {
 					.appendTo(row);
 			});
 
-			// User-added items
+			// Equipment items (auto-granted + user-added)
 			const addEqRow = (initial) => {
+				// Excluded auto-granted items are kept in state but not rendered
+				if (initial?.autoGranted && initial?.excluded) return;
+
 				const entry = this._getItemEntry(initial?.name || "");
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
-				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateEqState);
+				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateEqState);
 				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				const cbEquip = isEquippable
 					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateEqState)
 					: null;
 				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
-					eqRows.splice(eqRows.indexOf(rowMeta), 1);
-					rowEle.remove();
+					if (initial?.autoGranted) {
+						// Mark as excluded so sync won't re-add it
+						initial.excluded = true;
+						rowEle.remove();
+					} else {
+						eqRows.splice(eqRows.indexOf(rowMeta), 1);
+						rowEle.remove();
+					}
 					doUpdateEqState();
 				});
 				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
@@ -3927,7 +4030,7 @@ export class CharacterBuilder extends BuilderBase {
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
 				const needsAttune = !!(entry?.reqAttune);
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
-				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("change", doUpdateMgState);
+				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateMgState);
 				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				const cbEquip = isEquippable
 					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
@@ -4122,7 +4225,10 @@ export class CharacterBuilder extends BuilderBase {
 			const spellRows = [];
 
 			const doUpdateState = () => {
-				this._state.spells = spellRows.map(r => r.getState()).filter(it => it.name);
+				const activeSpells = spellRows.map(r => r.getState()).filter(it => it.name);
+				// Excluded auto-granted spells are not in spellRows; pass them through directly
+				const excludedSpells = (this._state.spells || []).filter(sp => sp.autoGranted && sp.excluded);
+				this._state.spells = [...activeSpells, ...excludedSpells];
 				cb();
 			};
 
@@ -4141,6 +4247,9 @@ export class CharacterBuilder extends BuilderBase {
 				const name = typeof initial === "string" ? initial : (initial?.name || "");
 				if (!name) return;
 				const isAuto    = !!initial?.autoGranted;
+				// Excluded auto-granted spells are kept in state but not rendered
+				if (isAuto && initial?.excluded) return;
+
 				const spellData = this._getSpellEntry(name);
 				const level     = Math.min(spellData?.level ?? 0, 9);
 				const section   = sections[level];
@@ -4150,12 +4259,17 @@ export class CharacterBuilder extends BuilderBase {
 
 				const row = ee`<div class="ve-flex-v-center ve-py-1" style="gap:6px;border-bottom:1px solid var(--col-border-default,#333)"></div>`.appendTo(section.wrpRows);
 				ee`<span class="ve-bold" style="min-width:140px;flex:0 0 auto">${name}</span>`.appendTo(row);
-				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.val(initial?.notes || "").onn("change", doUpdateState).appendTo(row);
+				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.val(initial?.notes || "").onn("input", doUpdateState).appendTo(row);
 				ee`<span class="ve-muted" style="font-size:.8em;white-space:nowrap">Prep</span>`.appendTo(row);
 				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(row);
 				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
 					.onn("click", () => {
-						spellRows.splice(spellRows.indexOf(rowMeta), 1);
+						if (isAuto) {
+							// Mark as excluded so sync won't re-add it
+							initial.excluded = true;
+						} else {
+							spellRows.splice(spellRows.indexOf(rowMeta), 1);
+						}
 						row.remove();
 						section.rowCount--;
 						if (section.rowCount === 0) section.wrpSection.hideVe();
@@ -4349,7 +4463,7 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	async _doExportPdf () {
-		const doc = await this._pBuildPdf();
+		const doc = await this._pBuildPdf(this._pdfSheetMode);
 		doc.save(`${DataUtil.getCleanFilename(this._state.name || "character")}-sheet.pdf`);
 	}
 
@@ -4771,7 +4885,7 @@ export class CharacterBuilder extends BuilderBase {
 		};
 		const allArmorProfs   = [...new Set([...(s.armorProfs||[]),   ...(s.featArmorProfs||[])])];
 		const allWeaponProfs  = [...new Set([...(s.weaponProfs||[]),  ...(s.featWeaponProfs||[])])];
-		const allToolProfs    = [...new Set([...(s.toolProfs||[]),    ...(s.featToolProfs||[]), ...(s.classToolChoices||[]).filter(Boolean)])];
+		const allToolProfs    = [...new Set([...(s.toolProfs||[]),    ...(s.bgToolProfs||[]), ...(s.featToolProfs||[]), ...(s.classToolChoices||[]).filter(Boolean)])];
 		const allLanguages    = [...new Set([...(s.languages||[]),    ...(s.featLanguages||[])])];
 		allArmorProfs.forEach(p => { if (armorPips[p]) pip(...armorPips[p]); });
 
@@ -4793,6 +4907,16 @@ export class CharacterBuilder extends BuilderBase {
 			[[231.5,300.0,337.1,317.8],[341.7,300.2,385.2,317.7],[390.1,300.3,464.3,317.8],[468.9,300.3,594.0,317.8]],
 		];
 		const _hiddenWpn = new Set(s.weaponHidden || []);
+		const _wpnOv = s.weaponOverrides || {};
+
+		// Apply user overrides to auto-computed equipped weapons
+		_equippedWeapons.forEach(w => {
+			const ov = _wpnOv[w.name];
+			if (!ov) return;
+			if (ov.atkBonus) w.atkBonus = ov.atkBonus;
+			if (ov.damage)   w.damage   = ov.damage;
+			if (ov.notes)    w.notes    = ov.notes;
+		});
 
 		// Damage cantrips - pick correct scaling die for character level
 		const _cantripWpns = (s.spells || [])
@@ -4812,7 +4936,13 @@ export class CharacterBuilder extends BuilderBase {
 				let atkBonus = "";
 				if (data.spellAttack?.length) atkBonus = spellAtk != null ? fmod(spellAtk) : "";
 				else if (data.savingThrow?.length) atkBonus = spellDC != null ? `DC ${spellDC}` : "";
-				return {name: sp.name, atkBonus, damage, notes: ""};
+				const ov = _wpnOv[sp.name];
+				return {
+					name:     sp.name,
+					atkBonus: ov?.atkBonus || atkBonus,
+					damage:   ov?.damage   || damage,
+					notes:    ov?.notes    || "",
+				};
 			})
 			.filter(Boolean);
 
