@@ -451,7 +451,7 @@
 			"familiar": true,
 			"soundClip": {
 				"type": "internal",
-				"path": "bestiary/rat.mp3"
+				"path": "bestiary/rat.opus"
 			},
 			"traitTags": [
 				"Keen Senses"
@@ -5309,7 +5309,8 @@
 			],
 			"traitTags": [
 				"Magic Resistance",
-				"Magic Weapons"
+				"Magic Weapons",
+				"Sure-Footed"
 			],
 			"senseTags": [
 				"D"
@@ -6315,6 +6316,10 @@
 					}
 				]
 			},
+			"alignment": [
+				"L",
+				"G"
+			],
 			"cha": 14,
 			"languages": [
 				"Common"
@@ -6462,7 +6467,7 @@
 				{
 					"name": "Bite (Rat or Hybrid Form Only)",
 					"entries": [
-						"{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h}4 ({@damage 1d4 + 2}) piercing damage. If the target is a humanoid, it must succeed on a {@dc 11} Constitution saving throw or be cursed with wererat lycanthropy."
+						"{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h}4 ({@damage 1d4 + 2}) piercing damage. If the target is a humanoid, it must succeed on a {@dc 11} Constitution saving throw or be cursed with wererat {@variantrule Player Characters as Lycanthropes|MM|lycanthropy}."
 					]
 				},
 				{
@@ -7360,6 +7365,9 @@
 			"isNamedCreature": true,
 			"source": "WDH",
 			"page": 216,
+			"referenceSources": [
+				"WDMM"
+			],
 			"size": [
 				"M"
 			],
@@ -8739,6 +8747,10 @@
 					}
 				]
 			},
+			"alignment": [
+				"N",
+				"E"
+			],
 			"int": 16,
 			"languages": [
 				"Common",

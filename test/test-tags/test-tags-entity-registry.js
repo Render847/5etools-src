@@ -1,4 +1,5 @@
 import * as utS from "../../node/util-search-index.js";
+import {readJsonSync} from "5etools-utils/lib/UtilFs.js";
 
 export class TagTestUrlLookup {
 	constructor (
@@ -61,7 +62,13 @@ export class TagTestUrlLookup {
 	}
 
 	async _pInit_pPopulateUrls () {
-		if (this._fileAdditional) await BrewUtil2.pAddBrewFromUrl(this._fileAdditional, {isLoadReferences: true});
+		if (this._fileAdditional) {
+			const contents = readJsonSync(this._fileAdditional);
+			const brewUtil = contents._meta?.sources?.some(source => source?.json?.startsWith("UA") || source?.json?.startsWith("XUA"))
+				? PrereleaseUtil
+				: BrewUtil2;
+			await brewUtil.pAddBrewFromUrl(this._fileAdditional, {isLoadReferences: true});
+		}
 
 		const primaryIndex = Omnidexer.decompressIndex(await utS.UtilSearchIndex.pGetIndex({doLogging: false, noFilter: true}));
 		primaryIndex
@@ -71,6 +78,13 @@ export class TagTestUrlLookup {
 			.forEach(indexItem => this._addIndexItem(indexItem));
 
 		if (this._fileAdditional) {
+			const prereleaseIndexItems = await PrereleaseUtil.pGetSearchIndex({
+				id: secondaryIndexItem.at(-1).id,
+				isIncludeExtendedSourceInfo: true,
+			});
+			prereleaseIndexItems
+				.forEach(indexItem => this._addIndexItem(indexItem));
+
 			const brewIndexItems = await BrewUtil2.pGetSearchIndex({
 				id: secondaryIndexItem.at(-1).id,
 				isIncludeExtendedSourceInfo: true,
@@ -88,10 +102,11 @@ export class TagTestUrlLookup {
 			"citation",
 		]) {
 			[
-				...(await DataLoader.pCacheAndGetAllBrew(prop)),
-				...(await DataLoader.pCacheAndGetAllPrerelease(prop)),
 				...(await DataLoader.pCacheAndGetAllSite(prop)),
+				...(await DataLoader.pCacheAndGetAllPrerelease(prop)),
+				...(await DataLoader.pCacheAndGetAllBrew(prop)),
 			]
+				.reverse()
 				.forEach(ent => this._addEntityItem(ent, prop));
 		}
 
@@ -101,12 +116,14 @@ export class TagTestUrlLookup {
 		//   indexed.
 		for (const prop of [
 			"feat",
+			"legendaryGroup",
 		]) {
 			[
-				...(await DataLoader.pCacheAndGetAllBrew(prop)),
-				...(await DataLoader.pCacheAndGetAllPrerelease(prop)),
 				...(await DataLoader.pCacheAndGetAllSite(prop)),
+				...(await DataLoader.pCacheAndGetAllPrerelease(prop)),
+				...(await DataLoader.pCacheAndGetAllBrew(prop)),
 			]
+				.reverse()
 				.filter(ent => ent._versionBase_isVersion)
 				.forEach(ent => this._addEntityItem(ent, prop));
 		}
@@ -117,12 +134,14 @@ export class TagTestUrlLookup {
 		for (const prop of [
 			"monsterFluff",
 			"raceFluff",
+			"crochetPatternFluff",
 		]) {
 			[
-				...(await DataLoader.pCacheAndGetAllBrew(prop)),
-				...(await DataLoader.pCacheAndGetAllPrerelease(prop)),
 				...(await DataLoader.pCacheAndGetAllSite(prop)),
+				...(await DataLoader.pCacheAndGetAllPrerelease(prop)),
+				...(await DataLoader.pCacheAndGetAllBrew(prop)),
 			]
+				.reverse()
 				.forEach(ent => this._addEntityItem(ent, prop));
 		}
 	}
@@ -131,10 +150,11 @@ export class TagTestUrlLookup {
 		const tmpClassIxFeatures = {};
 
 		[
-			...(await DataLoader.pCacheAndGetAllBrew("class")),
-			...(await DataLoader.pCacheAndGetAllPrerelease("class")),
 			...(await DataLoader.pCacheAndGetAllSite("class")),
+			...(await DataLoader.pCacheAndGetAllPrerelease("class")),
+			...(await DataLoader.pCacheAndGetAllBrew("class")),
 		]
+			.reverse()
 			.forEach(cls => {
 				cls.name = cls.name.toLowerCase();
 				cls.source = (cls.source || Parser.SRC_PHB).toLowerCase();
@@ -152,10 +172,11 @@ export class TagTestUrlLookup {
 			});
 
 		[
-			...(await DataLoader.pCacheAndGetAllBrew("subclass")),
-			...(await DataLoader.pCacheAndGetAllPrerelease("subclass")),
 			...(await DataLoader.pCacheAndGetAllSite("subclass")),
+			...(await DataLoader.pCacheAndGetAllPrerelease("subclass")),
+			...(await DataLoader.pCacheAndGetAllBrew("subclass")),
 		]
+			.reverse()
 			.forEach(sc => {
 				sc.shortName = (sc.shortName || sc.name).toLowerCase();
 				sc.source = (sc.source || sc.classSource).toLowerCase();
@@ -200,7 +221,7 @@ export class TagTestUrlLookup {
 	/* -------------------------------------------- */
 
 	getEncodedProxy (uid, tag, prop = null) {
-		prop ||= tag;
+		prop ||= Parser.getTagProps(tag)[0];
 		const unpacked = DataUtil.proxy.unpackUid(prop, uid, tag);
 		const hashBuilder = UrlUtil.URL_TO_HASH_BUILDER[prop];
 		if (!hashBuilder) throw new Error(`No hash builder found for prop "${prop}"!`);

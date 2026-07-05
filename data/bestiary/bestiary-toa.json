@@ -1386,7 +1386,8 @@
 				"N",
 				"G"
 			],
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Bag of Nails",
@@ -1616,8 +1617,7 @@
 			"source": "ToA",
 			"page": 216,
 			"referenceSources": [
-				"TTP",
-				"IDRotF"
+				"TTP"
 			],
 			"size": [
 				"T"
@@ -2122,7 +2122,8 @@
 					}
 				}
 			},
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Elok Jaharwon",
@@ -2177,7 +2178,8 @@
 				"N",
 				"G"
 			],
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Fenthaza",
@@ -2628,7 +2630,8 @@
 				"H",
 				"X"
 			],
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Grabstab",
@@ -3219,7 +3222,8 @@
 					}
 				}
 			},
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Kwayothé",
@@ -3539,7 +3543,8 @@
 				"L",
 				"G"
 			],
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Mwaxanaré",
@@ -3984,7 +3989,8 @@
 				"N",
 				"G"
 			],
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Ras Nsi",
@@ -4262,7 +4268,8 @@
 					}
 				}
 			},
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Salida",
@@ -4384,7 +4391,8 @@
 				"intimidation": "+5",
 				"survival": "+7"
 			},
-			"hasToken": true
+			"hasToken": true,
+			"hasFluffImages": true
 		},
 		{
 			"name": "Skeleton Key",
@@ -5863,8 +5871,8 @@
 			"source": "ToA",
 			"page": 235,
 			"referenceSources": [
-				"WDH",
-				"TTP"
+				"TTP",
+				"WDH"
 			],
 			"size": [
 				"M"

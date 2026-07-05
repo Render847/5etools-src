@@ -402,6 +402,21 @@
 			]
 		},
 		{
+			"name": "Azaka Stormfang",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Azaka Stormfang.webp"
+					},
+					"width": 897,
+					"height": 510
+				}
+			]
+		},
+		{
 			"name": "Bag of Nails",
 			"source": "ToA",
 			"entries": [
@@ -646,6 +661,21 @@
 			]
 		},
 		{
+			"name": "Eku",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Eku.webp"
+					},
+					"width": 897,
+					"height": 510
+				}
+			]
+		},
+		{
 			"name": "Elok Jaharwon",
 			"source": "ToA",
 			"images": [
@@ -657,6 +687,21 @@
 					},
 					"width": 311,
 					"height": 525
+				}
+			]
+		},
+		{
+			"name": "Faroul",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Faroul and Gondolo.webp"
+					},
+					"width": 897,
+					"height": 510
 				}
 			]
 		},
@@ -683,7 +728,7 @@
 					"type": "image",
 					"href": {
 						"type": "internal",
-						"path": "bestiary/ToA/098-ph08.webp"
+						"path": "bestiary/ToA/River Mist and Flask of Wine.webp"
 					},
 					"width": 897,
 					"height": 510
@@ -797,6 +842,21 @@
 			]
 		},
 		{
+			"name": "Gondolo",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Faroul and Gondolo.webp"
+					},
+					"width": 897,
+					"height": 510
+				}
+			]
+		},
+		{
 			"name": "Grabstab",
 			"source": "ToA",
 			"images": [
@@ -846,8 +906,8 @@
 						"type": "internal",
 						"path": "bestiary/ToA/Hew Hackinstone.webp"
 					},
-					"width": 336,
-					"height": 508
+					"width": 897,
+					"height": 510
 				}
 			]
 		},
@@ -998,6 +1058,21 @@
 			]
 		},
 		{
+			"name": "Kupalué",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Qawasha and Kupalue.webp"
+					},
+					"width": 897,
+					"height": 510
+				}
+			]
+		},
+		{
 			"name": "Kwayothé",
 			"source": "ToA",
 			"images": [
@@ -1102,6 +1177,21 @@
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"name": "Musharib",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Musharib.webp"
+					},
+					"width": 897,
+					"height": 510
 				}
 			]
 		},
@@ -1260,6 +1350,21 @@
 			]
 		},
 		{
+			"name": "Qawasha",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Qawasha and Kupalue.webp"
+					},
+					"width": 897,
+					"height": 510
+				}
+			]
+		},
+		{
 			"name": "Ras Nsi",
 			"source": "ToA",
 			"entries": [
@@ -1335,6 +1440,21 @@
 			]
 		},
 		{
+			"name": "River Mist",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/River Mist and Flask of Wine.webp"
+					},
+					"width": 897,
+					"height": 510
+				}
+			]
+		},
+		{
 			"name": "Salida",
 			"source": "ToA",
 			"images": [
@@ -1342,10 +1462,25 @@
 					"type": "image",
 					"href": {
 						"type": "internal",
-						"path": "bestiary/ToA/099-ph09.webp"
+						"path": "bestiary/ToA/Salida.webp"
 					},
 					"width": 896,
 					"height": 509
+				}
+			]
+		},
+		{
+			"name": "Shago",
+			"source": "ToA",
+			"images": [
+				{
+					"type": "image",
+					"href": {
+						"type": "internal",
+						"path": "bestiary/ToA/Shago.webp"
+					},
+					"width": 897,
+					"height": 510
 				}
 			]
 		},

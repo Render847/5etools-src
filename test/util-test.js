@@ -35,9 +35,13 @@ export const BLOCKLIST_SOURCES_PAGES = new Set([
 	Parser.SRC_SCREEN_DUNGEON_KIT,
 	Parser.SRC_SCREEN_SPELLJAMMER,
 	Parser.SRC_XSCREEN,
+	Parser.SRC_XSCREEN_RHW,
 	// endregion
 
 	// region Sources which are formats other than books, and therefore "pageless"
 	Parser.SRC_HFDoMM, // Deck of recipe cards
 	// endregion
 ]);
+
+export const PATH_DEFAULT_PRERELEASE_DIR = "../unearthed-arcana";
+export const PATH_DEFAULT_HOMEBREW_DIR = "../homebrew";

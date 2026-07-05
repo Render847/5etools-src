@@ -119,6 +119,7 @@ class NavBar {
 		this._addElement_li({keyPath: [NavBar._CAT_REFERENCES], page: "vehicles.html", aText: "Vehicles"});
 		this._addElement_divider({keyPath: [NavBar._CAT_REFERENCES]});
 		this._addElement_li({keyPath: [NavBar._CAT_REFERENCES], page: "recipes.html", aText: "Recipes"});
+		this._addElement_li({keyPath: [NavBar._CAT_REFERENCES], page: "homecrafts.html", aText: "Home Crafts"});
 
 		this._addElement_dropdown({category: NavBar._CAT_UTILITIES});
 		this._addElement_li({keyPath: [NavBar._CAT_UTILITIES], page: "search.html", aText: "Search"});
@@ -585,7 +586,7 @@ class NavBar {
 
 			a.setAttribute("aria-haspopup", "true");
 		}
-		a.innerHTML = `${category} <span class="caret ${isSide ? "caret--right" : ""}"></span>`;
+		a.innerHTML = `${category} <span class="ve-caret ${isSide ? "ve-caret--right" : ""}"></span>`;
 
 		const ul = document.createElement("ul");
 		ul.setAttribute("role", "menu");

@@ -268,7 +268,7 @@ class BlocklistUi {
 				this._list.reset();
 			});
 
-		const wrpFilterTools = ee`<div class="input-group input-group--bottom ve-flex ve-no-shrink">
+		const wrpFilterTools = ee`<div class="ve-input-group ve-input-group--bottom ve-flex ve-no-shrink">
 			<button class="ve-col-4 sort ve-btn ve-btn-default ve-btn-xs ve-grow" data-sort="source">Source</button>
 			<button class="ve-col-2 sort ve-btn ve-btn-default ve-btn-xs" data-sort="category">Category</button>
 			<button class="ve-col-5 sort ve-btn ve-btn-default ve-btn-xs" data-sort="name">Name</button>
@@ -286,7 +286,7 @@ class BlocklistUi {
 			<div class="ve-muted ${this._isCompactUi ? "ve-mb-2" : "ve-mb-3"}"><i>Rows marked with an asterisk (*) in a field match everything in that field.</i></div>
 
 			<div class="ve-flex-col ve-min-h-0">
-				<div class="ve-flex-v-stretch input-group input-group--top ve-no-shrink">
+				<div class="ve-flex-v-stretch ve-input-group ve-input-group--top ve-no-shrink">
 					<div class="ve-w-100 ve-relative">
 						${iptSearch}
 						<div class="ve-lst__wrp-search-glass ve-no-events ve-flex-vh-center"><span class="glyphicon glyphicon-search"></span></div>
@@ -403,57 +403,24 @@ class BlocklistUi {
 			});
 		// endregion
 
-		ee(this._wrpControls.empty())`<div class="${this._isCompactUi ? "ve-mb-2" : "ve-mb-5"} ve-flex-v-center ve-mobile-md__ve-flex-col ve-mobile-md__ve-flex-ai-start">
-			<div class="ve-flex-vh-center ve-mr-4 ve-mobile-md__mr-0 ve-mobile-md__mb-2">
-				<div class="ve-mr-2">UA/Etc. Sources</div>
-				<div class="ve-flex-v-center ve-btn-group">
-					${btnExcludeAllUa}
-					${btnIncludeAllUa}
+		const getWrpExcludeInclude = ({name, btnExclude, btnInclude}) => ee`<div class="ve-flex-v-center ve-mobile-md__w-100 ve-mr-2 ve-mobile-md__mr-0 ve-mobile-md__mb-2 ve-p-2 ve-b-1p ve-bc-5p">
+				<div class="ve-mr-2">${name}</div>
+				<div class="ve-flex-v-center ve-btn-group ve-mobile-md__ml-auto">
+					${btnExclude}
+					${btnInclude}
 				</div>
-			</div>
+			</div>`;
 
-			<div class="ve-flex-vh-center ve-mr-3 ve-mobile-md__mr-0 ve-mobile-md__mb-2">
-				<div class="ve-mr-2">Comedy Sources</div>
-				<div class="ve-flex-v-center ve-btn-group">
-					${btnExcludeAllComedySources}
-					${btnIncludeAllComedySources}
-				</div>
-			</div>
-
-			<div class="ve-flex-vh-center ve-mr-3 ve-mobile-md__mr-0 ve-mobile-md__mb-2">
-				<div class="ve-mr-2">Non-<i>Forgotten Realms</i></div>
-				<div class="ve-flex-v-center ve-btn-group">
-					${btnExcludeAllNonForgottenRealmsSources}
-					${btnIncludeAllNonForgottenRealmsSources}
-				</div>
-			</div>
-
-			<div class="ve-flex-vh-center ve-mr-3 ve-mobile-md__mr-0 ve-mobile-md__mb-2">
-				<div class="ve-mr-2">5e (&apos;14) Sources</div>
-				<div class="ve-flex-v-center ve-btn-group">
-					${btnExcludeClassicSources}
-					${btnIncludeClassicSources}
-				</div>
-			</div>
-
-			<div class="ve-flex-vh-center ve-mr-3 ve-mobile-md__mr-0 ve-mobile-md__mb-2">
-				<div class="ve-mr-2">5.5e (&apos;24) Sources</div>
-				<div class="ve-flex-v-center ve-btn-group">
-					${btnExcludeModernSources}
-					${btnIncludeModernSources}
-				</div>
-			</div>
-
-			<div class="ve-flex-vh-center ve-mr-3 ve-mobile-md__mr-0 ve-mobile-md__mb-2">
-				<div class="ve-mr-2">All Sources</div>
-				<div class="ve-flex-v-center ve-btn-group">
-					${btnExcludeAllSources}
-					${btnIncludeAllSources}
-				</div>
-			</div>
+		ee(this._wrpControls.empty())`<div class="${this._isCompactUi ? "ve-mb-2" : "ve-mb-5"} ve-flex-v-center ve-mobile-md__flex-col ve-mobile-md__flex-ai-start">
+			${getWrpExcludeInclude({name: "UA/Etc. Sources", btnExclude: btnExcludeAllUa, btnInclude: btnIncludeAllUa})}
+			${getWrpExcludeInclude({name: `Comedy Sources`, btnExclude: btnExcludeAllComedySources, btnInclude: btnIncludeAllComedySources})}
+			${getWrpExcludeInclude({name: `Non-<i>Forgotten Realms</i>`, btnExclude: btnExcludeAllNonForgottenRealmsSources, btnInclude: btnIncludeAllNonForgottenRealmsSources})}
+			${getWrpExcludeInclude({name: `5e (&apos;14) Sources`, btnExclude: btnExcludeClassicSources, btnInclude: btnIncludeClassicSources})}
+			${getWrpExcludeInclude({name: `5.5e (&apos;24) Sources`, btnExclude: btnExcludeModernSources, btnInclude: btnIncludeModernSources})}
+			${getWrpExcludeInclude({name: `All Sources`, btnExclude: btnExcludeAllSources, btnInclude: btnIncludeAllSources})}
 		</div>
 
-		<div class="ve-flex-v-end ${this._isCompactUi ? "ve-mb-2" : "ve-mb-5"} ve-mobile-sm__ve-flex-col ve-mobile-sm__ve-flex-ai-start">
+		<div class="ve-flex-v-end ${this._isCompactUi ? "ve-mb-2" : "ve-mb-5"} ve-mobile-sm__flex-col ve-mobile-sm__flex-ai-start">
 			<div class="ve-flex-col ve-w-25 ve-pr-2 ve-mobile-sm__w-100 ve-mobile-sm__mb-2 ve-mobile-sm__p-0">
 				<label class="ve-mb-1">Source</label>
 				${selSource}
