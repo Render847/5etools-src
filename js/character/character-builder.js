@@ -118,6 +118,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._modalFilterBackgrounds = null;
 		this._modalFilterFeats       = null;
 		this._modalFilterFeatsAsi    = null;
+		this._modalFilterFeatsBg     = null;
 		this._modalFilterSpells      = null;
 		this._rebuildSpellsTab       = null;
 		this._modalFilterItems       = null;
@@ -301,6 +302,7 @@ export class CharacterBuilder extends BuilderBase {
 			// feats
 			feats: [],
 			bgFeat: "",
+			bgFeatSetIx: 0,
 			featChoices: {},
 			// feat-granted proficiencies (auto-managed by _applyFeatData)
 			featSkillProfs: [],
@@ -399,69 +401,53 @@ export class CharacterBuilder extends BuilderBase {
 		this._meta.isModified = false;
 		this._meta.nameOriginal = this.__state.name;
 		this.doUiSave();
-		await this._pDoUpdateSidemenu();
 	}
 
-	async pRenderSideMenu () {
-		if (!this._eleSideMenuStageSaved) {
-			this._eleSideMenuWrpList = ee`<div class="ve-w-100 ve-flex-col">`;
-			this._eleSideMenuStageSaved = ee`<div class="ve-w-100">${this._eleSideMenuWrpList}</div>`;
-		}
-		this._eleSideMenuStageSaved.appendTo(this._ui.wrpSideMenu);
-		await this._pDoUpdateSidemenu();
-	}
+	async pRenderSideMenu () { /* no-op: character list is now accessed via the Characters button */ }
 
-	async _pDoUpdateSidemenu () {
-		if (!this._eleSideMenuStageSaved) return;
-		this._sidemenuListRenderCache = this._sidemenuListRenderCache || {};
-		const chars = await this._pGetSavedCharacters();
-		this._eleSideMenuStageSaved.toggleVe(!!chars.length);
+	async _pShowCharactersModal () {
+		const {eleModalInner, doClose} = UiUtil.getShowModal({title: "Saved Characters", isMinHeight0: true});
 
-		const metasVisible = new Set();
-		chars.forEach((char, ix) => {
-			metasVisible.add(char.uniqueId);
+		const wrpList = ee`<div class="ve-flex-col ve-w-100 ve-p-1">`.appendTo(eleModalInner);
 
-			if (this._sidemenuListRenderCache[char.uniqueId]) {
-				const meta = this._sidemenuListRenderCache[char.uniqueId];
-				meta.row.showVe();
-				if (meta.name !== char.name) { meta.dispName.txt(char.name); meta.name = char.name; }
-				if (meta.position !== ix) { meta.row.css({"order": ix}); meta.position = ix; }
+		const doRenderList = async () => {
+			wrpList.empty();
+			const chars = await this._pGetSavedCharacters();
+			if (!chars.length) {
+				ee`<div class="ve-muted ve-italic ve-p-2 ve-text-center">No saved characters.</div>`.appendTo(wrpList);
 				return;
 			}
+			chars.forEach(char => {
+				const btnLoad = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Load this character"><span class="glyphicon glyphicon-pencil ve-mr-1"></span>Load</button>`
+					.onn("click", async () => {
+						if (
+							this._meta?.isModified
+							&& !await InputUiUtil.pGetUserBoolean({title: "Discard Unsaved Changes", htmlDescription: "You have unsaved changes. Are you sure?", textYes: "Yes", textNo: "Cancel"})
+						) return;
+						doClose(true);
+						this.setStateFromLoaded({s: MiscUtil.copy(char.s), m: MiscUtil.copy(char.m)});
+						this.renderInput();
+						this.renderOutput();
+						this.doUiSave();
+					});
 
-			const btnEdit = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Load"><span class="glyphicon glyphicon-pencil"></span></button>`
-				.onn("click", async () => {
-					if (
-						this.getOnNavMessage()
-						&& !await InputUiUtil.pGetUserBoolean({title: "Discard Unsaved Changes", htmlDescription: "You have unsaved changes. Are you sure?", textYes: "Yes", textNo: "Cancel"})
-					) return;
-					this.setStateFromLoaded({s: MiscUtil.copy(char.s), m: MiscUtil.copy(char.m)});
-					this.renderInput();
-					this.renderOutput();
-					this.doUiSave();
-				});
+				const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete this character"><span class="glyphicon glyphicon-trash"></span></button>`
+					.onn("click", async () => {
+						if (!await InputUiUtil.pGetUserBoolean({title: "Delete Character", htmlDescription: `Delete "${char.name}"?`, textYes: "Yes", textNo: "Cancel"})) return;
+						const next = (await this._pGetSavedCharacters()).filter(c => c.uniqueId !== char.uniqueId);
+						await StorageUtil.pSetForPage(CharacterBuilder._STORAGE_KEY_SAVED, next);
+						if (this.__state.uniqueId === char.uniqueId) this.reset();
+						await doRenderList();
+					});
 
-			const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete"><span class="glyphicon glyphicon-trash"></span></button>`
-				.onn("click", async () => {
-					if (!await InputUiUtil.pGetUserBoolean({title: "Delete Character", htmlDescription: `Delete "${char.name}"?`, textYes: "Yes", textNo: "Cancel"})) return;
-					const next = (await this._pGetSavedCharacters()).filter(c => c.uniqueId !== char.uniqueId);
-					await StorageUtil.pSetForPage(CharacterBuilder._STORAGE_KEY_SAVED, next);
-					if (this.__state.uniqueId === char.uniqueId) this.reset();
-					await this._pDoUpdateSidemenu();
-				});
+				ee`<div class="ve-split-v-center ve-py-1 ve-px-2 stripe-even">
+					<span class="ve-flex-1 ve-mr-2">${char.name.qq()}</span>
+					<div class="ve-no-shrink">${btnLoad}${btnDelete}</div>
+				</div>`.appendTo(wrpList);
+			});
+		};
 
-			const dispName = ee`<span class="ve-py-1">${char.name}</span>`;
-			const row = ee`<div class="mkbru__sidebar-entry ve-flex-v-center ve-split ve-px-2" style="order:${ix}">
-				${dispName}
-				<div class="ve-py-1 ve-no-shrink">${btnEdit}${btnDelete}</div>
-			</div>`.appendTo(this._eleSideMenuWrpList);
-
-			this._sidemenuListRenderCache[char.uniqueId] = {dispName, row, name: char.name, position: ix};
-		});
-
-		Object.entries(this._sidemenuListRenderCache)
-			.filter(([uid]) => !metasVisible.has(uid))
-			.forEach(([, meta]) => meta.row.hideVe());
+		await doRenderList();
 	}
 
 	async pHandleSidebarDownloadJsonClick () {
@@ -480,19 +466,22 @@ export class CharacterBuilder extends BuilderBase {
 			.onn("click", () => this._pSaveCharacter());
 		this._addHook("meta", "isModified", () => btnSave.txt(this._meta.isModified ? "Save *" : "Save"))();
 
-		const btnNew = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="SHIFT to reset additional state">New Character</button>`
+		const btnNew = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="SHIFT to reset additional state">New Character</button>`
 			.onn("click", async (evt) => {
 				if (!await InputUiUtil.pGetUserBoolean({title: "Reset Builder", htmlDescription: "Are you sure?", textYes: "Yes", textNo: "Cancel"})) return;
 				this.reset({isResetAllMeta: !!evt.shiftKey});
 			});
 
+		const btnChars = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Switch between saved characters"><span class="glyphicon glyphicon-list ve-mr-1"></span>Characters</button>`
+			.onn("click", () => this._pShowCharactersModal());
+
 		ee(this._ui.wrpInputControls.empty())`
-			<div class="ve-flex-v-center">${btnSave}${btnNew}</div>
+			<div class="ve-flex-v-center">${btnSave}${btnNew}${btnChars}</div>
 		`;
 	}
 
 	_renderInputImpl () {
-		this.doCreateProxies();
+		this._doCreateProxies();
 		this.renderInputControls();
 		this._renderInputMain();
 	}
@@ -737,8 +726,20 @@ export class CharacterBuilder extends BuilderBase {
 				const wrpFeatChoices = ee`<div class="ve-flex-col"></div>`.appendTo(slotWrp);
 				const refreshFeatChoices = () => {
 					Array.from(wrpFeatChoices.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
-					const name = getChoice().featName || "Ability Score Improvement";
-					this._buildFeatChoiceInputs(name, wrpFeatChoices, cb);
+					// Default to "Ability Score Improvement" if no feat chosen yet — write directly
+					// to state without firing callbacks to avoid a re-render loop.
+					if (!getChoice().featName) {
+						const rs = /** @type {any} */ (this.__state);
+						if (!rs.asiChoices) rs.asiChoices = [];
+						while (rs.asiChoices.length <= ix_) rs.asiChoices.push({});
+						rs.asiChoices[ix_] = {...(rs.asiChoices[ix_] || {}), featName: "Ability Score Improvement"};
+						spanFeatName.txt("Ability Score Improvement");
+					}
+					const name = getChoice().featName;
+					// Per-slot storage key for "Ability Score Improvement" so repeated takes
+					// (it's a repeatable feat) each track their own ability choice.
+					const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
+					this._buildFeatChoiceInputs(name, wrpFeatChoices, cb, storageKey);
 				};
 				refreshFeatChoices();
 
@@ -749,6 +750,7 @@ export class CharacterBuilder extends BuilderBase {
 		buildAsiUI();
 		this._addHook("state", "_asiCount", buildAsiUI);
 		this._addHook("state", "styleHint", buildAsiUI);
+		this._addHook("state", "asiChoices", buildAsiUI);
 		asiRow.appendTo(wrp);
 	}
 
@@ -927,21 +929,82 @@ export class CharacterBuilder extends BuilderBase {
 			});
 		};
 
-		const getFilteredSubclasses = (className) => {
+		const getFilteredSubclasses = (className, mode = 0) => {
 			if (!className) return [];
 			const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 			const key = className.toLowerCase();
 			const all = this._allSubclasses[key] || [];
 			const seen = new Set();
+
+			// 0=Default, 1=5.5e Only, 2=Standard+Partnered, 3=Standard+Homebrew, 4=Most Recent, 5=All
+			if (mode === 1) {
+				// View 5.5e Only: non-classic sources, deduplicate by name
+				return all.filter(sc => {
+					if (SourceUtil.isClassicSource(sc.source) || seen.has(sc.name)) return false;
+					seen.add(sc.name);
+					return true;
+				});
+			}
+
+			const allowedGroups = new Set([SourceUtil.FILTER_GROUP_STANDARD]);
+			if (mode === 2) allowedGroups.add(SourceUtil.FILTER_GROUP_PARTNERED);
+			if (mode === 3) {
+				allowedGroups.add(SourceUtil.FILTER_GROUP_PARTNERED);
+				allowedGroups.add(SourceUtil.FILTER_GROUP_HOMEBREW);
+			}
+			const isSourceAllowed = (src) => mode >= 4 || allowedGroups.has(SourceUtil.getFilterGroup(src));
+
+			if (mode === 5) {
+				// View All: every entry, no deduplication
+				return all.filter(sc => isSourceAllowed(sc.source));
+			}
+
+			if (mode === 4) {
+				// View Most Recent: all source groups, deduplicate by name (first occurrence wins)
+				return all.filter(sc => {
+					if (!isSourceAllowed(sc.source) || seen.has(sc.name)) return false;
+					seen.add(sc.name);
+					return true;
+				});
+			}
+
+			// Modes 0, 2, 3: edition-aware filtering
+			if (!isNew) {
+				return all.filter(sc => {
+					if (!SourceUtil.isClassicSource(sc.source) || !isSourceAllowed(sc.source) || seen.has(sc.name)) return false;
+					seen.add(sc.name);
+					return true;
+				});
+			}
+
+			const reprintedNames = new Set(
+				all.filter(sc => sc.edition === "classic" && sc.reprintedAs?.length)
+					.map(sc => sc.name),
+			);
+
 			return all.filter(sc => {
-				const edOk = isNew ? !SourceUtil.isClassicSource(sc.source) : SourceUtil.isClassicSource(sc.source);
-				if (!edOk || seen.has(sc.name)) return false;
+				if (seen.has(sc.name) || !isSourceAllowed(sc.source)) return false;
+				if (!SourceUtil.isClassicSource(sc.source)) {
+					seen.add(sc.name);
+					return true;
+				}
+				if (sc.edition !== "classic" || reprintedNames.has(sc.name)) return false;
 				seen.add(sc.name);
 				return true;
 			});
 		};
 
 		const _LEVELS = [...Array(20)].map((_, i) => i + 1);
+
+		const _SC_SOURCE_PRESETS = [
+			{name: "View Default"},
+			{name: "View 5.5e Only"},
+			{name: "View Standard Plus Partnered"},
+			{name: "View Standard Plus Homebrew"},
+			{name: "View Most Recent"},
+			{name: "View All"},
+		];
+
 		const wrpRows = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(rowInner);
 
 		const addBtn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Class</button>`;
@@ -984,10 +1047,12 @@ export class CharacterBuilder extends BuilderBase {
 					selClass.appendChild(opt);
 				});
 
+				const getScMode = () => (this._state.classes?.[ix]?.scMode) ?? 0;
+
 				const rebuildSubs = () => {
 					const curSub = (this._state.classes?.[ix]?.sub) || "";
 					selSubclass.innerHTML = '<option value="">(No Subclass)</option>';
-					getFilteredSubclasses((this._state.classes?.[ix]?.cls) || "").forEach(sc => {
+					getFilteredSubclasses((this._state.classes?.[ix]?.cls) || "", getScMode()).forEach(sc => {
 						const opt = document.createElement("option");
 						opt.value = sc.name;
 						opt.textContent = sc.name;
@@ -996,6 +1061,21 @@ export class CharacterBuilder extends BuilderBase {
 					});
 				};
 				rebuildSubs();
+
+				const buildScFilterMenu = () => ContextUtil.getMenu(
+					_SC_SOURCE_PRESETS.map((p, i) => new ContextUtil.Action(
+						(i === getScMode() ? "✓ " : "   ") + p.name,
+						() => {
+							const cur = [...(this._state.classes || [])];
+							cur[ix] = {...cur[ix], scMode: i};
+							this._state.classes = cur;
+							rebuildAllRows();
+						},
+					)),
+				);
+				let scFilterMenu = buildScFilterMenu();
+				const btnScFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Filter subclass sources: ${_SC_SOURCE_PRESETS[getScMode()].name}" style="flex:0 0 auto"><span class="glyphicon glyphicon-filter"></span></button>`
+					.onn("click", evt => ContextUtil.pOpenMenu(evt, scFilterMenu));
 
 				selClass.onn("change", () => {
 					const name = selClass.val();
@@ -1036,7 +1116,7 @@ export class CharacterBuilder extends BuilderBase {
 				});
 
 				ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100">
-					${selClass}${selSubclass}${selLevel}${btnRemove}
+					${selClass}${selSubclass}${selLevel}${btnRemove}${btnScFilter}
 				</div>`.appendTo(wrpRows);
 			});
 			addBtn.appendTo(wrpRows);
@@ -1108,6 +1188,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.excludedBgToolProfs  = [];
 			this._state.languages            = [];
 			this._state.bgFeat         = "";
+			this._state.bgFeatSetIx    = 0;
 			this._state.bg_choice_from     = [];
 			this._state.bg_choice_weighted = [];
 			this._state.bg_ixAbilitySet    = 0;
@@ -1132,6 +1213,90 @@ export class CharacterBuilder extends BuilderBase {
 
 		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
 		wrp.append(row);
+
+		// Feat choice row — appended into rowInner so it sits within the Background section
+		const wrpFeatChoiceRow = ee`<div></div>`.appendTo(rowInner);
+		const buildBgFeatChoiceUI = () => {
+			wrpFeatChoiceRow.empty();
+			const bgName = this._state.background || "";
+			if (!bgName) return;
+			const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+			const matches = this._allBackgrounds.filter(b => b.name === bgName);
+			if (!matches.length) return;
+			const bg = isNew
+				? (matches.find(b => !SourceUtil.isClassicSource(b.source)) || matches[0])
+				: (matches.find(b => SourceUtil.isClassicSource(b.source)) || matches[0]);
+
+			let featSets = bg.feats || [];
+			// XPHB rule: backgrounds without a feat grant any Origin feat of choice
+			if (!featSets.length && isNew) featSets = [{anyFromCategory: {category: ["O"]}}];
+			// Single auto-granted fixed feat — no choice UI needed
+			if (!featSets.length || (featSets.length === 1 && !featSets[0].anyFromCategory && !featSets[0].any)) return;
+
+			const getFeatSetLabel = (fs) => {
+				const parts = [];
+				if (fs.anyFromCategory) {
+					parts.push(`Any ${fs.anyFromCategory.category.map(c => Parser.featCategoryToFull(c)).join("/")} feat`);
+				}
+				Object.keys(fs).filter(k => k !== "anyFromCategory" && k !== "any")
+					.forEach(k => parts.push(k.split("|")[0].replace(/\b\w/g, c => c.toUpperCase())));
+				return parts.join(" / ");
+			};
+
+			// Feat set selector (when multiple alternatives exist)
+			if (featSets.length > 1) {
+				const curSetIx = Math.min(this._state.bgFeatSetIx || 0, featSets.length - 1);
+				const selSet = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
+					${featSets.map((fs, ix) => `<option value="${ix}"${ix === curSetIx ? " selected" : ""}>${getFeatSetLabel(fs)}</option>`).join("")}
+				</select>`.onn("change", () => {
+					this._state.bgFeatSetIx = parseInt(selSet.val());
+					this._state.bgFeat = "";
+					this._applyBackgroundData();
+					this._applyFeatData();
+					this._sg_syncAbilityScores();
+					if (this._sg_doRebuild) this._sg_doRebuild();
+					buildBgFeatChoiceUI();
+					cb();
+				});
+				ee`<div class="ve-flex-v-center ve-w-100 ve-mt-1">
+					<span class="mkbru__row-name ve-mr-2 ve-no-shrink">Feat</span>${selSet}
+				</div>`.appendTo(wrpFeatChoiceRow);
+			}
+
+			// Category feat picker (when active set uses anyFromCategory)
+			const activeFeatSetIx = Math.min(this._state.bgFeatSetIx || 0, featSets.length - 1);
+			const activeFeatSet = featSets[activeFeatSetIx];
+			if (activeFeatSet?.anyFromCategory) {
+				const cats = activeFeatSet.anyFromCategory.category;
+				const catLabel = cats.map(c => Parser.featCategoryToFull(c)).join("/");
+				const curFeat = this._state.bgFeat || "";
+				const spanChosen = ee`<span class="ve-italic ve-muted" style="flex:1">${curFeat || "(choose)"}</span>`;
+				const btnPickFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Choose ${catLabel} feat"><span class="glyphicon glyphicon-filter"></span></button>`
+					.onn("click", async () => {
+						if (!this._modalFilterFeatsBg) {
+							this._modalFilterFeatsBg = new ModalFilterFeats({
+								namespace: "charBuilder.backgrounds.feat",
+								isRadio: true,
+								allData: this._allFeats,
+							});
+						}
+						const selected = await this._modalFilterFeatsBg.pGetUserSelection(
+							/** @type {any} */ ({filterExpression: `Category=${cats.join(";")}`}),
+						);
+						if (!selected?.length) return;
+						this._state.bgFeat = selected[0].name;
+						this._applyFeatData();
+						this._sg_syncAbilityScores();
+						if (this._sg_doRebuild) this._sg_doRebuild();
+						buildBgFeatChoiceUI();
+						cb();
+					});
+				ee`<div class="ve-flex-v-center ve-w-100 ve-mt-1">
+					<span class="mkbru__row-name ve-mr-2 ve-no-shrink"></span>${btnPickFeat}${spanChosen}
+				</div>`.appendTo(wrpFeatChoiceRow);
+			}
+		};
+		buildBgFeatChoiceUI();
 	}
 
 	_buildSpeciesInput (wrp, cb) {
@@ -1835,10 +2000,26 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Granted feat from background (2024) - stored separately so user feats are unaffected
 		if (bg.feats?.length) {
-			const featKey = Object.keys(bg.feats[0])[0];
-			this._state.bgFeat = featKey.split("|")[0].replace(/\b\w/g, c => c.toUpperCase());
+			const isAutoGrant = bg.feats.length === 1 && !bg.feats[0].anyFromCategory && !bg.feats[0].any;
+			if (isAutoGrant) {
+				// Single fixed feat — always auto-apply
+				const featKey = Object.keys(bg.feats[0])[0];
+				this._state.bgFeat = featKey.split("|")[0].replace(/\b\w/g, c => c.toUpperCase());
+			} else if (bg.feats.length > 1) {
+				// Multiple alternatives — auto-set bgFeat only if chosen set is a fixed feat
+				const ix = Math.min(this._state.bgFeatSetIx || 0, bg.feats.length - 1);
+				const chosenSet = bg.feats[ix];
+				if (!chosenSet.anyFromCategory && !chosenSet.any) {
+					const featKey = Object.keys(chosenSet)[0];
+					this._state.bgFeat = featKey.split("|")[0].replace(/\b\w/g, c => c.toUpperCase());
+				}
+				// else: anyFromCategory/any chosen — preserve user's bgFeat pick
+			}
+			// else: single anyFromCategory — preserve user's bgFeat pick
 		} else {
-			this._state.bgFeat = "";
+			// In new (XPHB) style, backgrounds without a feat grant any Origin feat of choice — preserve it.
+			// In classic style there is no feat, so clear it.
+			if (!isNew) this._state.bgFeat = "";
 		}
 
 		this._syncGrantedSpells();
@@ -2498,11 +2679,17 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	// Appends choice inputs (select or text) for each choice a feat requires.
-	// Each choice gets its own indented row. State stored as featChoices[featName][choiceKey].
+	// Each choice gets its own indented row. State stored as featChoices[storageKey][choiceKey].
+	// storageKey defaults to featName; ASI slots pass a slot-specific key so multiple instances
+	// of the same repeatable feat each have independent storage.
 	// Wraps everything in a .cb-feat-choices-wrp div so it can be cleared and rebuilt.
-	_buildFeatChoiceInputs (featName, container, cb) {
+	_buildFeatChoiceInputs (featName, container, cb, storageKey = null) {
+		if (featName === "Ability Score Improvement") {
+			return this._buildAsiChoiceInputs(container, cb, storageKey || "Ability Score Improvement");
+		}
+		const stateKey = storageKey || featName;
 		const wrp = ee`<div class="cb-feat-choices-wrp"></div>`.appendTo(container);
-		const stored = () => (this._state.featChoices || {})[featName] || {};
+		const stored = () => (this._state.featChoices || {})[stateKey] || {};
 
 		const build = () => {
 			wrp.innerHTML = "";
@@ -2520,8 +2707,8 @@ export class CharacterBuilder extends BuilderBase {
 
 				const onchange = (key, value) => {
 					if (!this._state.featChoices) this._state.featChoices = {};
-					if (!this._state.featChoices[featName]) this._state.featChoices[featName] = {};
-					this._state.featChoices[featName][key] = value;
+					if (!this._state.featChoices[stateKey]) this._state.featChoices[stateKey] = {};
+					this._state.featChoices[stateKey][key] = value;
 					this._applyFeatData();
 					this._sg_syncAbilityScores();
 					if (this._sg_doRebuild) this._sg_doRebuild();
@@ -2560,6 +2747,63 @@ export class CharacterBuilder extends BuilderBase {
 		build();
 	}
 
+	// Renders the Ability Score Improvement feat choice UI: a "+2 to one" / "+1 to two"
+	// mode toggle plus the appropriate ability dropdown(s). Choices are stored under
+	// featChoices[storageKey] so each ASI slot can track its own selection independently.
+	_buildAsiChoiceInputs (container, cb, storageKey) {
+		const AKEY = ["str", "dex", "con", "int", "wis", "cha"];
+		const AFULL = {str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma"};
+
+		const wrp = ee`<div class="cb-feat-choices-wrp ve-flex-col"></div>`.appendTo(container);
+
+		const getStored = () => (this._state.featChoices || {})[storageKey] || {};
+		const setStored = (patch) => {
+			// Reassign the whole object so the state proxy fires the "featChoices" hook,
+			// which lets the other tab's instance of this UI re-render in sync.
+			this._state.featChoices = {
+				...(this._state.featChoices || {}),
+				[storageKey]: {...getStored(), ...patch},
+			};
+			this._sg_syncAbilityScores();
+			if (this._sg_doRebuild) this._sg_doRebuild();
+			cb();
+		};
+
+		const render = () => {
+			wrp.innerHTML = "";
+			const stored = getStored();
+			const mode = stored.asi_mode || "+2";
+
+			const btnPlus2  = ee`<button class="ve-btn ve-btn-xs ${mode === "+2"   ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">+2 to one</button>`
+				.onn("click", () => { setStored({asi_mode: "+2",   ability: "", ability_0: "", ability_1: ""}); render(); });
+			const btnPlus11 = ee`<button class="ve-btn ve-btn-xs ${mode === "+1+1" ? "ve-btn-primary" : "ve-btn-default"}">+1 to two</button>`
+				.onn("click", () => { setStored({asi_mode: "+1+1", ability: "", ability_0: "", ability_1: ""}); render(); });
+			ee`<div class="ve-flex ve-mt-1 ve-mb-1 ve-pl-3">${btnPlus2}${btnPlus11}</div>`.appendTo(wrp);
+
+			const mkSel = (label, val, onChange) => {
+				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
+					<option value="">(choose)</option>
+					${AKEY.map(a => `<option value="${a}"${a === val ? " selected" : ""}>${AFULL[a]}</option>`).join("")}
+				</select>`.onn("change", () => onChange(sel.val()));
+				return ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3">
+					<span class="ve-mr-2 ve-muted" style="font-size:.85em;white-space:nowrap;min-width:8em">${label}:</span>${sel}
+				</div>`;
+			};
+
+			if (mode === "+2") {
+				mkSel("+2 to Ability", stored.ability || "", val => setStored({ability: val})).appendTo(wrp);
+			} else {
+				mkSel("+1 to Ability",         stored.ability_0 || "", val => setStored({ability_0: val})).appendTo(wrp);
+				mkSel("+1 to another Ability",  stored.ability_1 || "", val => setStored({ability_1: val})).appendTo(wrp);
+			}
+		};
+
+		render();
+		// Re-render when featChoices changes from the other tab (proxy hook fires because
+		// setStored reassigns the whole featChoices object rather than mutating it in place).
+		this._addHook("state", "featChoices", render);
+	}
+
 	_buildFeatsInput (wrp, cb) {
 		const featsArr = () => this._state.feats || [];
 		const featRows = [];
@@ -2580,6 +2824,77 @@ export class CharacterBuilder extends BuilderBase {
 			if (name) this._buildFeatChoiceInputs(name, bgFeatCard, cb);
 		};
 		refreshBgFeatRow();
+		this._addHook("state", "bgFeat", refreshBgFeatRow);
+
+		// ASI-slot feats — mirrors the Class tab's ASI section, using the same per-slot
+		// storage keys so choices are shared between the two views.
+		const wrpAsiSlots = ee`<div class="ve-flex-col"></div>`.appendTo(wrpRows);
+
+		const buildAsiSlotRows = () => {
+			wrpAsiSlots.empty();
+			const count = this._state._asiCount || 0;
+			if (!count) return;
+
+			ee`<div class="ve-bold ve-mb-1 ve-pb-1" style="font-size:.75em;text-transform:uppercase;letter-spacing:.05em;color:var(--col-heading-grey,#888);border-bottom:1px solid var(--col-border-default,#ccc)">From ASI Slots</div>`.appendTo(wrpAsiSlots);
+
+			for (let ix = 0; ix < count; ix++) {
+				const ix_ = ix;
+				const getAsiChoice = () => (this._state.asiChoices || [])[ix_] || {};
+
+				// Initialize default feat name via __state (bypasses proxy, no hook loop)
+				if (!getAsiChoice().featName) {
+					const rs = /** @type {any} */ (this.__state);
+					if (!rs.asiChoices) rs.asiChoices = [];
+					while (rs.asiChoices.length <= ix_) rs.asiChoices.push({});
+					rs.asiChoices[ix_] = {...(rs.asiChoices[ix_] || {}), featName: "Ability Score Improvement"};
+				}
+
+				const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpAsiSlots);
+
+				const nameRow = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(card);
+				const spanFeatName = ee`<span class="ve-bold" style="flex:1">${getAsiChoice().featName}</span>`;
+
+				const btnChangeFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Choose a different feat for this ASI slot"><span class="glyphicon glyphicon-filter ve-mr-1"></span>Change</button>`
+					.onn("click", async () => {
+						if (!this._modalFilterFeatsAsi) {
+							this._modalFilterFeatsAsi = new ModalFilterFeats({
+								namespace: "charBuilder.feats.asi",
+								isRadio: true,
+								allData: this._allFeats,
+							});
+						}
+						const selected = await this._modalFilterFeatsAsi.pGetUserSelection();
+						if (!selected?.length) return;
+						const name = selected[0].name;
+						// Update asiChoices state
+						const cur = [...(this._state.asiChoices || [])];
+						while (cur.length <= ix_) cur.push({});
+						cur[ix_] = {...cur[ix_], featName: name};
+						this._state.asiChoices = cur;
+						this._applyFeatData();
+						this._sg_syncAbilityScores();
+						if (this._sg_doRebuild) this._sg_doRebuild();
+						cb();
+						// Update local DOM without a full rebuild
+						spanFeatName.txt(name);
+						Array.from(card.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
+						const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
+						this._buildFeatChoiceInputs(name, card, cb, storageKey);
+					});
+
+				nameRow.append(btnChangeFeat);
+				nameRow.append(spanFeatName);
+				ee`<span class="ve-muted ve-italic ve-no-shrink" style="font-size:.8em">ASI ${ix_ + 1}</span>`.appendTo(nameRow);
+
+				const name = getAsiChoice().featName;
+				const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
+				this._buildFeatChoiceInputs(name, card, cb, storageKey);
+			}
+		};
+
+		buildAsiSlotRows();
+		this._addHook("state", "_asiCount", buildAsiSlotRows);
+		this._addHook("state", "asiChoices", buildAsiSlotRows);
 
 		const doUpdateState = () => {
 			this._state.feats = featRows.map(r => r.name).filter(Boolean);
@@ -2933,18 +3248,46 @@ export class CharacterBuilder extends BuilderBase {
 
 	// Sum ability score bonuses granted by active feats for one ability.
 	// Handles both static grants ({str:1}) and choose.from grants (stored in
-	// featChoices[featName]["ability"] as the chosen ability abbreviation).
-	// Also includes feats chosen via class ASI slots (mode === "feat").
+	// featChoices[storageKey]["ability"] as the chosen ability abbreviation).
+	// ASI-slot "Ability Score Improvement" uses per-slot storage keys ("Ability Score Improvement#N")
+	// and its two alternative ability blocks are handled here directly rather than via _getFeatChoices.
 	_sg_getFeatBonus (abl) {
 		if (!this._allFeats) return 0;
 		const allChoices = this._state.featChoices || {};
-		const featNames  = [
+		let total = 0;
+
+		// ASI slots that took "Ability Score Improvement": use slot-specific storage keys so
+		// each slot's selection is tracked independently (the feat is repeatable).
+		(this._state.asiChoices || []).forEach((c, i) => {
+			if (c.featName !== "Ability Score Improvement") return;
+			const chosen = allChoices[`Ability Score Improvement#${i}`] || {};
+			const mode = chosen.asi_mode || "+2";
+			if (mode === "+2") {
+				if (chosen.ability === abl) total += 2;
+			} else {
+				if (chosen.ability_0 === abl) total += 1;
+				if (chosen.ability_1 === abl) total += 1;
+			}
+		});
+
+		const featNames = [
 			...(this._state.bgFeat ? [this._state.bgFeat] : []),
 			...(this._state.feats || []),
-			...(this._state.asiChoices || []).filter(c => c.featName).map(c => c.featName),
+			// ASI-slot feats — exclude "Ability Score Improvement" (handled above)
+			...(this._state.asiChoices || []).filter(c => c.featName && c.featName !== "Ability Score Improvement").map(c => c.featName),
 		].filter(Boolean);
-		let total = 0;
 		for (const featName of featNames) {
+			// "Ability Score Improvement" from bgFeat or feats list: use the non-slot key
+			if (featName === "Ability Score Improvement") {
+				const chosen = allChoices["Ability Score Improvement"] || {};
+				const mode = chosen.asi_mode || "+2";
+				if (mode === "+2") { if (chosen.ability === abl) total += 2; }
+				else {
+					if (chosen.ability_0 === abl) total += 1;
+					if (chosen.ability_1 === abl) total += 1;
+				}
+				continue;
+			}
 			const feat = this._getFeatEntry(featName);
 			if (!feat?.ability) continue;
 			const abilArr = Array.isArray(feat.ability) ? feat.ability : [feat.ability];

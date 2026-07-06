@@ -117,16 +117,11 @@ class PageUi {
 	}
 
 	async _pInitSideMenu () {
-		const mnu = es(`.sidemenu`);
-
 		const prevMode = this._settings.activeBuilder;
-
-		this._eleMenuInner = ee`<div></div>`.appendTo(mnu);
-
 		if (prevMode) await this._pSetActiveBuilder(prevMode);
 	}
 
-	set _sideMenuEnabled (val) { es(`.sidemenu__toggle`).toggleVe(!!val); }
+	set _sideMenuEnabled (val) { /* no-op: sidemenu replaced by Characters modal button */ }
 
 	_doRenderActiveBuilder () {
 		const activeBuilder = this._builders[this._settings.activeBuilder];
