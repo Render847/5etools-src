@@ -955,8 +955,17 @@ export class CharacterBuilder extends BuilderBase {
 			const isSourceAllowed = (src) => mode >= 4 || allowedGroups.has(SourceUtil.getFilterGroup(src));
 
 			if (mode === 5) {
-				// View All: every entry, no deduplication
-				return all.filter(sc => isSourceAllowed(sc.source));
+				// View All: one entry per name+source pair (prefer edition:"classic" over no-edition duplicates)
+				const seenNameSource = new Set();
+				return all
+					.slice()
+					.sort((a, b) => (a.edition != null ? -1 : 1) - (b.edition != null ? -1 : 1))
+					.filter(sc => {
+						const k = `${sc.name}|${sc.source}`;
+						if (seenNameSource.has(k)) return false;
+						seenNameSource.add(k);
+						return true;
+					});
 			}
 
 			if (mode === 4) {
@@ -1051,11 +1060,14 @@ export class CharacterBuilder extends BuilderBase {
 
 				const rebuildSubs = () => {
 					const curSub = (this._state.classes?.[ix]?.sub) || "";
+					const scMode = getScMode();
 					selSubclass.innerHTML = '<option value="">(No Subclass)</option>';
-					getFilteredSubclasses((this._state.classes?.[ix]?.cls) || "", getScMode()).forEach(sc => {
+					getFilteredSubclasses((this._state.classes?.[ix]?.cls) || "", scMode).forEach(sc => {
 						const opt = document.createElement("option");
 						opt.value = sc.name;
-						opt.textContent = sc.name;
+						opt.textContent = scMode === 5
+							? `${sc.name} [${SourceUtil.isClassicSource(sc.source) ? "5e" : "5.5e"}]`
+							: sc.name;
 						if (sc.name === curSub) opt.selected = true;
 						selSubclass.appendChild(opt);
 					});
