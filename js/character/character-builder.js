@@ -2079,7 +2079,8 @@ export class CharacterBuilder extends BuilderBase {
 		// Size — only overwrite if the user hasn't customised away from the species default
 		if (race.size?.length) {
 			const SIZE_MAP = {F:"Fine",D:"Diminutive",T:"Tiny",S:"Small",M:"Medium",L:"Large",H:"Huge",G:"Gargantuan",C:"Colossal",V:"Varies"};
-			const sizeVal = SIZE_MAP[race.size[0]] || "Medium";
+			const sizeKey = /** @type {keyof typeof SIZE_MAP} */ (race.size.includes("M") ? "M" : race.size[0]);
+				const sizeVal = SIZE_MAP[sizeKey] || "Medium";
 			const oldSpeciesSize = this._state._speciesSize;
 			this._state._speciesSize = sizeVal;
 			if (oldSpeciesSize == null || this._state.size === oldSpeciesSize) this._state.size = sizeVal;
@@ -3633,30 +3634,39 @@ export class CharacterBuilder extends BuilderBase {
 				const {from, weights} = abilObj.choose.weighted;
 				const stored = () => this._state[choiceWeight] || [];
 
-				secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
+				// When all weights are equal and every `from` ability is assigned (e.g. +1/+1/+1),
+				// there is no real choice — auto-apply and show a read-only summary.
+				const isAutoApply = weights.length === from.length && weights.every(w => w === weights[0]);
+				if (isAutoApply) {
+					const w = weights[0];
+					/** @type {any} */ (this.__state)[choiceWeight] = from.map((ability, ix) => ({ability, amount: w, ix}));
+					secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">${from.map(a => `${a.toUpperCase()} +${w}`).join(", ")}</div>`);
+				} else {
+					secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
 
-				const slotWrp = ee`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
-				weights.forEach((weight, slotIx) => {
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:110px">
-						<option value="">+${weight}: -</option>
-						${from.map(a => `<option value="${a}">+${weight}: ${a.toUpperCase()}</option>`).join("")}
-					</select>`;
-					const saved = stored().filter(c => c.ix === slotIx)[0];
-					if (saved) sel.val(saved.ability);
-					sel.onn("change", () => {
-						// Clear same ability chosen in other slots + this slot
-						const next = stored().filter(c => c.ix !== slotIx && (sel.val() ? c.ability !== sel.val() : true));
-						if (sel.val()) next.push({ability: sel.val(), amount: weight, ix: slotIx});
-						this._state[choiceWeight] = next;
-						// Deselect any sibling that had the same ability
-						slotWrp.findAll("select").forEach(other => {
-							if (other !== sel && other.value === sel.val() && sel.val()) other.value = "";
+					const slotWrp = ee`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
+					weights.forEach((weight, slotIx) => {
+						const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:110px">
+							<option value="">+${weight}: -</option>
+							${from.map(a => `<option value="${a}">+${weight}: ${a.toUpperCase()}</option>`).join("")}
+						</select>`;
+						const saved = stored().filter(c => c.ix === slotIx)[0];
+						if (saved) sel.val(saved.ability);
+						sel.onn("change", () => {
+							// Clear same ability chosen in other slots + this slot
+							const next = stored().filter(c => c.ix !== slotIx && (sel.val() ? c.ability !== sel.val() : true));
+							if (sel.val()) next.push({ability: sel.val(), amount: weight, ix: slotIx});
+							this._state[choiceWeight] = next;
+							// Deselect any sibling that had the same ability
+							slotWrp.findAll("select").forEach(other => {
+								if (other !== sel && other.value === sel.val() && sel.val()) other.value = "";
+							});
+							onChoiceChange();
 						});
-						onChoiceChange();
+						slotWrp.appends(sel);
 					});
-					slotWrp.appends(sel);
-				});
-				secRowInner.appends(slotWrp);
+					secRowInner.appends(slotWrp);
+				}
 			}
 
 			wrp.append(secRow);
