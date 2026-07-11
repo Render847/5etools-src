@@ -1668,18 +1668,27 @@ export class CharacterBuilder extends BuilderBase {
 			}
 		}
 
-		// TODO [TEMPORARY - HARDCODED]: Replace with general class feature parser
-		// Expertise count: Rogue (L1+2, L6+2), Bard (L3+2, L10+2)
+		// Expertise count: classFeatures is an array-of-arrays of expanded feature objects
+		// (DataLoader expands UID strings → {name, level, entries, ...} objects).
+		// The feature's own .level is the authoritative grant level (array index is unreliable
+		// for classic data whose arrays can have >20 entries due to interleaved subclass slots).
+		// Each Expertise feature occurrence grants 2 expertise slots.
 		{
 			let expertiseCount = 0;
-			(this._state.classes || []).forEach(c => {
-				const lvl  = c.level || 0;
-				const name = c.cls   || "";
-				if (name === "Rogue") { if (lvl >= 1) expertiseCount += 2; if (lvl >= 6) expertiseCount += 2; }
-				if (name === "Bard")  { if (lvl >= 3) expertiseCount += 2; if (lvl >= 10) expertiseCount += 2; }
+			classes.forEach((c, i) => {
+				const entry = classEntries[i];
+				if (!entry) return;
+				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+				(entry.classFeatures || []).forEach(lvlFeats => {
+					const feats = Array.isArray(lvlFeats) ? lvlFeats : [lvlFeats];
+					feats.forEach(f => {
+						if (!f || typeof f !== "object") return;
+						if (f.name !== "Expertise") return;
+						if (f.level && f.level <= clsLvl) expertiseCount += 2;
+					});
+				});
 			});
 			this._state._classExpertiseCount = expertiseCount;
-			// Trim saved choices if count shrinks
 			if ((this._state.classExpertise || []).length > expertiseCount)
 				this._state.classExpertise = (this._state.classExpertise || []).slice(0, expertiseCount);
 		}
@@ -1807,23 +1816,39 @@ export class CharacterBuilder extends BuilderBase {
 		if ((this._state.asiChoices || []).length > asiCount)
 			this._state.asiChoices = (this._state.asiChoices || []).slice(0, asiCount);
 
-		// -- Weapon mastery count (TODO TEMPORARY - hardcoded by class/level) --
+		// -- Weapon mastery count: read from classTableGroups "Weapon Mastery" column for scaling
+		//    classes (Fighter L1=3→L4=4→L10=5, Barbarian L1=2→L4=3→L10=4). Fall back to 2 flat
+		//    for classes that have the feature but no scaling column (Paladin, Ranger).
+		//    UID format: "Weapon Mastery|ClassName|Source|grantedLevel"
 		{
 			let masteryCount = 0;
-			(this._state.classes || []).forEach(c => {
-				const lvl  = c.level || 0;
-				const name = c.cls   || "";
-				// Fighter, Barbarian, Paladin: 2 at L1, 3 at L4, 4 at L10
-				if (name === "Fighter" || name === "Barbarian" || name === "Paladin") {
-					if (lvl >= 1)  masteryCount += 2;
-					if (lvl >= 4)  masteryCount += 1;
-					if (lvl >= 10) masteryCount += 1;
+			classes.forEach((c, i) => {
+				const entry = classEntries[i];
+				if (!entry) return;
+				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+
+				// Try classTableGroups first (scaling classes like Fighter, Barbarian)
+				let found = false;
+				for (const group of (entry.classTableGroups || [])) {
+					const colIdx = (group.colLabels || []).findIndex(l =>
+						typeof l === "string" && l.includes("Weapon Mastery"));
+					if (colIdx === -1) continue;
+					const row = (group.rows || [])[clsLvl - 1];
+					const val = row ? parseInt(row[colIdx]) : NaN;
+					if (!isNaN(val)) { masteryCount += val; found = true; break; }
 				}
-				// Ranger: 2 at L1, 3 at L4
-				if (name === "Ranger") {
-					if (lvl >= 1) masteryCount += 2;
-					if (lvl >= 4) masteryCount += 1;
-				}
+				if (found) return;
+
+				// Fallback: any Weapon Mastery feature object granted at or before current level → 2 flat
+				const hasWM = (entry.classFeatures || []).some(lvlFeats => {
+					const feats = Array.isArray(lvlFeats) ? lvlFeats : [lvlFeats];
+					return feats.some(f => {
+						if (!f || typeof f !== "object") return false;
+						if (f.name !== "Weapon Mastery") return false;
+						return f.level && f.level <= clsLvl;
+					});
+				});
+				if (hasWM) masteryCount += 2;
 			});
 			this._state._weaponMasteryCount = masteryCount;
 			if ((this._state.weaponMasteries || []).length > masteryCount)
