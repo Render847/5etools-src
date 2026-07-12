@@ -273,6 +273,7 @@ export class CharacterBuilder extends BuilderBase {
 			// class features / species traits - per-item arrays with exclude flag
 			classFeatureItems: [],        // [{text, excluded}] - auto-filled from class data
 			optionalFeatureChoices: {},   // {featureType: [chosenName, ...]}
+			classChoices: {},            // {"ClassName_FeatureName": chosenOptionName}
 			_optionalFeatureSlots: [],    // computed: [{name, featureType[], count}]
 			asiChoices: [],              // [{featName}]
 			_asiCount: 0,                // computed: number of ASI slots from class at current level
@@ -284,6 +285,9 @@ export class CharacterBuilder extends BuilderBase {
 			// tool proficiency choices (class-granted any-tool slots)
 			classToolChoices: [],        // [toolName, ...] - user-chosen tools for class any-tool slots
 			_classToolSlots: [],         // computed: [{type:"INS"|"AT", count:N}]
+			// class resources (computed from classTableGroups)
+			_classResources: [],         // computed: [{label, value}] e.g. Sneak Attack, Ki Points
+			_classSpeedBonus: 0,         // computed: Unarmored Movement bonus (Monk)
 			// shield (toggled in Combat tab)
 			shield: false,
 			// magic item attunement slots
@@ -837,6 +841,8 @@ export class CharacterBuilder extends BuilderBase {
 		// State hook - fires whenever classes array changes
 		this._addHook("state", "classes", () => {
 			this._state.classFeatureItems  = [];
+			this._state._classResources    = [];
+			this._state._classSpeedBonus   = 0;
 			this._state.hitDice            = "";
 			this._state.spellSlots         = [0,0,0,0,0,0,0,0,0];
 			this._state.pactSlots          = [0,0,0,0,0,0,0,0,0];
@@ -1130,6 +1136,44 @@ export class CharacterBuilder extends BuilderBase {
 				ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100">
 					${selClass}${selSubclass}${selLevel}${btnRemove}${btnScFilter}
 				</div>`.appendTo(wrpRows);
+
+				// Choice dropdowns for features with sub-options (e.g. Divine Order, Primal Order)
+				if (c.cls && this._isDataLoaded) {
+					const _clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+					const _entry  = this._getClassEntries()[ix];
+					if (_entry) {
+						this._findClassChoiceSlots(_entry, _clsLvl).forEach(({parentName, options}) => {
+							const choiceKey = `${c.cls}_${parentName}`;
+							const curChoice = (this._state.classChoices || {})[choiceKey] || "";
+							const sel = document.createElement("select");
+							sel.className = "ve-form-control ve-input-xs form-control--minimal";
+							sel.style.flex = "1";
+							const blank = document.createElement("option");
+							blank.value = ""; blank.textContent = `-- Choose ${parentName} --`;
+							sel.appendChild(blank);
+							options.forEach(opt => {
+								const o = document.createElement("option");
+								o.value = opt; o.textContent = opt;
+								if (opt === curChoice) o.selected = true;
+								sel.appendChild(o);
+							});
+							sel.addEventListener("change", () => {
+								const cur = {...(this._state.classChoices || {})};
+								cur[choiceKey] = sel.value;
+								this._state.classChoices = cur;
+								this._applyClassData();
+								this.renderOutput();
+							});
+							const lbl = document.createElement("span");
+							lbl.className = "ve-muted ve-mr-2";
+							lbl.style.cssText = "font-size:.85em;flex:0 0 auto";
+							lbl.textContent = parentName + ":";
+							ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100 ve-pl-3">
+								${lbl}${sel}
+							</div>`.appendTo(wrpRows);
+						});
+					}
+				}
 			});
 			addBtn.appendTo(wrpRows);
 			const _totalLvl = (this._state.classes || []).reduce((s, oc) => s + Math.max(1, Math.min(20, parseInt(oc.level) || 1)), 0);
@@ -1486,6 +1530,44 @@ export class CharacterBuilder extends BuilderBase {
 		});
 	}
 
+	// Scan a class entry's classFeatures (up to clsLvl) for type:"options",count:1 blocks
+	// whose options are refClassFeature refs (expanded or raw).
+	// Returns [{parentName, featureLvl, options:[string,...]}]
+	_findClassChoiceSlots (classEntry, clsLvl) {
+		const slots = [];
+		const _scanEntries = (entries, parentName, featureLvl) => {
+			if (!Array.isArray(entries)) return;
+			for (const e of entries) {
+				if (!e || typeof e !== "object") continue;
+				if (e.type === "options" && e.count === 1 && Array.isArray(e.entries)) {
+					const options = e.entries.map(opt => {
+						if (!opt || typeof opt !== "object") return null;
+						if (opt.name) return CharacterBuilder._stripTags(opt.name);
+						if (opt.type === "refClassFeature") {
+							const parts = (opt.classFeature || "").split("|");
+							return parts[0] || null;
+						}
+						return null;
+					}).filter(Boolean);
+					if (options.length >= 2) {
+						slots.push({parentName, featureLvl, options});
+						continue; // don't recurse into options block entries
+					}
+				}
+				if (Array.isArray(e.entries)) _scanEntries(e.entries, parentName, featureLvl);
+			}
+		};
+		(classEntry.classFeatures || []).forEach((lvlFeatures, ixLvl) => {
+			const featureLvl = ixLvl + 1;
+			if (featureLvl > clsLvl) return;
+			(Array.isArray(lvlFeatures) ? lvlFeatures : []).forEach(feature => {
+				if (!feature || feature.gainSubclassFeature) return;
+				if (Array.isArray(feature.entries)) _scanEntries(feature.entries, feature.name || "", featureLvl);
+			});
+		});
+		return slots;
+	}
+
 	_getTotalLevel () {
 		const classes = this._state.classes;
 		if (!classes?.length) return 1;
@@ -1696,19 +1778,31 @@ export class CharacterBuilder extends BuilderBase {
 		// -- Class features (from ALL classes) -------------------------------
 		const featureLines = [];
 		let asiCount = 0;
-		const _pushFeature = (featureLvl, feature) => {
+		const _pushFeature = (featureLvl, feature, clsName = "") => {
 			const name = feature.name || "";
-			const text = CharacterBuilder._renderFeatureToPlainText(feature);
+			const choiceKey = clsName ? `${clsName}_${name}` : "";
+			const chosen = choiceKey ? (this._state.classChoices || {})[choiceKey] : null;
+			const chosenOptions = chosen ? new Set([chosen]) : null;
+			const text = CharacterBuilder._renderFeatureToPlainText(feature, chosenOptions);
 			featureLines.push(`[L${featureLvl}] ${name}\n${text}`);
 		};
+
+		// Collect valid classChoice keys so we can clean up stale entries
+		const _validChoiceKeys = new Set();
 
 		classes.forEach((c, i) => {
 			const entry = classEntries[i];
 			if (!entry) return;
 			const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+			const clsName = entry.name || c.cls;
 			const subName = (c.sub || "").toLowerCase();
 			const clsKey  = (entry.name || "").toLowerCase();
 			const _isNew  = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+
+			// Collect valid choice keys for this class
+			this._findClassChoiceSlots(entry, clsLvl).forEach(({parentName}) => {
+				_validChoiceKeys.add(`${clsName}_${parentName}`);
+			});
 
 			(entry.classFeatures || []).forEach((lvlFeatures, ixLvl) => {
 				const featureLvl = ixLvl + 1;
@@ -1716,7 +1810,7 @@ export class CharacterBuilder extends BuilderBase {
 				(Array.isArray(lvlFeatures) ? lvlFeatures : []).forEach(feature => {
 					if (feature.gainSubclassFeature) return;
 					if ((feature.name || "").toLowerCase() === "ability score improvement") asiCount++;
-					_pushFeature(featureLvl, feature);
+					_pushFeature(featureLvl, feature, clsName);
 				});
 			});
 
@@ -1740,6 +1834,15 @@ export class CharacterBuilder extends BuilderBase {
 				}
 			}
 		});
+
+		// Remove classChoices entries whose class/feature no longer exists
+		{
+			const cur = this._state.classChoices || {};
+			const pruned = /** @type {Record<string,string>} */ ({});
+			Object.entries(cur).forEach(([k, v]) => { if (_validChoiceKeys.has(k)) pruned[k] = v; });
+			if (Object.keys(pruned).length !== Object.keys(cur).length)
+				this._state.classChoices = pruned;
+		}
 
 		featureLines.sort((a, b) => {
 			const getLvl = s => parseInt((s.match(/^\[L(\d+)\]/) || [])[1] || 0);
@@ -1871,6 +1974,71 @@ export class CharacterBuilder extends BuilderBase {
 				this._state.classToolChoices = (this._state.classToolChoices || []).slice(0, totalToolSlots);
 		}
 
+		// -- Class resource numbers (from classTableGroups, non-spell columns) -----
+		// Detects any column that isn't a spell slot, spell list, weapon mastery, or
+		// unarmored movement (handled separately as a speed bonus).
+		{
+			const _SKIP_COLS  = new Set(["Spell Slots", "Slot Level", "Weapon Mastery", "Unarmored Movement"]);
+			const _stripTag   = s => String(s).replace(/\{@\w+ ([^|}]+)(?:\|[^}]*)?\}/g, "$1").trim();
+			const _fmtCell    = cell => {
+				if (cell == null) return null;
+				if (typeof cell === "number") return cell === 0 ? null : String(cell);
+				if (typeof cell === "string") {
+					const v = _stripTag(cell);
+					return (v === "" || v === "0") ? null : v;
+				}
+				if (typeof cell === "object") {
+					if (cell.type === "dice" && cell.toRoll?.length)
+						return cell.toRoll.map(r => `${r.number}d${r.faces}`).join("+");
+					if (cell.type === "bonus") return cell.value ? `+${cell.value}` : null;
+				}
+				return null;
+			};
+			const resources = [];
+			const seenLabels = new Set();
+			classes.forEach((c, i) => {
+				const entry = classEntries[i];
+				if (!entry) return;
+				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+				(entry.classTableGroups || []).forEach(group => {
+					if (group.rowsSpellProgression) return;
+					const row = (group.rows || [])[clsLvl - 1];
+					if (!row) return;
+					(group.colLabels || []).forEach((label, colIdx) => {
+						if (typeof label !== "string" || label.includes("@filter")) return;
+						const cleanLabel = _stripTag(label);
+						if (_SKIP_COLS.has(cleanLabel) || seenLabels.has(cleanLabel)) return;
+						const val = _fmtCell(row[colIdx]);
+						if (val == null) return;
+						seenLabels.add(cleanLabel);
+						resources.push({label: cleanLabel, value: val});
+					});
+				});
+			});
+			this._state._classResources = resources;
+		}
+
+		// -- Unarmored Movement (Monk) → added directly to speed bonus -----------
+		{
+			const _stripTag = s => String(s).replace(/\{@\w+ ([^|}]+)(?:\|[^}]*)?\}/g, "$1").trim();
+			let speedBonus = 0;
+			classes.forEach((c, i) => {
+				const entry = classEntries[i];
+				if (!entry) return;
+				const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+				for (const group of (entry.classTableGroups || [])) {
+					const colIdx = (group.colLabels || []).findIndex(l =>
+						typeof l === "string" && _stripTag(l) === "Unarmored Movement");
+					if (colIdx === -1) continue;
+					const row = (group.rows || [])[clsLvl - 1];
+					const cell = row ? row[colIdx] : null;
+					if (cell && typeof cell === "object" && cell.type === "bonusSpeed" && cell.value)
+						speedBonus += cell.value;
+				}
+			});
+			this._state._classSpeedBonus = speedBonus;
+		}
+
 		this._syncGrantedEquipment();
 		this._rebuildHpSection?.();
 	}
@@ -1883,7 +2051,8 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	// -- Entries → plain text (shared by bg/race/feat) ------------------------
-	static _entriesToPlainText (entries, depth = 0) {
+	/** @param {Set<string>|null} [chosenOptions] */
+	static _entriesToPlainText (entries, depth = 0, chosenOptions = null) {
 		const lines = [];
 		const indent = "  ".repeat(depth);
 		(entries || []).forEach(entry => {
@@ -1898,21 +2067,94 @@ export class CharacterBuilder extends BuilderBase {
 						if (typeof item === "string") lines.push(indent + "• " + CharacterBuilder._stripTags(item));
 						else if (item.name) {
 							lines.push(indent + "• " + CharacterBuilder._stripTags(item.name) + (item.entry ? ": " + CharacterBuilder._stripTags(item.entry) : ""));
-							if (item.entries) lines.push(...CharacterBuilder._entriesToPlainText(item.entries, depth + 1));
-						} else lines.push(...CharacterBuilder._entriesToPlainText([item], depth));
+							if (item.entries) lines.push(...CharacterBuilder._entriesToPlainText(item.entries, depth + 1, chosenOptions));
+						} else lines.push(...CharacterBuilder._entriesToPlainText([item], depth, chosenOptions));
 					});
 				} else if (type === "table") {
 					if (entry.caption) lines.push(indent + "[Table: " + CharacterBuilder._stripTags(entry.caption) + "]");
 				} else if (type === "item") {
 					if (name) lines.push(indent + name + (entry.entry ? ": " + CharacterBuilder._stripTags(entry.entry) : ""));
-					if (entry.entries) lines.push(...CharacterBuilder._entriesToPlainText(entry.entries, depth + 1));
+					if (entry.entries) lines.push(...CharacterBuilder._entriesToPlainText(entry.entries, depth + 1, chosenOptions));
+				} else if (type === "options" && entry.count === 1) {
+					// Only show chosen option; if no choice made, show nothing
+					if (chosenOptions) {
+						const _opts = /** @type {Set<string>} */ (chosenOptions);
+						const chosen = (entry.entries || []).find(e => e?.name && _opts.has(CharacterBuilder._stripTags(e.name)));
+						if (chosen) {
+							if (chosen.name) lines.push(indent + CharacterBuilder._stripTags(chosen.name) + ":");
+							lines.push(...CharacterBuilder._entriesToPlainText(chosen.entries || [], depth + 1, chosenOptions));
+						}
+					}
 				} else {
 					if (name && depth > 0) lines.push(indent + name + ":");
-					if (entry.entries) lines.push(...CharacterBuilder._entriesToPlainText(entry.entries, depth + (name ? 1 : 0)));
+					if (entry.entries) lines.push(...CharacterBuilder._entriesToPlainText(entry.entries, depth + (name ? 1 : 0), chosenOptions));
 				}
 			}
 		});
 		return lines;
+	}
+
+	// -- Spellcasting counts (cantrips known, spells known/prepared) ----------
+	// Returns [{className, level, cantrips, spellsKnown, spellsPrepared, preparedFormula}]
+	// for every spellcasting class currently active.  Called live from the Spells tab
+	// so ability-score changes update the prepared count without a full rebuild.
+	_computeSpellcastingCounts () {
+		if (!this._state || !this._isDataLoaded) return [];
+		const classes      = this._state.classes || [];
+		const classEntries = this._getClassEntries();
+		const _mod         = score => Math.floor(((score || 10) - 10) / 2);
+
+		// Evaluate a preparedSpells formula string after token substitution.
+		// Handles "A / B + C", "A + B", "A - B" patterns.
+		const _eval = expr => {
+			// Collapse integer division first: "10 / 2" → "5"
+			let e = expr.replace(/(-?\d+)\s*\/\s*(\d+)/g, (_, n, d) => Math.floor(parseInt(n) / parseInt(d)));
+			// Sum remaining +/- terms
+			const tokens = e.split(/([+-])/);
+			let total = 0, sign = 1;
+			for (const tok of tokens) {
+				if (tok === "+") { sign =  1; continue; }
+				if (tok === "-") { sign = -1; continue; }
+				const n = parseInt(tok.trim());
+				if (!isNaN(n)) total += sign * n;
+			}
+			return total;
+		};
+
+		const info = [];
+		classes.forEach((c, i) => {
+			const entry = classEntries[i];
+			if (!entry) return;
+			const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+
+			const cantrips    = entry.cantripProgression?.[clsLvl - 1] ?? null;
+			const spellsKnown = entry.spellsKnownProgression?.[clsLvl - 1] ?? null;
+
+			let spellsPrepared  = null;
+			let preparedFormula = null;
+			if (entry.preparedSpellsProgression) {
+				// XPHB classes: exact count per level, no formula
+				spellsPrepared = entry.preparedSpellsProgression[clsLvl - 1] ?? null;
+			} else if (entry.preparedSpells) {
+				// PHB classes: formula string e.g. "<$level$> + <$wis_mod$>"
+				const wis = _mod(this._state.wis), int = _mod(this._state.int), cha = _mod(this._state.cha);
+				preparedFormula = entry.preparedSpells
+					.replace(/<\$level\$>/g, "level")
+					.replace(/<\$wis_mod\$>/g, "WIS mod")
+					.replace(/<\$int_mod\$>/g, "INT mod")
+					.replace(/<\$cha_mod\$>/g, "CHA mod");
+				const expr = entry.preparedSpells
+					.replace(/<\$level\$>/g, clsLvl)
+					.replace(/<\$wis_mod\$>/g, wis)
+					.replace(/<\$int_mod\$>/g, int)
+					.replace(/<\$cha_mod\$>/g, cha);
+				spellsPrepared = Math.max(1, _eval(expr));
+			}
+
+			if (cantrips != null || spellsKnown != null || spellsPrepared != null)
+				info.push({className: entry.name || c.cls, level: clsLvl, cantrips, spellsKnown, spellsPrepared, preparedFormula});
+		});
+		return info;
 	}
 
 	// -- Shared spell-collection helper ---------------------------------------
@@ -2356,13 +2598,14 @@ export class CharacterBuilder extends BuilderBase {
 
 		const cs = CharacterBuilder._collectSpells;
 
-		// 1. Collect all desired grants as [{name, source}], deduped by name
+		// 1. Collect all desired grants as [{name, source, prepared}], deduped by name.
+		// `prepared` true means the spell starts with its Prep checkbox ticked.
 		const desiredGrants = [];
-		const pushDesired = (name, source) => {
+		const pushDesired = (name, source, isPrepared = false) => {
 			if (!name) return;
 			const canonical = this._getSpellEntry(name)?.name || name;
 			if (!desiredGrants.some(g => g.name.toLowerCase() === canonical.toLowerCase())) {
-				desiredGrants.push({name: canonical, source});
+				desiredGrants.push({name: canonical, source, prepared: isPrepared});
 			}
 		};
 
@@ -2421,6 +2664,65 @@ export class CharacterBuilder extends BuilderBase {
 			});
 		}
 
+		// Class- and subclass-granted spells from additionalSpells, filtered by class level.
+		// Numeric level-keys (e.g. "1","3","5") are thresholds — only included when class level
+		// meets or exceeds the key.  Non-numeric keys ("s1"–"s5" for Warlock expanded lists) are
+		// always included.  `prepared`-type grants tick the Prep checkbox automatically.
+		// Named-group arrays (e.g. Divine Soul alignment choice) are skipped until we have a
+		// UI for that choice.
+		const _collectAtLevel = (obj, clsLvl) => {
+			if (!obj || typeof obj !== "object" || Array.isArray(obj)) return cs(obj);
+			const results = [];
+			for (const [key, val] of Object.entries(obj)) {
+				if (/^\d+$/.test(key) && parseInt(key) > clsLvl) continue;
+				results.push(...cs(val));
+			}
+			return results;
+		};
+
+		const classes      = this._state.classes || [];
+		const classEntries = this._getClassEntries();
+		const isNew        = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+
+		classes.forEach((c, i) => {
+			const entry = classEntries[i];
+			if (!entry?.additionalSpells) return;
+			const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+			const groups = entry.additionalSpells;
+			const active = (groups.length > 1 && groups.every(g => g.name)) ? [] : groups;
+			active.forEach(grp => {
+				["prepared", "known", "innate", "expanded"].forEach(prop => {
+					if (!grp[prop]) return;
+					const isPrep = prop === "prepared";
+					_collectAtLevel(grp[prop], clsLvl).forEach(n => pushDesired(n, entry.name, isPrep));
+				});
+			});
+		});
+
+		classes.forEach((c, i) => {
+			const entry = classEntries[i];
+			if (!entry) return;
+			const clsLvl   = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+			const subName  = (c.sub || "").toLowerCase();
+			if (!subName) return;
+			const clsKey   = (entry.name || "").toLowerCase();
+			const scList   = this._allSubclasses[clsKey] || [];
+			const matches  = scList.filter(s => (s.name || "").toLowerCase() === subName);
+			const sc = isNew
+				? (matches.find(s => !SourceUtil.isClassicSource(s.source)) || matches[0])
+				: (matches.find(s =>  SourceUtil.isClassicSource(s.source)) || matches[0]);
+			if (!sc?.additionalSpells) return;
+			const groups = sc.additionalSpells;
+			const active = (groups.length > 1 && groups.every(g => g.name)) ? [] : groups;
+			active.forEach(grp => {
+				["prepared", "known", "innate", "expanded"].forEach(prop => {
+					if (!grp[prop]) return;
+					const isPrep = prop === "prepared";
+					_collectAtLevel(grp[prop], clsLvl).forEach(n => pushDesired(n, sc.name, isPrep));
+				});
+			});
+		});
+
 		// 2. Diff: keep user-added spells, match desired grants against existing auto-granted
 		// spells (preserving user edits), adding fresh entries only for newly-granted spells.
 		const existingGranted = (this._state.spells || []).filter(sp => sp.autoGranted);
@@ -2434,7 +2736,7 @@ export class CharacterBuilder extends BuilderBase {
 				matched.add(existingIdx);
 				newSpells.push(existingGranted[existingIdx]); // preserve user edits
 			} else {
-				newSpells.push({name: grant.name, notes: `from ${grant.source}`, autoGranted: true, prepared: false});
+				newSpells.push({name: grant.name, notes: `from ${grant.source}`, autoGranted: true, prepared: grant.prepared});
 			}
 		}
 
@@ -2708,8 +3010,9 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	// Convert a classFeature entry object to plain text, stripping 5etools tags
-	static _renderFeatureToPlainText (feature) {
-		return CharacterBuilder._entriesToPlainText(feature.entries || []).join("\n");
+	/** @param {Set<string>|null} [chosenOptions] */
+	static _renderFeatureToPlainText (feature, chosenOptions = null) {
+		return CharacterBuilder._entriesToPlainText(feature.entries || [], 0, chosenOptions).join("\n");
 	}
 
 	_buildFeatsTab (wrp, cb) {
@@ -4072,12 +4375,18 @@ export class CharacterBuilder extends BuilderBase {
 			const speedRow = BuilderUi.getStateIptNumber("Speed (ft.)", cb, this._state, {nullable: false, placeholder: "30"}, "speed").appendTo(wrp);
 			const speedLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(speedRow);
 			const refreshSpeed = () => {
-				const bonus = this._state.featSpeedBonus || 0;
-				speedLbl.toggleVe(bonus !== 0);
-				speedLbl.txt(bonus ? `From feats: +${bonus} ft. (total ${(this._state.speed || 30) + bonus} ft.)` : "");
+				const featBonus  = this._state.featSpeedBonus  || 0;
+				const classBonus = this._state._classSpeedBonus || 0;
+				const totalBonus = featBonus + classBonus;
+				const parts = [];
+				if (featBonus)  parts.push(`feats: +${featBonus} ft.`);
+				if (classBonus) parts.push(`Unarmored Movement: +${classBonus} ft.`);
+				speedLbl.toggleVe(totalBonus !== 0);
+				speedLbl.txt(parts.length ? `${parts.join(", ")} (total ${(this._state.speed || 30) + totalBonus} ft.)` : "");
 			};
-			this._addHook("state", "featSpeedBonus", refreshSpeed);
-			this._addHook("state", "speed",          refreshSpeed);
+			this._addHook("state", "featSpeedBonus",   refreshSpeed);
+			this._addHook("state", "_classSpeedBonus", refreshSpeed);
+			this._addHook("state", "speed",            refreshSpeed);
 			refreshSpeed();
 		}
 
@@ -4611,6 +4920,31 @@ export class CharacterBuilder extends BuilderBase {
 
 	_buildSpellsTab (wrp, cb) {
 		const buildContent = () => {
+			// -- Spellcasting info block (cantrips / spells known / prepared) ----
+			const infoWrp = ee`<div></div>`.appendTo(wrp);
+			const refreshInfo = () => {
+				infoWrp.empty();
+				const info = this._computeSpellcastingCounts();
+				if (!info.length) return;
+				const inner = ee`<div class="ve-mb-2 ve-pb-2" style="border-bottom:1px solid var(--col-border-default,#333)"></div>`.appendTo(infoWrp);
+				const multiClass = info.length > 1;
+				info.forEach(({className, level, cantrips, spellsKnown, spellsPrepared, preparedFormula}) => {
+					const parts = [];
+					if (cantrips     != null) parts.push(`Cantrips: ${cantrips}`);
+					if (spellsKnown  != null) parts.push(`Spells known: ${spellsKnown}`);
+					if (spellsPrepared != null) parts.push(`Spells prepared: ${spellsPrepared}${preparedFormula ? ` (${preparedFormula})` : ""}`);
+					if (!parts.length) return;
+					const row = ee`<div class="ve-muted ve-mb-1" style="font-size:.85em"></div>`.appendTo(inner);
+					if (multiClass) ee`<span class="ve-bold ve-mr-2">${className} L${level}:</span>`.appendTo(row);
+					row.appends(document.createTextNode(parts.join("   |   ")));
+				});
+			};
+			this._addHook("state", "wis",     refreshInfo);
+			this._addHook("state", "int",     refreshInfo);
+			this._addHook("state", "cha",     refreshInfo);
+			this._addHook("state", "classes", refreshInfo);
+			refreshInfo();
+
 			const spellsArr = () => this._state.spells || [];
 			const spellRows = [];
 
@@ -4907,7 +5241,7 @@ export class CharacterBuilder extends BuilderBase {
 			``,
 			`**Armor Class** ${ac}  `,
 			`**Hit Points** ${s.hpMax || 0} (${s.hitDice || `${_stLevel(s)}d8`})  `,
-			`**Speed** ${(s.speed || 30) + (s.featSpeedBonus || 0)} ft.  `,
+			`**Speed** ${(s.speed || 30) + (s.featSpeedBonus || 0) + (s._classSpeedBonus || 0)} ft.  `,
 			``,
 			`---`,
 			``,
@@ -5207,7 +5541,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Combat stats
 		inField(fmod(profBonus),   43.0, 150.9,  74.5, 173.3, 13, true);
 		inField(fmod(initiative),  245.1, 135.0, 287.8, 157.3, 12, true);
-		inField(String((s.speed||30) + (s.featSpeedBonus||0)), 338.1, 135.0, 386.5, 157.3, 12, true);
+		inField(String((s.speed||30) + (s.featSpeedBonus||0) + (s._classSpeedBonus||0)), 338.1, 135.0, 386.5, 157.3, 12, true);
 		inField(v(s.size,""),      436.7, 135.2, 479.5, 157.5,  9, true);
 		inField(String(passPer),   528.8, 135.2, 581.8, 157.5, 12, true);
 
@@ -5363,12 +5697,23 @@ export class CharacterBuilder extends BuilderBase {
 			}),
 		];
 		const _cfHalf  = Math.ceil(_cfTexts.length / 2);
+
+		// Class resources header — rendered full-width at the top of the features box.
+		// When present, the feature columns start 22pt lower to make room.
+		const _cfResources = s._classResources || [];
+		const _cfBoxTop    = 361.2;
+		const _cfFeatTop   = _cfResources.length ? _cfBoxTop + 22 : _cfBoxTop;
+		if (_cfResources.length) {
+			const _resLine = _cfResources.map(r => `${r.label}: ${r.value}`).join("   •   ");
+			inFieldML(_resLine, 232.1, _cfBoxTop, 593.7, _cfBoxTop + 22, 7);
+		}
+
 		if (sheetMode === "extended") {
-			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1,361.2,407.9,770.3, 6.5);
-			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5,361.2,593.7,770.9, 6.5);
+			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1, _cfFeatTop, 407.9, 770.3, 6.5);
+			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5, _cfFeatTop, 593.7, 770.9, 6.5);
 		} else {
-			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1,361.2,407.9,563.8, 6.5);
-			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5,361.2,593.7,563.4, 6.5);
+			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1, _cfFeatTop, 407.9, 563.8, 6.5);
+			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5, _cfFeatTop, 593.7, 563.4, 6.5);
 			inFieldML((s.speciesTraitItems || []).filter(i => !i.excluded).map(i => i.text).join("\n"), 232.4,606.2,395.9,770.3, 6.5);
 			inFieldML(this._buildFeatsDescription(),            419.1,605.5,595.3,770.9, 6.5);
 		}
