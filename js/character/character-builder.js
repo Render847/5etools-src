@@ -5431,14 +5431,16 @@ export class CharacterBuilder extends BuilderBase {
 			else if (_e.type === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
 			else if (_e.type === "S")  _hasEquippedShield = true;
 			if (_e.weapon) {
-				const _props    = _e.property || [];
-				const _finesse  = _props.includes("F");
-				const _ranged   = _e.type === "R" || _e.type === "A";
-				const _amod     = _finesse ? Math.max(abilMods.str, abilMods.dex) : (_ranged ? abilMods.dex : abilMods.str);
-				const _atkBonus = fmod(_amod + profBonus);
-				const _dmgType  = _DMG_TYPES[_e.dmgType] || _e.dmgType || "";
-				const _dmgMod   = _amod !== 0 ? ` ${fmod(_amod)}` : "";
-				_equippedWeapons.push({name: _it.name, atkBonus: _atkBonus, damage: `${_e.dmg1 || "-"}${_dmgMod}${_dmgType ? " " + _dmgType : ""}`, notes: _it.note || ""});
+				const _props     = _e.property || [];
+				const _propAbvs  = _props.map(p => (p?.uid || p || "").split("|")[0]);
+				const _finesse   = _propAbvs.includes("F");
+				const _ranged    = (_e.type || "").split("|")[0] === "R" || (_e.type || "").split("|")[0] === "A";
+				const _amod      = _finesse ? Math.max(abilMods.str, abilMods.dex) : (_ranged ? abilMods.dex : abilMods.str);
+				const _atkBonus  = fmod(_amod + profBonus);
+				const _dmgType   = _DMG_TYPES[_e.dmgType] || _e.dmgType || "";
+				const _dmgMod    = _amod !== 0 ? ` ${fmod(_amod)}` : "";
+				const _dmgBase   = (_propAbvs.includes("V") && _e.dmg2) ? `${_e.dmg1 || "-"}/${_e.dmg2}` : (_e.dmg1 || "-");
+				_equippedWeapons.push({name: _it.name, atkBonus: _atkBonus, damage: `${_dmgBase}${_dmgMod}${_dmgType ? " " + _dmgType : ""}`, notes: _it.note || ""});
 			}
 		}
 		const effectiveAC = s.ac != null ? s.ac : (_armorAC ?? (10 + abilMods.dex)) + (_hasEquippedShield ? 2 : 0);
