@@ -5445,6 +5445,12 @@ export class CharacterBuilder extends BuilderBase {
 			doc.setFillColor(15,15,15);
 			doc.circle(pt(xPt), pt(yPt), pt(1.5), "F");
 		};
+		// Diagonal slash through the pip diamond — used for half-proficiency and expertise
+		const pipSlash = (xPt, yPt) => {
+			doc.setDrawColor(15,15,15);
+			doc.setLineWidth(pt(0.8));
+			doc.line(pt(xPt-2.5), pt(yPt+2.5), pt(xPt+2.5), pt(yPt-2.5));
+		};
 
 		// ═══════════════════ PAGE 1 ═══════════════════
 		doc.addImage(P1,"JPEG",0,0,PW,PH);
@@ -5503,42 +5509,45 @@ export class CharacterBuilder extends BuilderBase {
 		inField(String(totalAbl("cha")),      170.1, 498.0, 195.1, 518.8,  9);
 
 		// Saving throws + skills
-		// sk(bonus, fieldRect[4], pipCx, pipCy, hasPip)
+		// sk(bonus, fieldRect[4], pipCx, pipCy, profLevel)
+		// profLevel: 0=none, 0.5=half-prof (slash), 1=proficient (dot), 2=expertise (dot+slash)
 		// Pip cx/cy are exact checkbox centres from the PDF form fields
-		const sk = (bonus, x0,top,x1,bot, pipCx,pipCy, hasPip) => {
+		const skillPL = (name) => hasExpert(name) ? 2 : hasSkill(name) ? 1 : hasHalfProf(name) ? 0.5 : 0;
+		const sk = (bonus, x0,top,x1,bot, pipCx,pipCy, profLevel) => {
 			inField(bonus, x0,top,x1,bot, 7.5, true);
-			if (hasPip) pip(pipCx, pipCy);
+			if (profLevel === 1 || profLevel === 2) pip(pipCx, pipCy);
+			if (profLevel === 0.5 || profLevel === 2) pipSlash(pipCx, pipCy);
 		};
 		// STR
-		sk(fmod(saveBonus("str")),           27.9,263.8, 45.5,276.8, 21.9,272.6, hasSave("str"));
-		sk(fmod(skillBonus("Athletics")),    28.1,283.7, 45.5,296.7, 22.0,292.4, hasSkill("Athletics"));
+		sk(fmod(saveBonus("str")),           27.9,263.8, 45.5,276.8, 21.9,272.6, hasSave("str") ? 1 : 0);
+		sk(fmod(skillBonus("Athletics")),    28.1,283.7, 45.5,296.7, 22.0,292.4, skillPL("Athletics"));
 		// DEX
-		sk(fmod(saveBonus("dex")),           27.7,383.3, 45.1,396.3, 21.8,392.1, hasSave("dex"));
-		sk(fmod(skillBonus("Acrobatics")),   27.9,403.2, 45.2,416.2, 21.6,411.9, hasSkill("Acrobatics"));
-		sk(fmod(skillBonus("Sleight of Hand")),27.8,417.4, 45.2,430.4, 21.7,426.1, hasSkill("Sleight of Hand"));
-		sk(fmod(skillBonus("Stealth")),      27.9,431.5, 45.3,444.5, 21.5,440.5, hasSkill("Stealth"));
+		sk(fmod(saveBonus("dex")),           27.7,383.3, 45.1,396.3, 21.8,392.1, hasSave("dex") ? 1 : 0);
+		sk(fmod(skillBonus("Acrobatics")),   27.9,403.2, 45.2,416.2, 21.6,411.9, skillPL("Acrobatics"));
+		sk(fmod(skillBonus("Sleight of Hand")),27.8,417.4, 45.2,430.4, 21.7,426.1, skillPL("Sleight of Hand"));
+		sk(fmod(skillBonus("Stealth")),      27.9,431.5, 45.3,444.5, 21.5,440.5, skillPL("Stealth"));
 		// CON
-		sk(fmod(saveBonus("con")),           27.9,531.5, 45.3,544.5, 21.9,540.2, hasSave("con"));
+		sk(fmod(saveBonus("con")),           27.9,531.5, 45.3,544.5, 21.9,540.2, hasSave("con") ? 1 : 0);
 		// INT
-		sk(fmod(saveBonus("int")),          135.7,185.4,153.1,198.4, 129.7,194.2, hasSave("int"));
-		sk(fmod(skillBonus("Arcana")),      135.7,205.1,153.0,218.2, 129.6,214.0, hasSkill("Arcana"));
-		sk(fmod(skillBonus("History")),     135.9,219.4,153.3,232.4, 129.6,228.2, hasSkill("History"));
-		sk(fmod(skillBonus("Investigation")),135.9,233.5,153.3,246.6, 129.4,242.6, hasSkill("Investigation"));
-		sk(fmod(skillBonus("Nature")),      135.7,247.7,153.1,260.7, 129.8,256.8, hasSkill("Nature"));
-		sk(fmod(skillBonus("Religion")),    135.5,261.9,152.9,274.9, 129.8,270.9, hasSkill("Religion"));
+		sk(fmod(saveBonus("int")),          135.7,185.4,153.1,198.4, 129.7,194.2, hasSave("int") ? 1 : 0);
+		sk(fmod(skillBonus("Arcana")),      135.7,205.1,153.0,218.2, 129.6,214.0, skillPL("Arcana"));
+		sk(fmod(skillBonus("History")),     135.9,219.4,153.3,232.4, 129.6,228.2, skillPL("History"));
+		sk(fmod(skillBonus("Investigation")),135.9,233.5,153.3,246.6, 129.4,242.6, skillPL("Investigation"));
+		sk(fmod(skillBonus("Nature")),      135.7,247.7,153.1,260.7, 129.8,256.8, skillPL("Nature"));
+		sk(fmod(skillBonus("Religion")),    135.5,261.9,152.9,274.9, 129.8,270.9, skillPL("Religion"));
 		// WIS
-		sk(fmod(saveBonus("wis")),          135.7,361.6,153.1,374.7, 129.7,370.7, hasSave("wis"));
-		sk(fmod(skillBonus("Animal Handling")),135.7,381.6,153.1,394.6, 129.8,390.5, hasSkill("Animal Handling"));
-		sk(fmod(skillBonus("Insight")),     135.7,395.6,153.1,408.6, 129.7,404.7, hasSkill("Insight"));
-		sk(fmod(skillBonus("Medicine")),    135.7,409.8,153.0,422.9, 129.7,419.1, hasSkill("Medicine"));
-		sk(fmod(skillBonus("Perception")),  135.6,424.2,153.0,437.2, 129.9,433.3, hasSkill("Perception"));
-		sk(fmod(skillBonus("Survival")),    135.6,438.4,153.0,451.4, 129.8,447.4, hasSkill("Survival"));
+		sk(fmod(saveBonus("wis")),          135.7,361.6,153.1,374.7, 129.7,370.7, hasSave("wis") ? 1 : 0);
+		sk(fmod(skillBonus("Animal Handling")),135.7,381.6,153.1,394.6, 129.8,390.5, skillPL("Animal Handling"));
+		sk(fmod(skillBonus("Insight")),     135.7,395.6,153.1,408.6, 129.7,404.7, skillPL("Insight"));
+		sk(fmod(skillBonus("Medicine")),    135.7,409.8,153.0,422.9, 129.7,419.1, skillPL("Medicine"));
+		sk(fmod(skillBonus("Perception")),  135.6,424.2,153.0,437.2, 129.9,433.3, skillPL("Perception"));
+		sk(fmod(skillBonus("Survival")),    135.6,438.4,153.0,451.4, 129.8,447.4, skillPL("Survival"));
 		// CHA
-		sk(fmod(saveBonus("cha")),          135.8,538.2,153.2,551.2, 129.7,547.2, hasSave("cha"));
-		sk(fmod(skillBonus("Deception")),   135.7,558.1,153.1,571.1, 129.5,567.0, hasSkill("Deception"));
-		sk(fmod(skillBonus("Intimidation")),135.7,572.4,153.0,585.4, 129.7,581.2, hasSkill("Intimidation"));
-		sk(fmod(skillBonus("Performance")), 135.7,586.6,153.1,599.6, 129.4,595.6, hasSkill("Performance"));
-		sk(fmod(skillBonus("Persuasion")),  135.7,600.7,153.1,613.8, 129.8,609.8, hasSkill("Persuasion"));
+		sk(fmod(saveBonus("cha")),          135.8,538.2,153.2,551.2, 129.7,547.2, hasSave("cha") ? 1 : 0);
+		sk(fmod(skillBonus("Deception")),   135.7,558.1,153.1,571.1, 129.5,567.0, skillPL("Deception"));
+		sk(fmod(skillBonus("Intimidation")),135.7,572.4,153.0,585.4, 129.7,581.2, skillPL("Intimidation"));
+		sk(fmod(skillBonus("Performance")), 135.7,586.6,153.1,599.6, 129.4,595.6, skillPL("Performance"));
+		sk(fmod(skillBonus("Persuasion")),  135.7,600.7,153.1,613.8, 129.8,609.8, skillPL("Persuasion"));
 
 		// Shield pip
 		if (_hasEquippedShield) pip(344.4, 80.0);
