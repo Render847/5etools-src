@@ -681,83 +681,6 @@ export class CharacterBuilder extends BuilderBase {
 			optRow.appendTo(wrp);
 		}
 
-	// Ability Score Improvements
-	{
-		const [asiRow, asiRowInner] = BuilderUi.getLabelledRowTuple("Ability Score Improvements");
-		const wrpAsiRows = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(asiRowInner);
-
-		const buildAsiUI = () => {
-			wrpAsiRows.empty();
-			const count = this._state._asiCount || 0;
-			asiRow.toggleVe(count > 0);
-			if (!count) return;
-
-			for (let ix = 0; ix < count; ix++) {
-				const ix_ = ix;
-				const getChoice = () => (this._state.asiChoices || [])[ix_] || {};
-				const setChoice = (patch) => {
-					const cur = [...(this._state.asiChoices || [])];
-					while (cur.length <= ix_) cur.push({});
-					cur[ix_] = {...cur[ix_], ...patch};
-					this._state.asiChoices = cur;
-					this._sg_syncAbilityScores();
-					this._applyFeatData();
-					cb();
-				};
-
-				const slotWrp = ee`<div class="ve-flex-col ve-py-1 ve-border-b ve-mb-1"></div>`.appendTo(wrpAsiRows);
-
-				// Feat name display + filter button
-				const spanFeatName = ee`<span class="ve-bold ve-ml-1" style="flex:1">${getChoice().featName || "Ability Score Improvement"}</span>`;
-				const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter feats"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
-					.onn("click", async () => {
-						if (!this._modalFilterFeatsAsi) {
-							this._modalFilterFeatsAsi = new ModalFilterFeats({
-								namespace: "charBuilder.feats.asi",
-								isRadio: true,
-								allData: this._allFeats,
-							});
-						}
-						const selected = await this._modalFilterFeatsAsi.pGetUserSelection();
-						if (!selected?.length) return;
-						const name = selected[0].name;
-						setChoice({featName: name});
-						spanFeatName.txt(name);
-						refreshFeatChoices();
-					});
-				ee`<div class="ve-flex-v-center ve-mb-1">${btnFilter}${spanFeatName}</div>`.appendTo(slotWrp);
-
-				const wrpFeatChoices = ee`<div class="ve-flex-col"></div>`.appendTo(slotWrp);
-				const refreshFeatChoices = () => {
-					Array.from(wrpFeatChoices.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
-					// Default to "Ability Score Improvement" if no feat chosen yet — write directly
-					// to state without firing callbacks to avoid a re-render loop.
-					if (!getChoice().featName) {
-						const rs = /** @type {any} */ (this.__state);
-						if (!rs.asiChoices) rs.asiChoices = [];
-						while (rs.asiChoices.length <= ix_) rs.asiChoices.push({});
-						rs.asiChoices[ix_] = {...(rs.asiChoices[ix_] || {}), featName: "Ability Score Improvement"};
-						spanFeatName.txt("Ability Score Improvement");
-					}
-					const name = getChoice().featName;
-					// Per-slot storage key for "Ability Score Improvement" so repeated takes
-					// (it's a repeatable feat) each track their own ability choice.
-					const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
-					this._buildFeatChoiceInputs(name, wrpFeatChoices, cb, storageKey);
-				};
-				refreshFeatChoices();
-
-				
-							}
-		};
-
-		buildAsiUI();
-		this._addHook("state", "_asiCount", buildAsiUI);
-		this._addHook("state", "styleHint", buildAsiUI);
-		this._addHook("state", "asiChoices", buildAsiUI);
-		asiRow.appendTo(wrp);
-	}
-
 	// Weapon Masteries
 	{
 		const [mastRow, mastRowInner] = BuilderUi.getLabelledRowTuple("Weapon Masteries");
@@ -2433,12 +2356,12 @@ export class CharacterBuilder extends BuilderBase {
 			// -- Skill proficiencies --------------------------------------
 			(feat.skillProficiencies || []).forEach(sp => {
 				Object.keys(sp).forEach(k => {
-					if (k === "choose") {
+					if (k === "choose" || k === "any") {
 						getChosenList("skillProficiencies").forEach(val => {
 							const mapped = val && _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
 							if (mapped) push(this._state.featSkillProfs, mapped);
 						});
-					} else if (k !== "any" && k !== "anyProficientSkill") {
+					} else if (k !== "anyProficientSkill") {
 						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
 						if (mapped) push(this._state.featSkillProfs, mapped);
 					}
@@ -2780,7 +2703,7 @@ export class CharacterBuilder extends BuilderBase {
 	// implicit-choice keys (any, anyMusicalInstrument, etc.). A metadata table
 	// keyed by feat-property name maps each found pattern to display info, so
 	// new feat properties only require adding one entry to PROP_META.
-	_getFeatChoices (featName) {
+	_getFeatChoices (featName, stateKey = null) {
 		const feat = this._getFeatEntry(featName);
 		if (!feat) return [];
 
@@ -2805,7 +2728,24 @@ export class CharacterBuilder extends BuilderBase {
 			},
 			skillProficiencies: {
 				label:       (from, cnt) => cnt > 1 ? `Skills (×${cnt})` : "Skill",
-				options:     from => from?.every(f => !ANY_LABELS[f]) ? from.map(s => ({value: s, label: toTitle(s)})) : null,
+				options:     (from, slotKey) => {
+					// Collect what THIS slot has already chosen so we don't exclude it
+					const slotStored = slotKey ? (this._state.featChoices?.[slotKey] || {}) : {};
+					const ownChoices = new Set();
+					if (slotStored.skillProficiencies) ownChoices.add(slotStored.skillProficiencies.toLowerCase());
+					for (let i = 0; slotStored[`skillProficiencies_${i}`] !== undefined; i++) {
+						if (slotStored[`skillProficiencies_${i}`]) ownChoices.add(slotStored[`skillProficiencies_${i}`].toLowerCase());
+					}
+					const alreadyProf = new Set([
+						...(this._state.skillProfs || []),
+						...(this._state.classSkillChoices || []),
+						...(this._state.featSkillProfs || []).filter(s => !ownChoices.has(s.toLowerCase())),
+					].map(s => s.toLowerCase()));
+					const pool = (!from || from.some(f => ANY_LABELS[f]))
+						? _SKILLS.map(s => ({value: s.name, label: s.name}))
+						: from.map(s => ({value: s, label: toTitle(s)}));
+					return pool.filter(o => !alreadyProf.has((o.value || "").toLowerCase()));
+				},
 				placeholder: (from, cnt) => `Pick ${cnt} skill(s)`,
 			},
 			skillToolLanguageProficiencies: {
@@ -2935,7 +2875,7 @@ export class CharacterBuilder extends BuilderBase {
 			const startIdx  = slotStarts[propKey] ?? 0;
 			slotStarts[propKey] = startIdx + count;
 			const total     = slotTotals[propKey];
-			const getOpts   = () => typeof meta.options === "function" ? meta.options(from) : null;
+			const getOpts   = () => typeof meta.options === "function" ? meta.options(from, stateKey || featName) : null;
 			const phFn      = meta.placeholder;
 			if (total === 1) {
 				// Exactly one slot - use bare key for backwards compatibility with saved state
@@ -3034,7 +2974,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		const build = () => {
 			wrp.innerHTML = "";
-			const choiceList = this._getFeatChoices(featName);
+			const choiceList = this._getFeatChoices(featName, stateKey);
 			if (!choiceList.length) return;
 
 			for (const choice of choiceList) {
@@ -3086,6 +3026,7 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		build();
+		this._addHook("state", "featChoices", build);
 	}
 
 	// Renders the Ability Score Improvement feat choice UI: a "+2 to one" / "+1 to two"
@@ -5702,8 +5643,12 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Class resources header — rendered full-width at the top of the features box.
 		// When present, the feature columns start 22pt lower to make room.
-		const _cfResources = s._classResources || [];
 		const _cfBoxTop    = 361.2;
+		const _extraAtkCount = _cfTexts.filter(t => /^\[L\d+\] Extra Attack\b/i.test(t)).length;
+		const _cfResources = [
+			...(s._classResources || []),
+			...(_extraAtkCount > 0 ? [{label: "Attacks", value: String(1 + _extraAtkCount)}] : []),
+		];
 		const _cfFeatTop   = _cfResources.length ? _cfBoxTop + 22 : _cfBoxTop;
 		if (_cfResources.length) {
 			const _resLine = _cfResources.map(r => `${r.label}: ${r.value}`).join("   •   ");
