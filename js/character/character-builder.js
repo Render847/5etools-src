@@ -2312,18 +2312,20 @@ export class CharacterBuilder extends BuilderBase {
 	_applyFeatData () {
 		if (!this._state) return;
 
-		// Reset feat-granted buckets
-		this._state.featSkillProfs      = [];
-		this._state.featToolProfs       = [];
-		this._state.featLanguages       = [];
-		this._state.featArmorProfs      = [];
-		this._state.featWeaponProfs     = [];
-		this._state.featSavingThrowProfs = [];
-		this._state.featExpertise        = [];
-		this._state.featResistances      = [];
-		this._state.featHpBonus          = 0;
-		this._state.featSpeedBonus       = 0;
-		this._state.featInitiativeBonus  = 0;
+		// Collect into local arrays first; assign to state at the very end so each
+		// proxy hook fires once with the fully-populated data instead of firing
+		// immediately with an empty array then never again as values are pushed in.
+		const _skillProfs       = [];
+		const _toolProfs        = [];
+		const _languages        = [];
+		const _armorProfs       = [];
+		const _weaponProfs      = [];
+		const _savingThrowProfs = [];
+		const _expertise        = [];
+		const _resistances      = [];
+		let   _hpBonus          = 0;
+		let   _speedBonus       = 0;
+		let   _initiativeBonus  = 0;
 
 		const allChoices = this._state.featChoices || {};
 		const featNames  = [
@@ -2336,14 +2338,12 @@ export class CharacterBuilder extends BuilderBase {
 		const toTitle    = s => s.charAt(0).toUpperCase() + s.slice(1);
 		const ARMOR_MAP  = {light: "Light", medium: "Medium", heavy: "Heavy", shield: "Shields"};
 
-		// Helper: add to a state array, deduplicating
 		const push = (arr, val) => { if (val && !arr.includes(val)) arr.push(val); };
 
 		for (const featName of featNames) {
 			const feat = this._getFeatEntry(featName);
 			if (!feat) continue;
 			const chosen = allChoices[featName] || {};
-			// Helper: read both single-slot (key) and indexed slots (key_0, key_1, ...) for a choice
 			const getChosenList = key => {
 				const vals = [];
 				if (chosen[key]) vals.push(chosen[key]);
@@ -2359,30 +2359,28 @@ export class CharacterBuilder extends BuilderBase {
 					if (k === "choose" || k === "any") {
 						getChosenList("skillProficiencies").forEach(val => {
 							const mapped = val && _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
-							if (mapped) push(this._state.featSkillProfs, mapped);
+							if (mapped) push(_skillProfs, mapped);
 						});
 					} else if (k !== "anyProficientSkill") {
 						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
-						if (mapped) push(this._state.featSkillProfs, mapped);
+						if (mapped) push(_skillProfs, mapped);
 					}
 				});
 			});
 
 			// -- Skill/Tool/Language combined block (e.g. Skilled) --------
 			(feat.skillToolLanguageProficiencies || []).forEach(block => {
-				// Fixed concrete keys
 				Object.keys(block).forEach(k => {
 					if (k === "choose") return;
 					const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
-					if (mapped) push(this._state.featSkillProfs, mapped);
+					if (mapped) push(_skillProfs, mapped);
 				});
-				// User-chosen picks: route each to the correct array by type
 				if (block.choose) {
 					getChosenList("skillToolLanguageProficiencies").forEach(val => {
 						if (!val) return;
 						const asSkill = _SKILLS.find(s => s.name.toLowerCase() === val.toLowerCase())?.name;
-						if (asSkill) push(this._state.featSkillProfs, asSkill);
-						else push(this._state.featToolProfs, val);
+						if (asSkill) push(_skillProfs, asSkill);
+						else push(_toolProfs, val);
 					});
 				}
 			});
@@ -2392,10 +2390,10 @@ export class CharacterBuilder extends BuilderBase {
 				Object.keys(tp).forEach(k => {
 					if (k === "choose" || k === "any" || k === "anyMusicalInstrument") {
 						getChosenList("toolProficiencies").forEach(val => {
-							if (val) push(this._state.featToolProfs, val);
+							if (val) push(_toolProfs, val);
 						});
 					} else {
-						push(this._state.featToolProfs, k.split("|")[0]);
+						push(_toolProfs, k.split("|")[0]);
 					}
 				});
 			});
@@ -2405,10 +2403,10 @@ export class CharacterBuilder extends BuilderBase {
 				Object.keys(lp).forEach(k => {
 					if (k === "anyStandard" || k === "any" || k === "choose") {
 						getChosenList("languageProficiencies").forEach(val => {
-							if (val) push(this._state.featLanguages, val);
+							if (val) push(_languages, val);
 						});
 					} else {
-						push(this._state.featLanguages, toTitle(k));
+						push(_languages, toTitle(k));
 					}
 				});
 			});
@@ -2418,7 +2416,7 @@ export class CharacterBuilder extends BuilderBase {
 				Object.keys(ap).forEach(k => {
 					if (k === "choose") return;
 					const disp = ARMOR_MAP[k.toLowerCase()] || toTitle(k);
-					push(this._state.featArmorProfs, disp);
+					push(_armorProfs, disp);
 				});
 			});
 
@@ -2426,18 +2424,18 @@ export class CharacterBuilder extends BuilderBase {
 			(feat.weaponProficiencies || []).forEach(wp => {
 				Object.keys(wp).forEach(k => {
 					if (k === "choose") return;
-					push(this._state.featWeaponProfs, toTitle(k));
+					push(_weaponProfs, toTitle(k));
 				});
 			});
 
-			// -- Saving throw proficiencies (e.g. Resilient) ---------------
+			// -- Saving throw proficiencies (e.g. Resilient) --------------
 			(feat.savingThrowProficiencies || []).forEach(sp => {
 				if (sp.choose) {
 					getChosenList("savingThrowProficiencies").forEach(val => {
-						if (val) push(this._state.featSavingThrowProfs, _ABILITY_FULL[val] || toTitle(val));
+						if (val) push(_savingThrowProfs, _ABILITY_FULL[val] || toTitle(val));
 					});
 				} else {
-					Object.keys(sp).forEach(k => push(this._state.featSavingThrowProfs, _ABILITY_FULL[k] || toTitle(k)));
+					Object.keys(sp).forEach(k => push(_savingThrowProfs, _ABILITY_FULL[k] || toTitle(k)));
 				}
 			});
 
@@ -2446,11 +2444,11 @@ export class CharacterBuilder extends BuilderBase {
 				Object.keys(ex).forEach(k => {
 					if (k === "anyProficientSkill" || k === "choose" || k === "any") {
 						getChosenList("expertise").forEach(val => {
-							if (val) push(this._state.featExpertise, val);
+							if (val) push(_expertise, val);
 						});
 					} else {
 						const mapped = _SKILLS.find(s => s.name.toLowerCase() === k.toLowerCase())?.name;
-						if (mapped) push(this._state.featExpertise, mapped);
+						if (mapped) push(_expertise, mapped);
 					}
 				});
 			});
@@ -2460,10 +2458,10 @@ export class CharacterBuilder extends BuilderBase {
 				Object.keys(res).forEach(k => {
 					if (k === "choose") {
 						getChosenList("resist").forEach(val => {
-							if (val) push(this._state.featResistances, val);
+							if (val) push(_resistances, val);
 						});
 					} else {
-						push(this._state.featResistances, k);
+						push(_resistances, k);
 					}
 				});
 			});
@@ -2473,39 +2471,39 @@ export class CharacterBuilder extends BuilderBase {
 				const hpArr = Array.isArray(feat.hp) ? feat.hp : [feat.hp];
 				hpArr.forEach(hpEntry => {
 					if (typeof hpEntry.perLevel === "number") {
-						this._state.featHpBonus += hpEntry.perLevel * this._getTotalLevel();
+						_hpBonus += hpEntry.perLevel * this._getTotalLevel();
 					} else if (typeof hpEntry.value === "number") {
-						this._state.featHpBonus += hpEntry.value;
+						_hpBonus += hpEntry.value;
 					}
 				});
 			}
-
-			}
+		}
 
 		// -- Hardcoded feat bonuses (no machine-readable data in feat JSON) ------
-		// These feats grant flat stat bonuses expressed only in their entries text.
 		const _hasFeat = name => featNames.some(n => n.toLowerCase() === name.toLowerCase());
 		const profBonusForFeat = _profBonus(this._getTotalLevel());
 
-		// Tough (PHB + XPHB): +2 HP per character level
-		if (_hasFeat("Tough")) this._state.featHpBonus += this._getTotalLevel() * 2;
-
-		// Mobile (PHB 2014) / Speedy (XPHB 2024): +10 ft. walking speed
-		if (_hasFeat("Mobile") || _hasFeat("Speedy")) this._state.featSpeedBonus += 10;
-
-		// Alert - edition determines the bonus:
-		//   PHB (classic): flat +5 to initiative
-		//   XPHB (modern): +proficiency bonus to initiative
+		if (_hasFeat("Tough")) _hpBonus += this._getTotalLevel() * 2;
+		if (_hasFeat("Mobile") || _hasFeat("Speedy")) _speedBonus += 10;
 		if (_hasFeat("Alert")) {
 			const alertFeat = this._getFeatEntry("Alert");
 			if (alertFeat) {
-				if (SourceUtil.isClassicSource(alertFeat.source)) {
-					this._state.featInitiativeBonus += 5;
-				} else {
-					this._state.featInitiativeBonus += profBonusForFeat;
-				}
+				_initiativeBonus += SourceUtil.isClassicSource(alertFeat.source) ? 5 : profBonusForFeat;
 			}
 		}
+
+		// Assign all at once — each proxy setter fires with the complete final data
+		this._state.featSkillProfs       = _skillProfs;
+		this._state.featToolProfs        = _toolProfs;
+		this._state.featLanguages        = _languages;
+		this._state.featArmorProfs       = _armorProfs;
+		this._state.featWeaponProfs      = _weaponProfs;
+		this._state.featSavingThrowProfs = _savingThrowProfs;
+		this._state.featExpertise        = _expertise;
+		this._state.featResistances      = _resistances;
+		this._state.featHpBonus          = _hpBonus;
+		this._state.featSpeedBonus       = _speedBonus;
+		this._state.featInitiativeBonus  = _initiativeBonus;
 
 		this._syncGrantedSpells();
 		this._sg_syncAbilityScores();
