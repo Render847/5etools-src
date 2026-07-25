@@ -16234,8 +16234,8 @@ Renderer.hover = class {
 	}
 
 	static _WINDOW_METAS = {};
-	static MIN_Z_INDEX = 200;
-	static _MAX_Z_INDEX = 300;
+	static MIN_Z_INDEX = 1002;
+	static _MAX_Z_INDEX = 1099;
 	static _DEFAULT_WIDTH_PX = 600;
 	static _BODY_SCROLLER_WIDTH_PX = 15;
 

@@ -3090,6 +3090,28 @@ export class CharacterBuilder extends BuilderBase {
 		const featRows = [];
 		const wrpRows = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
 
+		const _hashBuilder = /** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER);
+		const _getFeatHover = (/** @type {string} */ featName) => {
+			const fe = (/** @type {any[]} */ (this._allFeats || [])).find(f => f.name === featName);
+			return fe ? Renderer.hover.getHoverElementAttributes({page: UrlUtil.PG_FEATS, source: fe.source, hash: _hashBuilder[UrlUtil.PG_FEATS](fe)}) : "";
+		};
+		const _setFeatHoverAttrs = (/** @type {any} */ span, /** @type {string} */ featName) => {
+			const fe = (/** @type {any[]} */ (this._allFeats || [])).find(f => f.name === featName);
+			if (fe) {
+				span.attr("data-vet-page", UrlUtil.PG_FEATS).attr("data-vet-source", fe.source).attr("data-vet-hash", _hashBuilder[UrlUtil.PG_FEATS](fe));
+				span.style.cursor = "help";
+				span.onmouseover = (/** @type {MouseEvent} */ evt) => Renderer.hover.pHandleLinkMouseOver(evt, span);
+				span.onmouseleave = (/** @type {MouseEvent} */ evt) => Renderer.hover.handleLinkMouseLeave(evt, span);
+				span.onmousemove = (/** @type {MouseEvent} */ evt) => Renderer.hover.handleLinkMouseMove(evt, span);
+			} else {
+				span.removeAttribute("data-vet-page");
+				span.style.cursor = "";
+				span.onmouseover = null;
+				span.onmouseleave = null;
+				span.onmousemove = null;
+			}
+		};
+
 		// Background-granted feat: card at the top, hidden when no bgFeat
 		const bgFeatCard = ee`<div class="ve-mb-2 ve-p-2 ve-hidden" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
 		const bgFeatNameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(bgFeatCard);
@@ -3099,7 +3121,8 @@ export class CharacterBuilder extends BuilderBase {
 		const refreshBgFeatRow = () => {
 			const name = this._state.bgFeat || "";
 			bgFeatCard.toggleVe(!!name);
-			bgFeatSpan.textContent = name;
+			bgFeatSpan.txt(name);
+			_setFeatHoverAttrs(bgFeatSpan, name);
 			// Remove any old choice rows, then add fresh ones
 			Array.from(bgFeatCard.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
 			if (name) this._buildFeatChoiceInputs(name, bgFeatCard, cb);
@@ -3133,7 +3156,7 @@ export class CharacterBuilder extends BuilderBase {
 				const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpAsiSlots);
 
 				const nameRow = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(card);
-				const spanFeatName = ee`<span class="ve-bold" style="flex:1">${getAsiChoice().featName}</span>`;
+				const spanFeatName = ee`<span class="ve-bold" style="flex:1" ${_getFeatHover(getAsiChoice().featName)}>${getAsiChoice().featName}</span>`;
 
 				const btnChangeFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Choose a different feat for this ASI slot"><span class="glyphicon glyphicon-filter ve-mr-1"></span>Change</button>`
 					.onn("click", async () => {
@@ -3157,6 +3180,7 @@ export class CharacterBuilder extends BuilderBase {
 						cb();
 						// Update local DOM without a full rebuild
 						spanFeatName.txt(name);
+						_setFeatHoverAttrs(spanFeatName, name);
 						Array.from(card.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
 						const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
 						this._buildFeatChoiceInputs(name, card, cb, storageKey);
@@ -3188,7 +3212,8 @@ export class CharacterBuilder extends BuilderBase {
 			const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
 
 			const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
-			ee`<span class="ve-bold ve-mr-2" style="flex:1">${name}</span>`.appendTo(nameRow);
+			const _fh = _getFeatHover(name);
+			ee`<span class="ve-bold ve-mr-2" style="flex:1${_fh ? ";cursor:help" : ""}" ${_fh}>${name}</span>`.appendTo(nameRow);
 			const btnRemove = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Feat"><span class="glyphicon glyphicon-trash"></span></button>`
 				.onn("click", () => {
 					featRows.splice(featRows.indexOf(rowMeta), 1);
@@ -4920,7 +4945,8 @@ export class CharacterBuilder extends BuilderBase {
 				section.rowCount++;
 
 				const row = ee`<div class="ve-flex-v-center ve-py-1" style="gap:6px;border-bottom:1px solid var(--col-border-default,#333)"></div>`.appendTo(section.wrpRows);
-				ee`<span class="ve-bold" style="min-width:140px;flex:0 0 auto">${name}</span>`.appendTo(row);
+				const _spellHover = spellData ? Renderer.hover.getHoverElementAttributes({page: UrlUtil.PG_SPELLS, source: spellData.source, hash: (/** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER))[UrlUtil.PG_SPELLS](spellData)}) : "";
+				ee`<span class="ve-bold" style="min-width:140px;flex:0 0 auto${_spellHover ? ";cursor:help" : ""}" ${_spellHover}>${name}</span>`.appendTo(row);
 				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.val(initial?.notes || "").onn("input", doUpdateState).appendTo(row);
 				ee`<span class="ve-muted" style="font-size:.8em;white-space:nowrap">Prep</span>`.appendTo(row);
 				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(row);
