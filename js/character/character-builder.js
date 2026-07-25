@@ -1348,7 +1348,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			const saved = this._state.speciesChoices || {};
 			choices.forEach(({key, label, options}) => {
-				const savedVal = options?.find(o => o.value === saved[key]) ? saved[key] : "";
+				const savedVal = options?.find((/** @type {any} */ o) => o.value === saved[key]) ? saved[key] : "";
 				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
 					<option value="">- Choose ${label} -</option>
 					${(options || []).map(o => `<option value="${o.value}"${o.value === savedVal ? " selected" : ""}>${o.label}</option>`).join("")}
@@ -1379,7 +1379,7 @@ export class CharacterBuilder extends BuilderBase {
 			// Only use the active named group if applicable (multi-group species)
 			for (const prop of ["known", "innate", "prepared", "expanded"]) {
 				if (!grp[prop]) continue;
-				CharacterBuilder._eachSpellChoose(grp[prop], ({filter}) => {
+				CharacterBuilder._eachSpellChoose(grp[prop], (/** @type {any} */ {filter}) => {
 					const lbl = CharacterBuilder._spellChooseLabel(filter);
 					const opts = this._getSpellOptions(filter);
 					choices.push({key: `speciesSpell_${idx++}`, label: lbl, options: opts});
@@ -2920,14 +2920,14 @@ export class CharacterBuilder extends BuilderBase {
 	_getSpellOptions (filter) {
 		if (!this._allSpells?.length) return null;
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
-		const parts = {};
+		const parts = /** @type {Record<string, string>} */ ({});
 		(filter || "").split("|").forEach(p => { const i = p.indexOf("="); if (i > 0) parts[p.slice(0, i).toLowerCase()] = p.slice(i + 1); });
 		const levelFilter = parts.level !== undefined ? parseInt(parts.level) : null;
-		const classFilter = (parts.class || "").toLowerCase();
+		const classFilters = (parts.class || "").toLowerCase().split(";").map(s => s.trim()).filter(Boolean);
 		const matches = this._allSpells.filter(sp => {
 			if (levelFilter !== null && sp.level !== levelFilter) return false;
-			if (classFilter) {
-				const inList = sp.classes?.fromClassList?.some(c => c.name.toLowerCase() === classFilter);
+			if (classFilters.length) {
+				const inList = sp.classes?.fromClassList?.some(c => classFilters.includes(c.name.toLowerCase()));
 				if (!inList) return false;
 			}
 			return true;
@@ -5355,6 +5355,8 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Compute effective AC, shield, and weapon entries from equipped items (always fresh).
 		// Base unarmored = 10 + DEX mod; armor replaces it via its formula; shield always adds 2.
+		// Monk Unarmored Defense: 10+DEX+WIS (no armor, no shield).
+		// Barbarian Unarmored Defense: 10+DEX+CON (no armor; shield still adds separately).
 		const _DMG_TYPES = {S:"slashing",P:"piercing",B:"bludgeoning",F:"fire",C:"cold",L:"lightning",N:"necrotic",R:"radiant",T:"thunder",A:"acid"};
 		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped);
 		let _armorAC = null;
@@ -5380,7 +5382,15 @@ export class CharacterBuilder extends BuilderBase {
 				_equippedWeapons.push({name: _it.name, atkBonus: _atkBonus, damage: `${_dmgBase}${_dmgMod}${_dmgType ? " " + _dmgType : ""}`, notes: _it.note || ""});
 			}
 		}
-		const effectiveAC = s.ac != null ? s.ac : (_armorAC ?? (10 + abilMods.dex)) + (_hasEquippedShield ? 2 : 0);
+		const _classNames    = (/** @type {any[]} */ (s.classes || [])).map(c => (c.cls || "").toLowerCase());
+		const _noArmor       = _armorAC === null;
+		const _hasBarbUD     = _classNames.includes("barbarian") && _noArmor;
+		const _hasMonkUD     = _classNames.includes("monk")      && _noArmor && !_hasEquippedShield;
+		const _baseUnarmoredAC = (_hasBarbUD && _hasMonkUD) ? 10 + abilMods.dex + Math.max(abilMods.con, abilMods.wis)
+		                       : _hasBarbUD                 ? 10 + abilMods.dex + abilMods.con
+		                       : _hasMonkUD                 ? 10 + abilMods.dex + abilMods.wis
+		                       :                             10 + abilMods.dex;
+		const effectiveAC = s.ac != null ? s.ac : (_armorAC ?? _baseUnarmoredAC) + (_hasEquippedShield ? 2 : 0);
 
 		if (!window.jspdf) await new Promise((res,rej) => {
 			const el = document.createElement("script");
@@ -5649,7 +5659,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Class resources header — rendered full-width at the top of the features box.
 		// When present, the feature columns start 22pt lower to make room.
 		const _cfBoxTop    = 361.2;
-		const _extraAtkCount = _cfTexts.filter(t => /^\[L\d+\] Extra Attack\b/i.test(t)).length;
+		const _extraAtkCount = (s.classFeatureItems || []).filter((/** @type {any} */ i) => /^\[L\d+\] Extra Attack\b/i.test(i.text)).length;
 		const _cfResources = [
 			...(s._classResources || []),
 			...(_extraAtkCount > 0 ? [{label: "Attacks", value: String(1 + _extraAtkCount)}] : []),
