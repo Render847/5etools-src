@@ -165,7 +165,7 @@ export class CharacterBuilder extends BuilderBase {
 			DataUtil.class.loadRawJSON().catch(() => ({subclassFeature: []})),
 		]).then(([resolved, raw]) => ({...resolved, subclassFeature: raw.subclassFeature || []}));
 
-		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, items] = await Promise.all([
+		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, items, brewItems, prereleaseItems] = await Promise.all([
 			pLoadClasses(),
 			// Use DataLoader so that _versions (subspecies like "Dragonborn (Black)") are expanded
 			DataLoader.pCacheAndGetAllSite(UrlUtil.PG_RACES).catch(() => []),
@@ -175,6 +175,8 @@ export class CharacterBuilder extends BuilderBase {
 			DataUtil.loadJSON("data/optionalfeatures.json").catch(() => ({})),
 			DataUtil.spell.pLoadAll().catch(() => []),
 			Renderer.item.pBuildList().catch(() => []),
+			Renderer.item.pGetItemsFromBrew().catch(() => []),
+			Renderer.item.pGetItemsFromPrerelease().catch(() => []),
 		]);
 
 
@@ -190,7 +192,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._allFeats       = (featDataAll || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allOptFeatures = (optFeatData.optionalfeature || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allSpells      = (spellData || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
-		this._allItems       = (items || []).filter(it => it.name).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
+		this._allItems       = [...(items || []), ...(brewItems || []), ...(prereleaseItems || [])].filter(it => it.name).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 
 		this._isDataLoaded = true;
 
@@ -1184,7 +1186,7 @@ export class CharacterBuilder extends BuilderBase {
 		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter backgrounds"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
 			.onn("click", async () => {
 				this._modalFilterBackgrounds = this._modalFilterBackgrounds
-					|| new ModalFilterBackgrounds({namespace: "charBuilder.backgrounds", isRadio: true});
+					|| new _CharModalFilterBackgrounds({namespace: "charBuilder.backgrounds", isRadio: true});
 				const selected = await this._modalFilterBackgrounds.pGetUserSelection();
 				if (!selected?.length) return;
 				doApply(selected[0].name);
@@ -1253,10 +1255,9 @@ export class CharacterBuilder extends BuilderBase {
 				const btnPickFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Choose ${catLabel} feat"><span class="glyphicon glyphicon-filter"></span></button>`
 					.onn("click", async () => {
 						if (!this._modalFilterFeatsBg) {
-							this._modalFilterFeatsBg = new ModalFilterFeats({
+							this._modalFilterFeatsBg = new _CharModalFilterFeats({
 								namespace: "charBuilder.backgrounds.feat",
 								isRadio: true,
-								allData: this._allFeats,
 							});
 						}
 						const selected = await this._modalFilterFeatsBg.pGetUserSelection(
@@ -1325,7 +1326,7 @@ export class CharacterBuilder extends BuilderBase {
 		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter species"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
 			.onn("click", async () => {
 				this._modalFilterRaces = this._modalFilterRaces
-					|| new ModalFilterRaces({namespace: "charBuilder.races", isRadio: true});
+					|| new _CharModalFilterRaces({namespace: "charBuilder.races", isRadio: true});
 				const selected = await this._modalFilterRaces.pGetUserSelection();
 				if (!selected?.length) return;
 				doApply(selected[0].name);
@@ -3137,10 +3138,9 @@ export class CharacterBuilder extends BuilderBase {
 				const btnChangeFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Choose a different feat for this ASI slot"><span class="glyphicon glyphicon-filter ve-mr-1"></span>Change</button>`
 					.onn("click", async () => {
 						if (!this._modalFilterFeatsAsi) {
-							this._modalFilterFeatsAsi = new ModalFilterFeats({
+							this._modalFilterFeatsAsi = new _CharModalFilterFeats({
 								namespace: "charBuilder.feats.asi",
 								isRadio: true,
-								allData: this._allFeats,
 							});
 						}
 						const selected = await this._modalFilterFeatsAsi.pGetUserSelection();
@@ -3209,9 +3209,8 @@ export class CharacterBuilder extends BuilderBase {
 			.appendTo(wrp)
 			.onn("click", async () => {
 				if (!this._modalFilterFeats) {
-					this._modalFilterFeats = new ModalFilterFeats({
+					this._modalFilterFeats = new _CharModalFilterFeats({
 						namespace: "charBuilder.feats",
-						allData: this._allFeats,
 					});
 				}
 				const selected = await this._modalFilterFeats.pGetUserSelection();
@@ -4641,7 +4640,7 @@ export class CharacterBuilder extends BuilderBase {
 				.appendTo(ee`<div></div>`.appendTo(eqRowInner))
 				.onn("click", async () => {
 					if (!this._modalFilterItems) {
-						this._modalFilterItems = new ModalFilterItems({
+						this._modalFilterItems = new _CharModalFilterEquipment({
 							namespace: "charBuilder.items",
 							allData: this._allItems.filter(it => !it.rarity || it.rarity === "none"),
 						});
@@ -4701,7 +4700,7 @@ export class CharacterBuilder extends BuilderBase {
 				.appendTo(ee`<div></div>`.appendTo(mgRowInner))
 				.onn("click", async () => {
 					if (!this._modalFilterItemsMagic) {
-						this._modalFilterItemsMagic = new ModalFilterItems({
+						this._modalFilterItemsMagic = new _CharModalFilterMagic({
 							namespace: "charBuilder.itemsMagic",
 							allData: this._allItems.filter(it => it.rarity && it.rarity !== "none"),
 						});
@@ -4957,9 +4956,8 @@ export class CharacterBuilder extends BuilderBase {
 				.appendTo(wrp)
 				.onn("click", async () => {
 					if (!this._modalFilterSpells) {
-						this._modalFilterSpells = new ModalFilterSpells({
+						this._modalFilterSpells = new _CharModalFilterSpells({
 							namespace: "charBuilder.spells",
-							allData: this._allSpells,
 						});
 					}
 					const selected = await this._modalFilterSpells.pGetUserSelection();
@@ -5777,3 +5775,176 @@ export class CharacterBuilder extends BuilderBase {
 }
 CharacterBuilder._STORAGE_KEY_SAVED = "characterBuilderSaved";
 CharacterBuilder._STORAGE_KEY_PDF_SHEET_MODE = "characterBuilderPdfSheetMode";
+
+class _CharModalFilterBackgrounds extends ModalFilterBackgrounds {
+	async pPreloadHidden (eleModalInner) {
+		const isFirstLoad = !this._filterCache;
+		await super.pPreloadHidden(eleModalInner);
+		if (isFirstLoad) _CharModalFilterEquipment._fixScrollbarAlignment(this._filterCache);
+	}
+}
+
+class _CharModalFilterRaces extends ModalFilterRaces {
+	async pPreloadHidden (eleModalInner) {
+		const isFirstLoad = !this._filterCache;
+		await super.pPreloadHidden(eleModalInner);
+		if (isFirstLoad) _CharModalFilterEquipment._fixScrollbarAlignment(this._filterCache);
+	}
+}
+
+class _CharModalFilterFeats extends ModalFilterFeats {
+	async pPreloadHidden (eleModalInner) {
+		const isFirstLoad = !this._filterCache;
+		await super.pPreloadHidden(eleModalInner);
+		if (isFirstLoad) _CharModalFilterEquipment._fixScrollbarAlignment(this._filterCache);
+	}
+}
+
+class _CharModalFilterSpells extends ModalFilterSpells {
+	async pPreloadHidden (eleModalInner) {
+		const isFirstLoad = !this._filterCache;
+		await super.pPreloadHidden(eleModalInner);
+		if (isFirstLoad) {
+			_CharModalFilterEquipment._wireSearchClear(this._filterCache);
+			_CharModalFilterEquipment._fixScrollbarAlignment(this._filterCache);
+		}
+	}
+}
+
+class _CharModalFilterEquipment extends ModalFilterItems {
+	_getColumnHeaders () {
+		return ModalFilterBase._getFilterColumnHeaders([
+			{sort: "name",   text: "Name",   width: "3"},
+			{sort: "type",   text: "Type",   width: "4"},
+			{sort: "cost",   text: "Cost",   width: "1-5"},
+			{sort: "weight", text: "Weight", width: "1-5"},
+			{sort: "source", text: "Source", width: "1"},
+		]);
+	}
+
+	_getListItem (pageFilter, item, itI) {
+		if (item.noDisplay) return null;
+		Renderer.item.enhanceItem(item);
+		pageFilter.mutateAndAddToFilters(item);
+
+		const eleRow = document.createElement("div");
+		eleRow.className = "ve-px-0 ve-w-100 ve-flex-col ve-no-shrink";
+		const hash = UrlUtil.URL_TO_HASH_BUILDER[UrlUtil.PG_ITEMS](item);
+		const source = Parser.sourceJsonToAbv(item.source);
+		const type = item._textTypes.join(", ");
+
+		eleRow.innerHTML = `<div class="ve-w-100 ve-flex-vh-center ve-lst__row-border veapp__list-row ve-no-select ve-lst__wrp-cells">
+			<div class="ve-col-0-5 ve-pl-0 ve-flex-vh-center">${this._isRadio ? `<input type="radio" name="radio" class="ve-no-events">` : `<input type="checkbox" class="ve-no-events">`}</div>
+			<div class="ve-col-0-5 ve-px-1 ve-flex-vh-center">
+				<div class="ve-ui-list__btn-inline ve-px-2 ve-no-select" title="Toggle Preview (SHIFT to Toggle Info Preview)">[+]</div>
+			</div>
+			<div class="ve-col-3 ve-px-1 ${item._versionBase_isVersion ? "ve-italic" : ""} ${this._getNameStyle()}">${item._versionBase_isVersion ? `<span class="ve-px-3"></span>` : ""}${item.name}</div>
+			<div class="ve-col-4 ve-px-1">${type.uppercaseFirst()}</div>
+			<div class="ve-col-1-5 ve-px-1 ve-text-center">${item._l_value || "—"}</div>
+			<div class="ve-col-1-5 ve-px-1 ve-text-center">${item._l_weight || "—"}</div>
+			<div class="ve-col-1 ve-flex-h-center ${Parser.sourceJsonToSourceClassname(item.source)} ve-pl-1 ve-pr-0" title="${Parser.sourceJsonToFull(item.source)}">${source}${Parser.sourceJsonToMarkerHtml(item.source, {isList: true})}</div>
+		</div>`;
+
+		const btnShowHidePreview = eleRow.firstElementChild.children[1].firstElementChild;
+		const listItem = new ListItem(
+			itI, eleRow, item.name,
+			{hash, source, sourceJson: item.source, ...ListItem.getCommonValues(item), type, cost: item._l_value || "", weight: item._l_weight || ""},
+			{cbSel: eleRow.firstElementChild.firstElementChild.firstElementChild, btnShowHidePreview},
+		);
+		this._previewButtonHandler.bindPreviewButton({entity: item, listItem, btnShowHidePreview});
+		return listItem;
+	}
+
+	async pPreloadHidden (eleModalInner) {
+		const isFirstLoad = !this._filterCache;
+		await super.pPreloadHidden(eleModalInner);
+		if (isFirstLoad) {
+			_CharModalFilterEquipment._wireSearchClear(this._filterCache);
+			_CharModalFilterEquipment._fixScrollbarAlignment(this._filterCache);
+		}
+	}
+
+	static _wireSearchClear (filterCache) {
+		const glassEle = filterCache.wrpModalInner.querySelector(".ve-lst__wrp-search-glass");
+		if (!glassEle) return;
+		const iptSearch = filterCache.iptSearch;
+		glassEle.addEventListener("click", () => iptSearch.val("").trigger("change").trigger("keydown").trigger("keyup").focuse());
+		const _handleSearchChange = () => {
+			setTimeout(() => {
+				const hasText = !!iptSearch.val().length;
+				glassEle.classList.toggle("ve-no-events", !hasText);
+				glassEle.classList.toggle("ve-clickable", hasText);
+				if (hasText) glassEle.setAttribute("title", "Clear");
+				else glassEle.removeAttribute("title");
+				glassEle.innerHTML = `<span class="glyphicon ${hasText ? "glyphicon-remove" : "glyphicon-search"}"></span>`;
+			});
+		};
+		iptSearch.onn("keydown", MiscUtil.throttle(_handleSearchChange, 50));
+	}
+
+	static _fixScrollbarAlignment (filterCache) {
+		const listEle = filterCache.wrpModalInner.querySelector(".list");
+		const headerEle = filterCache.wrpModalInner.querySelector(".ve-input-group--bottom");
+		if (!listEle || !headerEle) return;
+		const scrollbarWidth = listEle.offsetWidth - listEle.clientWidth;
+		if (scrollbarWidth > 0) headerEle.style.paddingRight = `${scrollbarWidth}px`;
+	}
+}
+
+class _CharModalFilterMagic extends ModalFilterItems {
+	_getColumnHeaders () {
+		return ModalFilterBase._getFilterColumnHeaders([
+			{sort: "name",      text: "Name",   width: "3-5"},
+			{sort: "type",      text: "Type",   width: "3-5"},
+			{sort: "weight",    text: "Weight", width: "1-5"},
+			{sort: "attunement",text: "Att.",   width: "0-5"},
+			{sort: "rarity",    text: "Rarity", width: "1"},
+			{sort: "source",    text: "Source", width: "1"},
+		]);
+	}
+
+	_getListItem (pageFilter, item, itI) {
+		if (item.noDisplay) return null;
+		Renderer.item.enhanceItem(item);
+		pageFilter.mutateAndAddToFilters(item);
+
+		const eleRow = document.createElement("div");
+		eleRow.className = "ve-px-0 ve-w-100 ve-flex-col ve-no-shrink";
+		const hash = UrlUtil.URL_TO_HASH_BUILDER[UrlUtil.PG_ITEMS](item);
+		const source = Parser.sourceJsonToAbv(item.source);
+		const type = item._textTypes.join(", ");
+		const attunement = item._attunementCategory !== VeCt.STR_NO_ATTUNEMENT ? "×" : "";
+		const rarity = Parser.itemRarityToShort(item.rarity) || "";
+
+		eleRow.innerHTML = `<div class="ve-w-100 ve-flex-vh-center ve-lst__row-border veapp__list-row ve-no-select ve-lst__wrp-cells">
+			<div class="ve-col-0-5 ve-pl-0 ve-flex-vh-center">${this._isRadio ? `<input type="radio" name="radio" class="ve-no-events">` : `<input type="checkbox" class="ve-no-events">`}</div>
+			<div class="ve-col-0-5 ve-px-1 ve-flex-vh-center">
+				<div class="ve-ui-list__btn-inline ve-px-2 ve-no-select" title="Toggle Preview (SHIFT to Toggle Info Preview)">[+]</div>
+			</div>
+			<div class="ve-col-3-5 ve-px-1 ${item._versionBase_isVersion ? "ve-italic" : ""} ${this._getNameStyle()}">${item._versionBase_isVersion ? `<span class="ve-px-3"></span>` : ""}${item.name}</div>
+			<div class="ve-col-3-5 ve-px-1">${type.uppercaseFirst()}</div>
+			<div class="ve-col-1-5 ve-px-1 ve-text-center">${item._l_weight || "—"}</div>
+			<div class="ve-col-0-5 ve-px-1 ve-flex-vh-center">${attunement}</div>
+			<div class="ve-col-1 ve-px-1 ve-text-center ${item.rarity ? `ve-itm__rarity-${item.rarity}` : ""}">${rarity}</div>
+			<div class="ve-col-1 ve-flex-h-center ${Parser.sourceJsonToSourceClassname(item.source)} ve-pl-1 ve-pr-0" title="${Parser.sourceJsonToFull(item.source)}">${source}${Parser.sourceJsonToMarkerHtml(item.source, {isList: true})}</div>
+		</div>`;
+
+		const btnShowHidePreview = eleRow.firstElementChild.children[1].firstElementChild;
+		const listItem = new ListItem(
+			itI, eleRow, item.name,
+			{hash, source, sourceJson: item.source, ...ListItem.getCommonValues(item), type, weight: item._l_weight || "", attunement, rarity},
+			{cbSel: eleRow.firstElementChild.firstElementChild.firstElementChild, btnShowHidePreview},
+		);
+		this._previewButtonHandler.bindPreviewButton({entity: item, listItem, btnShowHidePreview});
+		return listItem;
+	}
+
+	async pPreloadHidden (eleModalInner) {
+		const isFirstLoad = !this._filterCache;
+		await super.pPreloadHidden(eleModalInner);
+		if (isFirstLoad) {
+			_CharModalFilterEquipment._wireSearchClear(this._filterCache);
+			_CharModalFilterEquipment._fixScrollbarAlignment(this._filterCache);
+		}
+	}
+}
