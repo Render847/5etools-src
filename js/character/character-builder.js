@@ -3092,11 +3092,11 @@ export class CharacterBuilder extends BuilderBase {
 
 		const _hashBuilder = /** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER);
 		const _getFeatHover = (/** @type {string} */ featName) => {
-			const fe = (/** @type {any[]} */ (this._allFeats || [])).find(f => f.name === featName);
+			const fe = this._getFeatEntry(featName);
 			return fe ? Renderer.hover.getHoverElementAttributes({page: UrlUtil.PG_FEATS, source: fe.source, hash: _hashBuilder[UrlUtil.PG_FEATS](fe)}) : "";
 		};
 		const _setFeatHoverAttrs = (/** @type {any} */ span, /** @type {string} */ featName) => {
-			const fe = (/** @type {any[]} */ (this._allFeats || [])).find(f => f.name === featName);
+			const fe = this._getFeatEntry(featName);
 			if (fe) {
 				span.attr("data-vet-page", UrlUtil.PG_FEATS).attr("data-vet-source", fe.source).attr("data-vet-hash", _hashBuilder[UrlUtil.PG_FEATS](fe));
 				span.style.cursor = "help";
@@ -4750,7 +4750,13 @@ export class CharacterBuilder extends BuilderBase {
 
 	_getSpellEntry (name) {
 		if (!this._allSpells || !name) return null;
-		return this._allSpells.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
+		const matches = this._allSpells.filter(s => s.name.toLowerCase() === name.toLowerCase());
+		if (!matches.length) return null;
+		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		return (isNew
+			? matches.find(s => !SourceUtil.isClassicSource(s.source))
+			: matches.find(s => SourceUtil.isClassicSource(s.source))
+		) || matches[0];
 	}
 
 	// Returns the edition-appropriate feat entry for a given name.
