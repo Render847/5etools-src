@@ -3053,30 +3053,20 @@ export class CharacterBuilder extends BuilderBase {
 		const render = () => {
 			wrp.innerHTML = "";
 			const stored = getStored();
-			const mode = stored.asi_mode || "+2";
 
-			const btnPlus2  = ee`<button class="ve-btn ve-btn-xs ${mode === "+2"   ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">+2 to one</button>`
-				.onn("click", () => { setStored({asi_mode: "+2",   ability: "", ability_0: "", ability_1: ""}); render(); });
-			const btnPlus11 = ee`<button class="ve-btn ve-btn-xs ${mode === "+1+1" ? "ve-btn-primary" : "ve-btn-default"}">+1 to two</button>`
-				.onn("click", () => { setStored({asi_mode: "+1+1", ability: "", ability_0: "", ability_1: ""}); render(); });
-			ee`<div class="ve-flex ve-mt-1 ve-mb-1 ve-pl-3">${btnPlus2}${btnPlus11}</div>`.appendTo(wrp);
-
-			const mkSel = (label, val, onChange) => {
+			const mkSel = (/** @type {string} */ val, /** @type {(v: string) => void} */ onChange) => {
 				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
-					<option value="">(choose)</option>
+					<option value="">-</option>
 					${AKEY.map(a => `<option value="${a}"${a === val ? " selected" : ""}>${AFULL[a]}</option>`).join("")}
 				</select>`.onn("change", () => onChange(sel.val()));
-				return ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3">
-					<span class="ve-mr-2 ve-muted" style="font-size:.85em;white-space:nowrap;min-width:8em">${label}:</span>${sel}
-				</div>`;
+				return sel;
 			};
 
-			if (mode === "+2") {
-				mkSel("+2 to Ability", stored.ability || "", val => setStored({ability: val})).appendTo(wrp);
-			} else {
-				mkSel("+1 to Ability",         stored.ability_0 || "", val => setStored({ability_0: val})).appendTo(wrp);
-				mkSel("+1 to another Ability",  stored.ability_1 || "", val => setStored({ability_1: val})).appendTo(wrp);
-			}
+			const row = ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3" style="gap:6px"></div>`.appendTo(wrp);
+			ee`<span class="ve-muted" style="font-size:.85em;white-space:nowrap">+1:</span>`.appendTo(row);
+			mkSel(stored.ability_0 || "", (/** @type {string} */ val) => setStored({ability_0: val})).appendTo(row);
+			ee`<span class="ve-muted" style="font-size:.85em;white-space:nowrap;margin-left:6px">+1:</span>`.appendTo(row);
+			mkSel(stored.ability_1 || "", (/** @type {string} */ val) => setStored({ability_1: val})).appendTo(row);
 		};
 
 		render();
@@ -3565,13 +3555,8 @@ export class CharacterBuilder extends BuilderBase {
 		(this._state.asiChoices || []).forEach((c, i) => {
 			if (c.featName !== "Ability Score Improvement") return;
 			const chosen = allChoices[`Ability Score Improvement#${i}`] || {};
-			const mode = chosen.asi_mode || "+2";
-			if (mode === "+2") {
-				if (chosen.ability === abl) total += 2;
-			} else {
-				if (chosen.ability_0 === abl) total += 1;
-				if (chosen.ability_1 === abl) total += 1;
-			}
+			if (chosen.ability_0 === abl) total += 1;
+			if (chosen.ability_1 === abl) total += 1;
 		});
 
 		const featNames = [
@@ -3584,12 +3569,8 @@ export class CharacterBuilder extends BuilderBase {
 			// "Ability Score Improvement" from bgFeat or feats list: use the non-slot key
 			if (featName === "Ability Score Improvement") {
 				const chosen = allChoices["Ability Score Improvement"] || {};
-				const mode = chosen.asi_mode || "+2";
-				if (mode === "+2") { if (chosen.ability === abl) total += 2; }
-				else {
-					if (chosen.ability_0 === abl) total += 1;
-					if (chosen.ability_1 === abl) total += 1;
-				}
+				if (chosen.ability_0 === abl) total += 1;
+				if (chosen.ability_1 === abl) total += 1;
 				continue;
 			}
 			const feat = this._getFeatEntry(featName);
