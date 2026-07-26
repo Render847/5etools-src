@@ -305,6 +305,7 @@ export class CharacterBuilder extends BuilderBase {
 			weapons: [],
 			weaponHidden: [],     // names hidden from PDF
 			weaponOverrides: {},  // {[name]: {atkBonus?, damage?, notes?}} - override auto-computed values
+			weaponOrder: [],      // ordered keys ["a:Name", "m:0", ...] for display order
 			// feats
 			feats: [],
 			bgFeat: "",
@@ -4352,90 +4353,158 @@ export class CharacterBuilder extends BuilderBase {
 		// Weapons table
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
 
-		// -- Auto entries (equipped weapons + damage cantrips) ------------------
-		const wrpAutoWpn = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(wpnRowInner);
+		// -- Weapons & Cantrips (unified, reorderable) -------------------------
+		const wrpAllWpns = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(wpnRowInner);
 
-		const buildAutoWpnSection = () => {
-			wrpAutoWpn.empty();
+		let _wpnDragSrcKey = null;
+		let _renderedWpnKeys = [];
+
+		const buildWpnSection = () => {
+			wrpAllWpns.empty();
+			_renderedWpnKeys = [];
 			const hidden = new Set(this._state.weaponHidden || []);
+			const order  = this._state.weaponOrder || [];
 
-			const autoEntries = [];
-
-			// Equipped weapons from equipment / magic equipment
+			const autoNames = ["Unarmed Strike"];
 			for (const it of [...(this._state.equipment || []), ...(this._state.magicEquipment || [])]) {
 				if (!it.equipped) continue;
 				const e = this._getItemEntry(it.name);
 				if (!e?.weapon) continue;
-				autoEntries.push(it.name);
+				autoNames.push(it.name);
 			}
-
-			// Damage-dealing cantrips
 			for (const sp of (this._state.spells || [])) {
 				const data = this._getSpellEntry(sp.name);
 				if (!data || data.level !== 0 || !data.damageInflict?.length) continue;
-				autoEntries.push(sp.name);
+				autoNames.push(sp.name);
 			}
 
-			if (!autoEntries.length) return;
+			const allEntries = [
+				...autoNames.map(name => ({type: "auto", key: `a:${name}`, name})),
+				...(this._state.weapons || []).map((w, i) => ({type: "manual", key: `m:${i}`, name: w.name || "", idx: i, data: w})),
+			];
 
-			for (const name of autoEntries) {
+			allEntries.sort((a, b) => {
+				const ia = order.indexOf(a.key), ib = order.indexOf(b.key);
+				if (ia === -1 && ib === -1) return 0;
+				if (ia === -1) return 1;
+				if (ib === -1) return -1;
+				return ia - ib;
+			});
+
+			for (const entry of allEntries) {
+				const {type, key, name} = entry;
 				const isHidden = hidden.has(name);
-				const ov = (this._state.weaponOverrides || {})[name] || {};
+				const handle = ee`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
 
-				const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(ov.atkBonus || "");
-				const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(ov.damage || "");
-				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(ov.notes || "");
-
-				const doUpdateOverride = () => {
-					const cur = MiscUtil.copy(this._state.weaponOverrides || {});
-					const atk = iptAtk.val().trim(), dmg = iptDmg.val().trim(), notes = iptNote.val().trim();
-					if (atk || dmg || notes) cur[name] = {atkBonus: atk, damage: dmg, notes};
-					else delete cur[name];
-					this._state.weaponOverrides = cur;
-					cb();
-				};
-
-				iptAtk.onn("input", doUpdateOverride);
-				iptDmg.onn("input", doUpdateOverride);
-				iptNote.onn("input", doUpdateOverride);
-
-				const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="${isHidden ? "Show in PDF" : "Hide from PDF"}"><span class="glyphicon ${isHidden ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`
-					.onn("click", () => {
-						const cur = new Set(this._state.weaponHidden || []);
-						if (cur.has(name)) cur.delete(name); else cur.add(name);
-						this._state.weaponHidden = [...cur];
+				let inner;
+				if (type === "auto") {
+					const ov = (this._state.weaponOverrides || {})[name] || {};
+					const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(ov.atkBonus || "");
+					const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(ov.damage || "");
+					const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(ov.notes || "");
+					const doUpdateOv = () => {
+						const cur = MiscUtil.copy(this._state.weaponOverrides || {});
+						const atk = iptAtk.val().trim(), dmg = iptDmg.val().trim(), notes = iptNote.val().trim();
+						if (atk || dmg || notes) cur[name] = {atkBonus: atk, damage: dmg, notes};
+						else delete cur[name];
+						this._state.weaponOverrides = cur;
 						cb();
-						buildAutoWpnSection();
+					};
+					iptAtk.onn("input", doUpdateOv);
+					iptDmg.onn("input", doUpdateOv);
+					iptNote.onn("input", doUpdateOv);
+					const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="${isHidden ? "Show in PDF" : "Hide from PDF"}"><span class="glyphicon ${isHidden ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`
+						.onn("click", () => {
+							const cur = new Set(this._state.weaponHidden || []);
+							if (cur.has(name)) cur.delete(name); else cur.add(name);
+							this._state.weaponHidden = [...cur];
+							cb();
+							buildWpnSection();
+						});
+					inner = ee`<div class="ve-flex-v-center" style="flex:1;min-width:0"><span style="flex:2;font-size:.85em;min-width:0" class="${isHidden ? "ve-muted ve-strikethrough" : ""}">${name}</span>${iptAtk}${iptDmg}${iptNote}${btnEye}</div>`;
+				} else {
+					const {data, idx} = entry;
+					const iptName = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Name" style="flex:2">`.val(data?.name || "");
+					const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(data?.atkBonus || "");
+					const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(data?.damage || "");
+					const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(data?.notes || "");
+					const btnRm   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger"><span class="glyphicon glyphicon-trash"></span></button>`
+						.onn("click", () => {
+							const cur = [...(this._state.weapons || [])];
+							cur.splice(idx, 1);
+							this._state.weapons = cur;
+							cb();
+							buildWpnSection();
+						});
+					const doSave = () => {
+						const cur = [...(this._state.weapons || [])];
+						cur[idx] = {name: iptName.val().trim(), atkBonus: iptAtk.val().trim(), damage: iptDmg.val().trim(), notes: iptNote.val().trim()};
+						this._state.weapons = cur;
+						cb();
+					};
+					iptName.onn("change", doSave);
+					iptAtk.onn("change", doSave);
+					iptDmg.onn("change", doSave);
+					iptNote.onn("change", doSave);
+					inner = ee`<div class="ve-flex-v-center" style="flex:1;min-width:0">${iptName}${iptAtk}${iptDmg}${iptNote}${btnRm}</div>`;
+				}
+
+				const row = ee`<div class="ve-flex-v-center ve-mb-1">${handle}${inner}</div>`;
+				_renderedWpnKeys.push(key);
+
+				let _fromHandle = false;
+				handle.onn("mousedown", () => {
+					_fromHandle = true;
+					document.addEventListener("mouseup", () => { _fromHandle = false; }, {once: true});
+				});
+				row.attr("draggable", "true")
+					.onn("dragstart", e => {
+						if (!_fromHandle) { e.preventDefault(); return; }
+						_wpnDragSrcKey = key;
+						e.dataTransfer.effectAllowed = "move";
+						e.dataTransfer.setData("text/plain", key);
+						setTimeout(() => row.css("opacity", "0.4"), 0);
+					})
+					.onn("dragend", () => { row.css("opacity", ""); _wpnDragSrcKey = null; })
+					.onn("dragover", e => {
+						if (_wpnDragSrcKey && _wpnDragSrcKey !== key) {
+							e.preventDefault();
+							e.dataTransfer.dropEffect = "move";
+							row.css("outline", "1px dashed #6c9ef8");
+						}
+					})
+					.onn("dragleave", () => row.css("outline", ""))
+					.onn("drop", e => {
+						e.preventDefault();
+						row.css("outline", "");
+						const srcKey = e.dataTransfer.getData("text/plain");
+						if (!srcKey || srcKey === key) return;
+						const si = _renderedWpnKeys.indexOf(srcKey), ti = _renderedWpnKeys.indexOf(key);
+						if (si === -1 || ti === -1) return;
+						const newOrder = [..._renderedWpnKeys];
+						newOrder.splice(si, 1);
+						newOrder.splice(ti, 0, srcKey);
+						this._state.weaponOrder = newOrder;
+						cb();
+						buildWpnSection();
 					});
-				ee`<div class="ve-flex-v-center ve-mb-1">
-					<span style="flex:2;font-size:.85em" class="${isHidden ? "ve-muted ve-strikethrough" : ""}">${name}</span>
-					${iptAtk}${iptDmg}${iptNote}${btnEye}
-				</div>`.appendTo(wrpAutoWpn);
+
+				row.appendTo(wrpAllWpns);
 			}
 		};
 
-		buildAutoWpnSection();
-		this._addHook("state", "equipment",      buildAutoWpnSection);
-		this._addHook("state", "magicEquipment", buildAutoWpnSection);
-		this._addHook("state", "spells",         buildAutoWpnSection);
+		buildWpnSection();
+		this._addHook("state", "equipment",      buildWpnSection);
+		this._addHook("state", "magicEquipment", buildWpnSection);
+		this._addHook("state", "spells",         buildWpnSection);
 
-		// -- Manual entries -----------------------------------------------------
-		const wpnList = () => this._state.weapons || [];
-		const wpnRows = [];
-		const doUpdateWpn = () => { this._state.weapons = wpnRows.map(r => r.getState()).filter(it => it.name); cb(); };
-		const wrpWpnRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(wpnRowInner);
-		wpnList().forEach(w => addWpnRow(w));
-		function addWpnRow (initial) {
-			const iptName = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Name" style="flex:2">`.val(initial?.name || "").onn("change", doUpdateWpn);
-			const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(initial?.atkBonus || "").onn("change", doUpdateWpn);
-			const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(initial?.damage || "").onn("change", doUpdateWpn);
-			const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.notes || "").onn("change", doUpdateWpn);
-			const btnRm   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => { wpnRows.splice(wpnRows.indexOf(rowMeta), 1); rowEle.empty().remove(); doUpdateWpn(); });
-			const rowEle  = ee`<div class="ve-flex-v-center ve-mb-1">${iptName}${iptAtk}${iptDmg}${iptNote}${btnRm}</div>`.appendTo(wrpWpnRows);
-			const rowMeta = {getState: () => ({name: iptName.val().trim(), atkBonus: iptAtk.val().trim(), damage: iptDmg.val().trim(), notes: iptNote.val().trim()})};
-			wpnRows.push(rowMeta);
-		}
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Weapon / Cantrip</button>`.appendTo(ee`<div></div>`.appendTo(wpnRowInner)).onn("click", () => { addWpnRow(null); doUpdateWpn(); });
+		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Weapon / Cantrip</button>`.appendTo(ee`<div></div>`.appendTo(wpnRowInner)).onn("click", () => {
+			const cur = [...(this._state.weapons || [])];
+			cur.push({name: "", atkBonus: "", damage: "", notes: ""});
+			this._state.weapons = cur;
+			cb();
+			buildWpnSection();
+		});
 		wrp.append(wpnRow);
 	}
 
@@ -4573,7 +4642,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			// -- Equipment (non-magic: auto-granted + user-added) -----------------
 			const [eqRow, eqRowInner] = BuilderUi.getLabelledRowTuple("Equipment", {isMarked: true});
-			const eqRows = [];
+			const eqRows = /** @type {any[]} */ ([]);
 			const doUpdateEqState = () => {
 				const activeItems = eqRows.map(r => r.getState()).filter(it => it.name);
 				// Excluded auto-granted items are not in eqRows; pass them through directly from state
@@ -4608,6 +4677,7 @@ export class CharacterBuilder extends BuilderBase {
 			});
 
 			// Equipment items (auto-granted + user-added)
+			let _eqDragSrcIdx = -1;
 			const addEqRow = (initial) => {
 				// Excluded auto-granted items are kept in state but not rendered
 				if (initial?.autoGranted && initial?.excluded) return;
@@ -4622,8 +4692,9 @@ export class CharacterBuilder extends BuilderBase {
 					: null;
 				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
 					if (initial?.autoGranted) {
-						// Mark as excluded so sync won't re-add it
+						// Mark as excluded so sync won't re-add it; remove from eqRows so doUpdateEqState won't re-include it as active
 						initial.excluded = true;
+						eqRows.splice(eqRows.indexOf(rowMeta), 1);
 						rowEle.remove();
 					} else {
 						eqRows.splice(eqRows.indexOf(rowMeta), 1);
@@ -4631,14 +4702,48 @@ export class CharacterBuilder extends BuilderBase {
 					}
 					doUpdateEqState();
 				});
+				const handle = ee`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
 				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
+				handle.appendTo(rowEle);
 				if (isEquippable) {
 					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
 					cbEquip.appendTo(rowEle);
 				}
 				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})})};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})}), _ele: rowEle};
 				eqRows.push(rowMeta);
+
+				let _fromHandle = false;
+				handle.onn("mousedown", () => {
+					_fromHandle = true;
+					document.addEventListener("mouseup", () => { _fromHandle = false; }, {once: true});
+				});
+				rowEle.attr("draggable", "true")
+					.onn("dragstart", e => {
+						if (!_fromHandle) { e.preventDefault(); return; }
+						_eqDragSrcIdx = eqRows.indexOf(rowMeta);
+						e.dataTransfer.effectAllowed = "move";
+						setTimeout(() => rowEle.css("opacity", "0.4"), 0);
+					})
+					.onn("dragend", () => { rowEle.css("opacity", ""); _eqDragSrcIdx = -1; })
+					.onn("dragover", e => {
+						if (_eqDragSrcIdx !== -1 && eqRows[_eqDragSrcIdx] !== rowMeta) {
+							e.preventDefault();
+							e.dataTransfer.dropEffect = "move";
+							rowEle.css("outline", "1px dashed #6c9ef8");
+						}
+					})
+					.onn("dragleave", () => rowEle.css("outline", ""))
+					.onn("drop", e => {
+						e.preventDefault();
+						rowEle.css("outline", "");
+						const si = _eqDragSrcIdx, ti = eqRows.indexOf(rowMeta);
+						if (si === -1 || ti === -1 || si === ti) return;
+						rowEle.before(eqRows[si]._ele);
+						const _removed = eqRows.splice(si, 1)[0];
+						eqRows.splice(si < ti ? ti - 1 : ti, 0, _removed);
+						doUpdateEqState();
+					});
 			};
 			(this._state.equipment || []).forEach(item => addEqRow(item));
 
@@ -4660,7 +4765,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			// -- Magic Items ------------------------------------------------------
 			const [mgRow, mgRowInner] = BuilderUi.getLabelledRowTuple("Magic Items", {isMarked: true});
-			const mgRows = [];
+			const mgRows = /** @type {any[]} */ ([]);
 			const doUpdateMgState = () => {
 				this._state.magicEquipment = mgRows.map(r => r.getState()).filter(it => it.name);
 				this._syncEquippedItems();
@@ -4668,6 +4773,7 @@ export class CharacterBuilder extends BuilderBase {
 			};
 			const wrpMgRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(mgRowInner);
 
+			let _mgDragSrcIdx = -1;
 			const addMgRow = (initial) => {
 				const entry = this._getItemEntry(initial?.name || "");
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
@@ -4690,15 +4796,52 @@ export class CharacterBuilder extends BuilderBase {
 					rowEle.remove();
 					doUpdateMgState();
 				});
+				const handle = ee`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
 				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpMgRows);
+				handle.appendTo(rowEle);
 				if (isEquippable) {
 					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
 					cbEquip.appendTo(rowEle);
 				}
 				if (btnAttune) btnAttune.appendTo(rowEle);
 				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("ve-active") : false})};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("ve-active") : false}), _ele: rowEle};
 				mgRows.push(rowMeta);
+
+				let _fromHandle = false;
+				handle.onn("mousedown", () => {
+					_fromHandle = true;
+					document.addEventListener("mouseup", () => { _fromHandle = false; }, {once: true});
+				});
+				rowEle.attr("draggable", "true")
+					// @ts-ignore
+					.onn("dragstart", e => {
+						if (!_fromHandle) { e.preventDefault(); return; }
+						_mgDragSrcIdx = mgRows.indexOf(rowMeta);
+						e.dataTransfer.effectAllowed = "move";
+						setTimeout(() => rowEle.css("opacity", "0.4"), 0);
+					})
+					.onn("dragend", () => { rowEle.css("opacity", ""); _mgDragSrcIdx = -1; })
+					// @ts-ignore
+					.onn("dragover", e => {
+						if (_mgDragSrcIdx !== -1 && mgRows[_mgDragSrcIdx] !== rowMeta) {
+							e.preventDefault();
+							e.dataTransfer.dropEffect = "move";
+							rowEle.css("outline", "1px dashed #6c9ef8");
+						}
+					})
+					.onn("dragleave", () => rowEle.css("outline", ""))
+					// @ts-ignore
+					.onn("drop", e => {
+						e.preventDefault();
+						rowEle.css("outline", "");
+						const si = _mgDragSrcIdx, ti = mgRows.indexOf(rowMeta);
+						if (si === -1 || ti === -1 || si === ti) return;
+						rowEle.before(mgRows[si]._ele);
+						const _removed = mgRows.splice(si, 1)[0];
+						mgRows.splice(si < ti ? ti - 1 : ti, 0, _removed);
+						doUpdateMgState();
+					});
 			};
 			(this._state.magicEquipment || []).forEach(item => addMgRow(item));
 
@@ -5641,11 +5784,50 @@ export class CharacterBuilder extends BuilderBase {
 			})
 			.filter(Boolean);
 
-		([
-			..._equippedWeapons.filter(w => !_hiddenWpn.has(w.name)),
-			..._cantripWpns,
-			...(s.weapons||[]).filter(w => !_hiddenWpn.has(w.name)),
-		]).slice(0,6).forEach((w,i) => {
+		let _monkLevels = 0;
+		for (const _cls of (s.classes || [])) {
+			if ((_cls.cls || "").toLowerCase() === "monk") _monkLevels += Math.max(1, parseInt(_cls.level) || 1);
+		}
+		const _monkDie = _monkLevels >= 17 ? 12 : _monkLevels >= 11 ? 10 : _monkLevels >= 5 ? 8 : _monkLevels >= 1 ? 6 : 0;
+
+		const _allOptChoices = Object.values(s.optionalFeatureChoices || {}).flat().map(c => (c || "").toLowerCase());
+		const _hasUnarmedFighting = _allOptChoices.some(c => c.includes("unarmed fighting"));
+
+		const _allFeats = [...(s.feats || []), s.bgFeat || ""].map(f => f.toLowerCase());
+		const _hasTavernBrawler = _allFeats.some(f => f.includes("tavern brawler"));
+
+		const _bestUnarmedDie = Math.max(
+			_hasTavernBrawler ? 4 : 0,
+			_hasUnarmedFighting ? 6 : 0,
+			_monkDie,
+		);
+		const _unarmedMod = _monkDie > 0 ? Math.max(abilMods.str, abilMods.dex) : abilMods.str;
+
+		const _unarmedOv = _wpnOv["Unarmed Strike"] || {};
+		const _unarmedEntry = _hiddenWpn.has("Unarmed Strike") ? null : {
+			name:     "Unarmed Strike",
+			atkBonus: _unarmedOv.atkBonus || fmod(_unarmedMod + profBonus),
+			damage:   _unarmedOv.damage   || (_bestUnarmedDie > 0 ? `1d${_bestUnarmedDie}${fmod(_unarmedMod)}` : `1${fmod(_unarmedMod)}`),
+			notes:    _unarmedOv.notes    || "",
+		};
+
+		const _wpnOrder = s.weaponOrder || [];
+		const _allWpns = [];
+		if (_unarmedEntry) _allWpns.push({..._unarmedEntry, _k: "a:Unarmed Strike"});
+		for (const _ew of _equippedWeapons) { if (!_hiddenWpn.has(_ew.name)) _allWpns.push({..._ew, _k: `a:${_ew.name}`}); }
+		for (const _cw of _cantripWpns)     { _allWpns.push({..._cw, _k: `a:${_cw.name}`}); }
+		let _mwi = 0;
+		for (const _mw of (s.weapons || [])) { if (_mw.name && !_hiddenWpn.has(_mw.name)) _allWpns.push({..._mw, _k: `m:${_mwi}`}); _mwi++; }
+		if (_wpnOrder.length) {
+			_allWpns.sort((a, b) => {
+				const ia = _wpnOrder.indexOf(a._k), ib = _wpnOrder.indexOf(b._k);
+				if (ia === -1 && ib === -1) return 0;
+				if (ia === -1) return 1;
+				if (ib === -1) return -1;
+				return ia - ib;
+			});
+		}
+		_allWpns.slice(0,6).forEach((w,i) => {
 			const [n,a,d,no] = wpnFields[i];
 			inFieldL(v(w?.name),     n[0],n[1],n[2],n[3], 7.5);
 			inField (v(w?.atkBonus), a[0],a[1],a[2],a[3], 7.5);
@@ -5787,7 +5969,7 @@ export class CharacterBuilder extends BuilderBase {
 		inFieldML([s.personalityTraits&&`Traits: ${s.personalityTraits}`, s.ideals&&`Ideals: ${s.ideals}`, s.bonds&&`Bonds: ${s.bonds}`, s.flaws&&`Flaws: ${s.flaws}`, s.backstory].filter(Boolean).join(" | "), 418.5,146.4,594.3,283.6, 6.5);
 		inFieldL (v(s.alignment),  419.2,294.2,594.0,310.4, 8);
 		inFieldML(allLanguages.join(", "), 418.5,351.7,595.7,383.7, 6.5);
-		inFieldML([...(s.equipment||[]), ...(s.magicEquipment||[])].map(it=>`${it.name||"?"}${it.qty&&it.qty!==1?` x${it.qty}`:""}`).join(", "), 418.9,421.4,594.3,597.5, 6.5);
+		inFieldML([...(/** @type {any[]} */ (s.equipment||[])).filter(it => !it.excluded), ...(s.magicEquipment||[])].map(it=>`${it.name||"?"}${it.qty&&it.qty!==1?` x${it.qty}`:""}`).join(", "), 418.9,421.4,594.3,597.5, 6.5);
 
 		// Coins
 		[[s.cp,418.5,717.4,450.7,737.5],[s.sp,455.1,717.9,486.7,738.0],[s.ep,491.2,717.7,522.8,737.8],[s.gp,526.7,717.3,558.3,737.5],[s.pp,562.4,717.9,594.0,738.0]]
