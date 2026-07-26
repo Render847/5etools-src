@@ -2011,7 +2011,7 @@ export class CharacterBuilder extends BuilderBase {
 						}
 					}
 				} else {
-					if (name && depth > 0) lines.push(indent + name + ":");
+					if (name) lines.push(indent + name + ":");
 					if (entry.entries) lines.push(...CharacterBuilder._entriesToPlainText(entry.entries, depth + (name ? 1 : 0), chosenOptions));
 				}
 			}
@@ -6103,7 +6103,7 @@ class _CharModalFilterMagic extends ModalFilterItems {
 			{sort: "type",      text: "Type",   width: "3-5"},
 			{sort: "weight",    text: "Weight", width: "1-5"},
 			{sort: "attunement",text: "Att.",   width: "0-5"},
-			{sort: "rarity",    text: "Rarity", width: "1"},
+			{sort: "rarityOrder", text: "Rarity", width: "1"},
 			{sort: "source",    text: "Source", width: "1"},
 		]);
 	}
@@ -6120,6 +6120,7 @@ class _CharModalFilterMagic extends ModalFilterItems {
 		const type = item._textTypes.join(", ");
 		const attunement = item._attunementCategory !== VeCt.STR_NO_ATTUNEMENT ? "×" : "";
 		const rarity = Parser.itemRarityToShort(item.rarity) || "";
+		const rarityOrder = SortUtil._ITEM_RARITY_ORDER.indexOf(item.rarity || "none");
 
 		eleRow.innerHTML = `<div class="ve-w-100 ve-flex-vh-center ve-lst__row-border veapp__list-row ve-no-select ve-lst__wrp-cells">
 			<div class="ve-col-0-5 ve-pl-0 ve-flex-vh-center">${this._isRadio ? `<input type="radio" name="radio" class="ve-no-events">` : `<input type="checkbox" class="ve-no-events">`}</div>
@@ -6137,7 +6138,7 @@ class _CharModalFilterMagic extends ModalFilterItems {
 		const btnShowHidePreview = eleRow.firstElementChild.children[1].firstElementChild;
 		const listItem = new ListItem(
 			itI, eleRow, item.name,
-			{hash, source, sourceJson: item.source, ...ListItem.getCommonValues(item), type, weight: item._l_weight || "", attunement, rarity},
+			{hash, source, sourceJson: item.source, ...ListItem.getCommonValues(item), type, weight: item._l_weight || "", attunement, rarity, rarityOrder},
 			{cbSel: eleRow.firstElementChild.firstElementChild.firstElementChild, btnShowHidePreview},
 		);
 		this._previewButtonHandler.bindPreviewButton({entity: item, listItem, btnShowHidePreview});
