@@ -4367,7 +4367,7 @@ export class CharacterBuilder extends BuilderBase {
 
 			const autoNames = ["Unarmed Strike"];
 			for (const it of [...(this._state.equipment || []), ...(this._state.magicEquipment || [])]) {
-				if (!it.equipped) continue;
+				if (!it.equipped || it.excluded) continue;
 				const e = this._getItemEntry(it.name);
 				if (!e?.weapon) continue;
 				autoNames.push(it.name);
@@ -4933,7 +4933,7 @@ export class CharacterBuilder extends BuilderBase {
 		const strMod = _abilMod(this._state.str || 10);
 		const prof   = _profBonus(this._getTotalLevel());
 		const all    = [...(this._state.equipment || []), ...(this._state.magicEquipment || [])];
-		const equipped = all.filter(it => it.equipped);
+		const equipped = all.filter(it => it.equipped && !it.excluded);
 
 		let equippedAC   = null;
 		let equippedShield = false;
@@ -5412,7 +5412,7 @@ export class CharacterBuilder extends BuilderBase {
 			if (e) _push(e, UrlUtil.PG_SPELLS, "spell", "#4a6898", "magic-swirl");
 		});
 		const _seenItemNames = new Set();
-		[...(s.magicEquipment || []), ...(s.equipment || [])].forEach(it => {
+		[...(s.magicEquipment || []), ...(/** @type {any[]} */ (s.equipment || [])).filter(it => !it.excluded)].forEach(it => {
 			const nm = (it.name || "").toLowerCase();
 			if (!nm || _seenItemNames.has(nm)) return;
 			_seenItemNames.add(nm);
@@ -5514,7 +5514,7 @@ export class CharacterBuilder extends BuilderBase {
 		// Monk Unarmored Defense: 10+DEX+WIS (no armor, no shield).
 		// Barbarian Unarmored Defense: 10+DEX+CON (no armor; shield still adds separately).
 		const _DMG_TYPES = {S:"slashing",P:"piercing",B:"bludgeoning",F:"fire",C:"cold",L:"lightning",N:"necrotic",R:"radiant",T:"thunder",A:"acid"};
-		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped);
+		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped && !it.excluded);
 		let _armorAC = null;
 		let _hasEquippedShield = false;
 		const _equippedWeapons = [];
