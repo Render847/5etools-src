@@ -3070,6 +3070,17 @@ export class CharacterBuilder extends BuilderBase {
 			mkSel(stored.ability_1 || "", (/** @type {string} */ val) => setStored({ability_1: val})).appendTo(row);
 		};
 
+		// Migrate legacy "+2 to one" format: {asi_mode:"+2", ability:"str"} → {ability_0:"str", ability_1:"str"}.
+		// Done via raw __state write to avoid triggering hooks during construction.
+		const initStored = getStored();
+		if (initStored.ability && !initStored.ability_0) {
+			const raw = /** @type {any} */ (this.__state);
+			raw.featChoices = {
+				...(raw.featChoices || {}),
+				[storageKey]: {ability_0: initStored.ability, ability_1: initStored.ability},
+			};
+		}
+
 		render();
 		// Re-render when featChoices changes from the other tab (proxy hook fires because
 		// setStored reassigns the whole featChoices object rather than mutating it in place).
@@ -3279,7 +3290,7 @@ export class CharacterBuilder extends BuilderBase {
 							.appendTo(chip);
 					}
 				} else {
-					lbl.addClass("ve-muted ve-italic").txt(`${prefix}: ${vals.join(", ")}`);
+					lbl.addClass("ve-muted").addClass("ve-italic").txt(`${prefix}: ${vals.join(", ")}`);
 				}
 			};
 			this._addHook("state", featKey, refresh);
@@ -3556,8 +3567,13 @@ export class CharacterBuilder extends BuilderBase {
 		(this._state.asiChoices || []).forEach((c, i) => {
 			if (c.featName !== "Ability Score Improvement") return;
 			const chosen = allChoices[`Ability Score Improvement#${i}`] || {};
-			if (chosen.ability_0 === abl) total += 1;
-			if (chosen.ability_1 === abl) total += 1;
+			// Backward compat: old "+2 to one" stored {asi_mode:"+2", ability:"str"}
+			if (chosen.ability && !chosen.ability_0) {
+				if (chosen.ability === abl) total += 2;
+			} else {
+				if (chosen.ability_0 === abl) total += 1;
+				if (chosen.ability_1 === abl) total += 1;
+			}
 		});
 
 		const featNames = [
@@ -3570,8 +3586,13 @@ export class CharacterBuilder extends BuilderBase {
 			// "Ability Score Improvement" from bgFeat or feats list: use the non-slot key
 			if (featName === "Ability Score Improvement") {
 				const chosen = allChoices["Ability Score Improvement"] || {};
-				if (chosen.ability_0 === abl) total += 1;
-				if (chosen.ability_1 === abl) total += 1;
+				// Backward compat: old "+2 to one" stored {asi_mode:"+2", ability:"str"}
+				if (chosen.ability && !chosen.ability_0) {
+					if (chosen.ability === abl) total += 2;
+				} else {
+					if (chosen.ability_0 === abl) total += 1;
+					if (chosen.ability_1 === abl) total += 1;
+				}
 				continue;
 			}
 			const feat = this._getFeatEntry(featName);
@@ -5854,10 +5875,14 @@ export class CharacterBuilder extends BuilderBase {
 		// Class resources header — rendered full-width at the top of the features box.
 		// When present, the feature columns start 22pt lower to make room.
 		const _cfBoxTop    = 361.2;
-		const _extraAtkCount = (s.classFeatureItems || []).filter((/** @type {any} */ i) => /^\[L\d+\] Extra Attack\b/i.test(i.text)).length;
+		const _hasXAtk = (/** @type {RegExp} */ re) => (s.classFeatureItems || []).some((/** @type {any} */ i) => re.test(i.text));
+		const _totalAttacks = _hasXAtk(/^\[L\d+\] (Extra Attack \(3\)|Three Extra Attacks)\b/i) ? 4
+			: _hasXAtk(/^\[L\d+\] (Extra Attack \(2\)|Two Extra Attacks)\b/i) ? 3
+			: _hasXAtk(/^\[L\d+\] Extra Attack\b/i) ? 2
+			: 1;
 		const _cfResources = [
 			...(s._classResources || []),
-			...(_extraAtkCount > 0 ? [{label: "Attacks", value: String(1 + _extraAtkCount)}] : []),
+			...(_totalAttacks > 1 ? [{label: "Attacks", value: String(_totalAttacks)}] : []),
 		];
 		const _cfFeatTop   = _cfResources.length ? _cfBoxTop + 22 : _cfBoxTop;
 		if (_cfResources.length) {

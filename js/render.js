@@ -11987,12 +11987,18 @@ Renderer.item = class {
 
 		if (!item.mastery) return "";
 
+		const _withDisplay = (uid) => {
+			let displayName;
+			try { displayName = Renderer.item._getMastery(uid).name; } catch (e) { /* not loaded */ }
+			return displayName ? `${uid}|${displayName}` : uid;
+		};
+
 		return [
 			isSkipPrefix ? "" : "Mastery: ",
 			item.mastery
 				.map(info => {
-					if (!info.uid) return renderer.render(`{@itemMastery ${info}}`);
-					return renderer.render(`{@itemMastery ${info.uid}} {@style (${info.note})|small}`);
+					if (!info.uid) return renderer.render(`{@itemMastery ${_withDisplay(info)}}`);
+					return renderer.render(`{@itemMastery ${_withDisplay(info.uid)}} {@style (${info.note})|small}`);
 				})
 				.join(", "),
 		]
