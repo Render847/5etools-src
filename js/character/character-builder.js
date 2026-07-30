@@ -4674,6 +4674,16 @@ export class CharacterBuilder extends BuilderBase {
 			};
 			const wrpEqRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(eqRowInner);
 
+			const _setItemHoverAttrs = (span, entry) => {
+				if (!entry) return;
+				const hash = (/** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER))[UrlUtil.PG_ITEMS](entry);
+				span.attr("data-vet-page", UrlUtil.PG_ITEMS).attr("data-vet-source", entry.source).attr("data-vet-hash", hash);
+				span.style.cursor = "help";
+				span.onmouseover = (/** @type {MouseEvent} */ evt) => Renderer.hover.pHandleLinkMouseOver(evt, span);
+				span.onmouseleave = (/** @type {MouseEvent} */ evt) => Renderer.hover.handleLinkMouseLeave(evt, span);
+				span.onmousemove = (/** @type {MouseEvent} */ evt) => Renderer.hover.handleLinkMouseMove(evt, span);
+			};
+
 			// Auto-granted items (removeable, with equip checkbox for weapons/armor/shields)
 			(this._state.equipment || []).filter(() => false).forEach(item => {
 				const entry = this._getItemEntry(item.name);
@@ -4708,6 +4718,7 @@ export class CharacterBuilder extends BuilderBase {
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
 				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateEqState);
 				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				_setItemHoverAttrs(nameSpan, entry);
 				const cbEquip = isEquippable
 					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateEqState)
 					: null;
@@ -4802,6 +4813,7 @@ export class CharacterBuilder extends BuilderBase {
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
 				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateMgState);
 				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				_setItemHoverAttrs(nameSpan, entry);
 				const cbEquip = isEquippable
 					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
 					: null;
@@ -4920,7 +4932,13 @@ export class CharacterBuilder extends BuilderBase {
 
 	_getItemEntry (name) {
 		if (!this._allItems || !name) return null;
-		return this._allItems.find(it => it.name.toLowerCase() === name.toLowerCase()) || null;
+		const matches = this._allItems.filter(it => it.name.toLowerCase() === name.toLowerCase());
+		if (!matches.length) return null;
+		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
+		return (isNew
+			? matches.find(it => !SourceUtil.isClassicSource(it.source))
+			: matches.find(it => SourceUtil.isClassicSource(it.source))
+		) || matches[0];
 	}
 
 	// Returns a sorted list of weapon names the character is proficient with,
