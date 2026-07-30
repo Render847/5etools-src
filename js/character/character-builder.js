@@ -4687,7 +4687,7 @@ export class CharacterBuilder extends BuilderBase {
 			// Auto-granted items (removeable, with equip checkbox for weapons/armor/shields)
 			(this._state.equipment || []).filter(() => false).forEach(item => {
 				const entry = this._getItemEntry(item.name);
-				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || (entry.type || "").split("|")[0] === "S"));
 				const row = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
 				if (isEquippable) {
 					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(row);
@@ -4714,7 +4714,7 @@ export class CharacterBuilder extends BuilderBase {
 				if (initial?.autoGranted && initial?.excluded) return;
 
 				const entry = this._getItemEntry(initial?.name || "");
-				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || (entry.type || "").split("|")[0] === "S"));
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
 				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateEqState);
 				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
@@ -4808,7 +4808,7 @@ export class CharacterBuilder extends BuilderBase {
 			let _mgDragSrcIdx = -1;
 			const addMgRow = (initial) => {
 				const entry = this._getItemEntry(initial?.name || "");
-				const isEquippable = !!(entry && (entry.weapon || entry.armor || entry.type === "S"));
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || (entry.type || "").split("|")[0] === "S"));
 				const needsAttune = !!(entry?.reqAttune);
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
 				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateMgState);
@@ -4984,16 +4984,17 @@ export class CharacterBuilder extends BuilderBase {
 		for (const it of equipped) {
 			const entry = this._getItemEntry(it.name);
 			if (!entry) continue;
-			if (entry.type === "LA") {
+			const entryType = (entry.type || "").split("|")[0];
+			if (entryType === "LA") {
 				const ac = (entry.ac || 11) + dexMod;
 				if (equippedAC === null || ac > equippedAC) equippedAC = ac;
-			} else if (entry.type === "MA") {
+			} else if (entryType === "MA") {
 				const ac = (entry.ac || 13) + Math.min(dexMod, 2);
 				if (equippedAC === null || ac > equippedAC) equippedAC = ac;
-			} else if (entry.type === "HA") {
+			} else if (entryType === "HA") {
 				const ac = entry.ac || 16;
 				if (equippedAC === null || ac > equippedAC) equippedAC = ac;
-			} else if (entry.type === "S") {
+			} else if (entryType === "S") {
 				equippedShield = true;
 			}
 			if (entry.weapon) {
@@ -5560,10 +5561,11 @@ export class CharacterBuilder extends BuilderBase {
 		for (const _it of _allEquip) {
 			const _e = this._getItemEntry(_it.name);
 			if (!_e) continue;
-			if      (_e.type === "LA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 11) + abilMods.dex);
-			else if (_e.type === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
-			else if (_e.type === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
-			else if (_e.type === "S")  _hasEquippedShield = true;
+			const _eType = (_e.type || "").split("|")[0];
+			if      (_eType === "LA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 11) + abilMods.dex);
+			else if (_eType === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
+			else if (_eType === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
+			else if (_eType === "S")  _hasEquippedShield = true;
 			if (_e.weapon) {
 				const _props     = _e.property || [];
 				const _propAbvs  = _props.map(p => (p?.uid || p || "").split("|")[0]);
