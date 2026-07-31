@@ -163,9 +163,9 @@ export class ItemBuilder extends BuilderBase {
 	}
 
 	async pHandleClickLoadExisting () {
-		const result = await SearchWidget.pGetUserItemSearch();
-		if (!result) return;
-		const item = MiscUtil.copy(await DataLoader.pCacheAndGet(result.page, result.source, result.hash));
+		const [selected] = (await new ModalFilterItems({namespace: "makebrew.item.copy", isRadio: true}).pGetUserSelection()) ?? [];
+		if (!selected) return;
+		const item = MiscUtil.copy(await DataLoader.pCacheAndGet(UrlUtil.PG_ITEMS, selected.values.sourceJson, selected.values.hash));
 		return this.pHandleLoadExistingData(item);
 	}
 
@@ -1422,11 +1422,7 @@ export class ItemBuilder extends BuilderBase {
 		this._buildSectionHeader("Attached Spells", wrp);
 		this._buildAttachedSpellsInput(wrp, cb);
 
-		this._buildSectionHeader("Class Features", wrp);
-		this._buildStringArrayInput("Class Feature", wrp, cb, "classFeatures", 'e.g. "replicate magic item|artificer|tce|2|tce"');
 
-		this._buildSectionHeader("Optional Features", wrp);
-		this._buildStringArrayInput("Optional Feature", wrp, cb, "optionalfeatures", 'e.g. "replicate magic item|tce"');
 	}
 
 	_buildBaseItemInput (wrp, cb) {
