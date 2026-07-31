@@ -19,6 +19,57 @@ const _RECHARGE_VALS = [
 
 const _LOOT_TABLES_BASE = "ABCDEFGHI".split("").map(l => `Magic Item Table ${l}`);
 
+const _DAMAGE_TYPES = Object.entries(Parser.DMGTYPE_JSON_TO_FULL)
+	.sort((a, b) => SortUtil.ascSort(a[1], b[1]))
+	.map(([abv, name]) => ({abv, name: name.charAt(0).toUpperCase() + name.slice(1)}));
+
+const _CONDITIONS = [
+	"blinded", "charmed", "deafened", "disease", "exhaustion",
+	"frightened", "grappled", "incapacitated", "invisible",
+	"paralyzed", "petrified", "poisoned", "prone", "restrained",
+	"stunned", "unconscious",
+];
+
+const _ABILITIES_FULL = {str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma"};
+const _ABILITIES      = ["str", "dex", "con", "int", "wis", "cha"];
+
+const _SPEED_TYPES = ["walk", "fly", "swim", "climb", "burrow"];
+
+const _INH_WEAPON_CATEGORIES = [
+	{v: "simple",  label: "Simple"},
+	{v: "martial", label: "Martial"},
+];
+
+const _AGE_VALS = [
+	{v: "renaissance", label: "Renaissance"},
+	{v: "modern",      label: "Modern"},
+	{v: "futuristic",  label: "Futuristic"},
+];
+
+const _FOCUS_SCF_TYPES = [
+	{v: "arcane", label: "Arcane (Sorcerer/Warlock/Wizard)"},
+	{v: "druid",  label: "Druid"},
+	{v: "holy",   label: "Holy (Cleric/Paladin)"},
+];
+
+const _SPELLCASTER_CLASSES = [
+	"Artificer", "Bard", "Cleric", "Druid", "Paladin",
+	"Ranger", "Sorcerer", "Warlock", "Wizard",
+];
+
+const _MISC_TAGS = [
+	{v: "CNS",   label: "Consumable"},
+	{v: "CF\\W", label: "Creates Food/Water"},
+	{v: "TT",    label: "Trinket Table"},
+];
+
+const _POISON_TYPES = [
+	{v: "ingested", label: "Ingested"},
+	{v: "injury",   label: "Injury"},
+	{v: "inhaled",  label: "Inhaled"},
+	{v: "contact",  label: "Contact"},
+];
+
 // Condition row: category options
 const _COND_CATEGORIES = [
 	{v: "weapon",  label: "Weapons"},
@@ -160,8 +211,9 @@ export class MagicVariantBuilder extends BuilderBase {
 	constructor () {
 		super({prop: "magicvariant"});
 		this._renderOutputDebounced = MiscUtil.debounce(() => this._renderOutput(), 50);
-		this._modalFilterItems = null;       // lazy-init, shared across condition rows (_ModalFilterMagicVariantItems)
-		this._modalFilterItemsCopy = null;   // single-select modal for "New from Copy" (_ModalFilterMagicVariantItems)
+		this._modalFilterItems = null;       // lazy-init, shared across condition rows
+		this._modalFilterItemsCopy = null;   // single-select modal for "New from Copy"
+		this._modalFilterSpells = null;      // lazy-init for attached spells
 	}
 
 	async pHandleClickLoadExisting () {
@@ -231,13 +283,45 @@ export class MagicVariantBuilder extends BuilderBase {
 				bonusSpellDamage:   null,
 				charges:            null,
 				recharge:           null,
-				wondrous:           null,
-				curse:              null,
-				sentient:           null,
-				stealth:            null,
-				strength:           null,
-				entries:            [],
-				lootTables:         [],
+				wondrous:                null,
+				curse:                   null,
+				sentient:                null,
+				stealth:                 null,
+				strength:                null,
+				entries:                 [],
+				lootTables:              [],
+				// bonuses
+				bonusWeaponCritDamage:   null,
+				bonusSpellAttack:        null,
+				bonusSpellSaveDc:        null,
+				bonusAbilityCheck:       null,
+				bonusProficiencyBonus:   null,
+				ability:                 null,
+				modifySpeed:             null,
+				vulnerable:              null,
+				resist:                  null,
+				immune:                  null,
+				conditionImmune:         null,
+				// traits
+				weaponCategory:          null,
+				age:                     null,
+				firearm:                 null,
+				staff:                   null,
+				tattoo:                  null,
+				ammo:                    null,
+				poison:                  null,
+				focus:                   null,
+				scfType:                 null,
+				grantsProficiency:       null,
+				grantsLanguage:          null,
+				critThreshold:           null,
+				miscTags:                null,
+				poisonTypes:             null,
+				light:                   null,
+				reqAttuneTags:           null,
+				reqAttuneAlt:            null,
+				// links
+				attachedSpells:          null,
 			},
 		};
 	}
@@ -278,11 +362,14 @@ export class MagicVariantBuilder extends BuilderBase {
 				new TabUiUtil.TabMeta({...tabOpts, name: "Info"}),
 				new TabUiUtil.TabMeta({...tabOpts, name: "Requires"}),
 				new TabUiUtil.TabMeta({...tabOpts, name: "Inherits"}),
+				new TabUiUtil.TabMeta({...tabOpts, name: "Bonuses"}),
+				new TabUiUtil.TabMeta({...tabOpts, name: "Traits"}),
+				new TabUiUtil.TabMeta({...tabOpts, name: "Links"}),
 				new TabUiUtil.TabMeta({...tabOpts, name: "Text"}),
 			],
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
-		const [infoTab, reqTab, inheritsTab, textTab] = tabs;
+		const [infoTab, reqTab, inheritsTab, bonusesTab, traitsTab, linksTab, textTab] = tabs;
 
 		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ve-ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
 		tabs.forEach(it => it.wrpTab.appendTo(wrp));
@@ -290,6 +377,9 @@ export class MagicVariantBuilder extends BuilderBase {
 		this._buildInfoTab(infoTab.wrpTab, cb);
 		this._buildRequiresTab(reqTab.wrpTab, cb);
 		this._buildInheritsTab(inheritsTab.wrpTab, cb);
+		this._buildBonusesTab(bonusesTab.wrpTab, cb);
+		this._buildTraitsTab(traitsTab.wrpTab, cb);
+		this._buildLinksTab(linksTab.wrpTab, cb);
 		this._buildTextTab(textTab.wrpTab, cb);
 	}
 
@@ -672,14 +762,6 @@ export class MagicVariantBuilder extends BuilderBase {
 		this._buildSectionHeader("Attunement", wrp);
 		this._buildAttuneInput(wrp, cb);
 
-		this._buildSectionHeader("Bonuses", wrp);
-		this._buildInheritsEnumRow("Weapon (Atk + Dmg)", wrp, cb, "bonusWeapon");
-		this._buildInheritsEnumRow("Weapon Attack", wrp, cb, "bonusWeaponAttack");
-		this._buildInheritsEnumRow("Weapon Damage", wrp, cb, "bonusWeaponDamage");
-		this._buildInheritsEnumRow("AC Bonus", wrp, cb, "bonusAc");
-		this._buildInheritsEnumRow("Saving Throw", wrp, cb, "bonusSavingThrow");
-		this._buildInheritsEnumRow("Spell Damage", wrp, cb, "bonusSpellDamage");
-
 		this._buildSectionHeader("Charges", wrp);
 		this._buildChargesInput(wrp, cb);
 
@@ -821,6 +903,620 @@ export class MagicVariantBuilder extends BuilderBase {
 		ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Table</button>`
 			.onn("click", () => addRow(""))
 			.appendTo(wrp);
+	}
+
+	// =========================================================================
+	// -- Bonuses tab --
+	// =========================================================================
+
+	_buildBonusesTab (wrp, cb) {
+		ee`<div class="mkbru__row ve-mb-2 ve-muted" style="font-size:.85em">Bonus values are strings such as "+1", "+2", "+3". All fields go into the inherited item.</div>`.appendTo(wrp);
+
+		this._buildSectionHeader("Weapon", wrp);
+		this._buildInheritsWeaponBonusField(wrp, cb);
+		this._buildInheritsEnumRow("Weapon Crit Damage", wrp, cb, "bonusWeaponCritDamage");
+
+		this._buildSectionHeader("Defenses", wrp);
+		this._buildInheritsEnumRow("AC Bonus",     wrp, cb, "bonusAc");
+		this._buildInheritsEnumRow("Saving Throw", wrp, cb, "bonusSavingThrow");
+
+		this._buildSectionHeader("Spells", wrp);
+		this._buildInheritsEnumRow("Spell Damage",  wrp, cb, "bonusSpellDamage");
+		this._buildInheritsEnumRow("Spell Attack",  wrp, cb, "bonusSpellAttack");
+		this._buildInheritsEnumRow("Spell Save DC", wrp, cb, "bonusSpellSaveDc");
+
+		this._buildSectionHeader("Checks", wrp);
+		this._buildInheritsEnumRow("Ability Check",     wrp, cb, "bonusAbilityCheck");
+		this._buildInheritsEnumRow("Proficiency Bonus", wrp, cb, "bonusProficiencyBonus");
+
+		this._buildSectionHeader("Ability Score Adjustment", wrp);
+		this._buildInheritsAbilityInput(wrp, cb);
+
+		this._buildSectionHeader("Speed Modification", wrp);
+		this._buildInheritsModifySpeedInput(wrp, cb);
+
+		this._buildSectionHeader("Damage Defenses", wrp);
+		this._buildInheritsDamageDefenseInput("Vulnerability", wrp, cb, "vulnerable");
+		this._buildInheritsDamageDefenseInput("Resistance",    wrp, cb, "resist");
+		this._buildInheritsDamageDefenseInput("Immunity",      wrp, cb, "immune");
+		this._buildInheritsConditionImmuneInput(wrp, cb);
+	}
+
+	_buildInheritsWeaponBonusField (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Weapon Bonus", {isRow: true});
+		const inh = this.__state.inherits;
+
+		const existingBonus = inh.bonusWeapon || inh.bonusWeaponAttack || inh.bonusWeaponDamage || "";
+		const hasAny  = !!(inh.bonusWeapon || inh.bonusWeaponAttack || inh.bonusWeaponDamage);
+		const initAtk = !hasAny || !!(inh.bonusWeapon || inh.bonusWeaponAttack);
+		const initDmg = !hasAny || !!(inh.bonusWeapon || inh.bonusWeaponDamage);
+
+		const doUpdate = () => {
+			const bonus = sel.val();
+			const isAtk = cbAtk.prop("checked");
+			const isDmg = cbDmg.prop("checked");
+			delete inh.bonusWeapon; delete inh.bonusWeaponAttack; delete inh.bonusWeaponDamage;
+			if (bonus && (isAtk || isDmg)) {
+				if (isAtk && isDmg)  inh.bonusWeapon       = bonus;
+				else if (isAtk)      inh.bonusWeaponAttack  = bonus;
+				else                 inh.bonusWeaponDamage  = bonus;
+			}
+			cb();
+		};
+
+		const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:90px">
+			<option value="">(none)</option>
+			${_BONUS_VALS.map(v => `<option value="${v}">${v}</option>`).join("")}
+		</select>`.val(existingBonus).onn("change", doUpdate);
+
+		const cbAtk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", initAtk).onn("change", doUpdate);
+		const cbDmg = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", initDmg).onn("change", doUpdate);
+
+		rowInner
+			.appends(sel)
+			.appends(ee`<label class="ve-flex-v-center ve-ml-2 ve-no-select">${cbAtk}<span>Attack</span></label>`)
+			.appends(ee`<label class="ve-flex-v-center ve-ml-2 ve-no-select">${cbDmg}<span>Damage</span></label>`);
+		row.appendTo(wrp);
+	}
+
+	_buildInheritsAbilityInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Adjust", {isRow: true});
+		const inh = this.__state.inherits;
+
+		const getMode = () => {
+			if (!inh.ability) return "none";
+			if (inh.ability.static) return "static";
+			return "modifier";
+		};
+
+		const wrpInputs = ee`<div class="ve-flex-col ve-ml-2" style="flex:1"></div>`.appendTo(rowInner);
+
+		const selMode = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:100px">
+			<option value="none">(None)</option>
+			<option value="modifier">Modifier</option>
+			<option value="static">Set to Value</option>
+		</select>`.val(getMode()).appendTo(rowInner);
+
+		const buildInputs = () => {
+			wrpInputs.empty();
+			const mode = selMode.val();
+			if (mode === "none") { delete inh.ability; cb(); return; }
+
+			if (mode === "modifier") {
+				const cur = inh.ability && !inh.ability.static ? inh.ability : {};
+				const row2 = ee`<div class="ve-flex ve-flex-wrap ve-mt-1" style="gap:4px"></div>`.appendTo(wrpInputs);
+				const inputs = {};
+				_ABILITIES.forEach(abl => {
+					const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="0" style="width:48px" title="${_ABILITIES_FULL[abl]}">`
+						.val(cur[abl] != null ? cur[abl] : "")
+						.onn("change", () => {
+							const obj = {};
+							_ABILITIES.forEach(a => {
+								const v = parseInt(inputs[a].val());
+								if (!isNaN(v) && v !== 0) obj[a] = v;
+							});
+							if (Object.keys(obj).length) inh.ability = obj;
+							else delete inh.ability;
+							cb();
+						});
+					inputs[abl] = ipt;
+					ee`<div class="ve-flex-col ve-flex-vh-center" style="gap:2px">
+						<span style="font-size:.75em;font-weight:bold">${abl.toUpperCase()}</span>
+					</div>`.appends(ipt).appendTo(row2);
+				});
+			} else if (mode === "static") {
+				const cur = inh.ability?.static || {};
+				const firstAbl = Object.keys(cur)[0] || "str";
+				const firstVal = cur[firstAbl] ?? "";
+				const row2 = ee`<div class="ve-flex-v-center ve-mt-1" style="gap:4px"></div>`.appendTo(wrpInputs);
+
+				const selAbl = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
+					${_ABILITIES.map(a => `<option value="${a}">${_ABILITIES_FULL[a]}</option>`).join("")}
+				</select>`.val(firstAbl).appendTo(row2);
+
+				const iptVal = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="e.g. 19" style="width:60px">`
+					.val(firstVal).appendTo(row2);
+
+				const doUpdate = () => {
+					const abl = selAbl.val();
+					const v = parseInt(iptVal.val());
+					if (!isNaN(v)) inh.ability = {static: {[abl]: v}};
+					else delete inh.ability;
+					cb();
+				};
+				selAbl.onn("change", doUpdate);
+				iptVal.onn("change", doUpdate);
+			}
+		};
+
+		selMode.onn("change", buildInputs);
+		buildInputs();
+		row.appendTo(wrp);
+	}
+
+	_buildInheritsModifySpeedInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Modify Speed", {isRow: true});
+		const inh = this.__state.inherits;
+
+		const getMode = () => {
+			if (!inh.modifySpeed) return "none";
+			return Object.keys(inh.modifySpeed)[0] || "none";
+		};
+
+		const wrpInputs = ee`<div class="ve-flex ve-flex-wrap ve-mt-1 ve-ml-2" style="gap:4px;flex:1"></div>`.appendTo(rowInner);
+
+		const selMode = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
+			<option value="none">(None)</option>
+			<option value="bonus">Bonus</option>
+			<option value="static">Set Static</option>
+			<option value="multiply">Multiply</option>
+			<option value="equal">Equal To</option>
+		</select>`.val(getMode()).appendTo(rowInner);
+
+		const buildInputs = () => {
+			wrpInputs.empty();
+			const mode = selMode.val();
+			if (mode === "none") { delete inh.modifySpeed; cb(); return; }
+
+			const curInner = (inh.modifySpeed || {})[mode] || {};
+
+			if (mode === "bonus" || mode === "static") {
+				const speedType = Object.keys(curInner)[0] || "walk";
+				const speedVal  = curInner[speedType] ?? "";
+
+				const selSpeed = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+					<option value="*">All</option>
+					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
+				</select>`.val(speedType).appendTo(wrpInputs);
+
+				const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="ft." style="width:60px">`
+					.val(speedVal).appendTo(wrpInputs);
+				ee`<span class="ve-muted ve-no-shrink" style="font-size:.85em">ft.</span>`.appendTo(wrpInputs);
+
+				const doUpdate = () => {
+					const v = parseInt(ipt.val());
+					if (!isNaN(v)) inh.modifySpeed = {[mode]: {[selSpeed.val()]: v}};
+					else delete inh.modifySpeed;
+					cb();
+				};
+				selSpeed.onn("change", doUpdate);
+				ipt.onn("change", doUpdate);
+
+			} else if (mode === "multiply") {
+				const speedType = Object.keys(curInner)[0] || "walk";
+				const speedVal  = curInner[speedType] ?? "";
+
+				const selSpeed = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
+				</select>`.val(speedType).appendTo(wrpInputs);
+
+				const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 2" style="width:60px">`
+					.val(speedVal).appendTo(wrpInputs);
+				ee`<span class="ve-muted ve-no-shrink" style="font-size:.85em">×</span>`.appendTo(wrpInputs);
+
+				const doUpdate = () => {
+					const v = parseFloat(ipt.val());
+					if (!isNaN(v)) inh.modifySpeed = {multiply: {[selSpeed.val()]: v}};
+					else delete inh.modifySpeed;
+					cb();
+				};
+				selSpeed.onn("change", doUpdate);
+				ipt.onn("change", doUpdate);
+
+			} else if (mode === "equal") {
+				const targetSpeed = Object.keys(curInner)[0] || "fly";
+				const sourceSpeed = curInner[targetSpeed] || "walk";
+
+				const selTarget = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
+				</select>`.val(targetSpeed).appendTo(wrpInputs);
+
+				ee`<span class="ve-muted ve-no-shrink" style="font-size:.85em">= </span>`.appendTo(wrpInputs);
+
+				const selSource = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
+				</select>`.val(sourceSpeed).appendTo(wrpInputs);
+
+				const doUpdate = () => {
+					inh.modifySpeed = {equal: {[selTarget.val()]: selSource.val()}};
+					cb();
+				};
+				selTarget.onn("change", doUpdate);
+				selSource.onn("change", doUpdate);
+			}
+		};
+
+		selMode.onn("change", buildInputs);
+		buildInputs();
+		row.appendTo(wrp);
+	}
+
+	_buildInheritsDamageDefenseInput (label, wrp, cb, prop) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: false});
+		const inh = this.__state.inherits;
+		const cur = new Set(inh[prop] || []);
+
+		const checkboxes = _DAMAGE_TYPES.map(({abv, name}) => {
+			const chk = ee`<input type="checkbox" class="ve-mr-1">`
+				.prop("checked", cur.has(abv))
+				.onn("change", () => {
+					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.abv);
+					if (selected.length) inh[prop] = selected;
+					else delete inh[prop];
+					cb();
+				});
+			return {abv, chk,
+				ele: ee`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${name}</span></label>`,
+			};
+		});
+
+		const grid = ee`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
+		checkboxes.forEach(c => grid.appends(c.ele));
+		rowInner.appends(grid);
+		row.appendTo(wrp);
+	}
+
+	_buildInheritsConditionImmuneInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Condition Immunity", {isRow: false});
+		const inh = this.__state.inherits;
+		const cur = new Set(inh.conditionImmune || []);
+
+		const checkboxes = _CONDITIONS.map(cond => {
+			const chk = ee`<input type="checkbox" class="ve-mr-1">`
+				.prop("checked", cur.has(cond))
+				.onn("change", () => {
+					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.cond);
+					if (selected.length) inh.conditionImmune = selected;
+					else delete inh.conditionImmune;
+					cb();
+				});
+			return {cond, chk,
+				ele: ee`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cond.charAt(0).toUpperCase() + cond.slice(1)}</span></label>`,
+			};
+		});
+
+		const grid = ee`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
+		checkboxes.forEach(c => grid.appends(c.ele));
+		rowInner.appends(grid);
+		row.appendTo(wrp);
+	}
+
+	// =========================================================================
+	// -- Traits tab --
+	// =========================================================================
+
+	_buildTraitsTab (wrp, cb) {
+		this._buildSectionHeader("Type Flags", wrp);
+		this._buildInheritsTypeFlagsSection(wrp, cb);
+
+		this._buildSectionHeader("Spellcasting Focus", wrp);
+		this._buildInheritsFocusSection(wrp, cb);
+
+		this._buildSectionHeader("Miscellaneous Flags", wrp);
+		this._buildInheritsMiscFlagsSection(wrp, cb);
+
+		this._buildSectionHeader("Light Emission", wrp);
+		this._buildInheritsLightInput(wrp, cb);
+
+		this._buildSectionHeader("Attunement Conditions", wrp);
+		this._buildInheritsAttuneTagsInput(wrp, cb);
+	}
+
+	_buildInheritsCheckboxRow (label, wrp, cb, key) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
+		const inh = this.__state.inherits;
+		const chk = ee`<input type="checkbox">`.prop("checked", !!inh[key])
+			.onn("change", () => {
+				if (chk.prop("checked")) inh[key] = true;
+				else delete inh[key];
+				cb();
+			});
+		rowInner.appends(chk);
+		row.appendTo(wrp);
+	}
+
+	_buildInheritsTypeFlagsSection (wrp, cb) {
+		const inh = this.__state.inherits;
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Weapon Category", {isRow: true});
+			const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
+				<option value="">(None)</option>
+				${_INH_WEAPON_CATEGORIES.map(c => `<option value="${c.v}">${c.label}</option>`).join("")}
+			</select>`.val(inh.weaponCategory || "")
+				.onn("change", () => {
+					const v = sel.val();
+					if (v) inh.weaponCategory = v; else delete inh.weaponCategory;
+					cb();
+				});
+			rowInner.appends(sel);
+			row.appendTo(wrp);
+		}
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Age", {isRow: true});
+			const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:130px">
+				<option value="">(None)</option>
+				${_AGE_VALS.map(a => `<option value="${a.v}">${a.label}</option>`).join("")}
+			</select>`.val(inh.age || "")
+				.onn("change", () => {
+					const v = sel.val();
+					if (v) inh.age = v; else delete inh.age;
+					cb();
+				});
+			rowInner.appends(sel);
+			row.appendTo(wrp);
+		}
+
+		this._buildInheritsCheckboxRow("Firearm", wrp, cb, "firearm");
+		this._buildInheritsCheckboxRow("Staff",   wrp, cb, "staff");
+		this._buildInheritsCheckboxRow("Tattoo",  wrp, cb, "tattoo");
+		this._buildInheritsCheckboxRow("Ammo",    wrp, cb, "ammo");
+		this._buildInheritsCheckboxRow("Poison",  wrp, cb, "poison");
+	}
+
+	_buildInheritsFocusSection (wrp, cb) {
+		const inh = this.__state.inherits;
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Focus For", {isRow: false});
+			const cur = inh.focus;
+			const isAll = cur === true;
+			const curArr = Array.isArray(cur) ? cur : [];
+
+			const wrpClass = ee`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.appendTo(rowInner);
+
+			const cbAll = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", isAll);
+			ee`<label class="ve-flex-v-center ve-w-100 ve-mb-1" style="font-weight:bold;cursor:pointer">${cbAll}<span>All Spellcasters</span></label>`.appendTo(rowInner);
+
+			const classChecks = _SPELLCASTER_CLASSES.map(cls => {
+				const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", curArr.includes(cls));
+				return {cls, chk,
+					ele: ee`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.appendTo(wrpClass),
+				};
+			});
+
+			const doUpdate = () => {
+				if (cbAll.prop("checked")) {
+					inh.focus = true;
+				} else {
+					const selected = classChecks.filter(c => c.chk.prop("checked")).map(c => c.cls);
+					if (selected.length) inh.focus = selected;
+					else delete inh.focus;
+				}
+				cb();
+			};
+			cbAll.onn("change", doUpdate);
+			classChecks.forEach(c => c.chk.onn("change", doUpdate));
+			row.appendTo(wrp);
+		}
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("SCF Subtype", {isRow: true,
+				title: "For Spellcasting Focus type items, specifies which spellcasting tradition uses it."});
+			const inh2 = this.__state.inherits;
+			const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal">
+				<option value="">(None)</option>
+				${_FOCUS_SCF_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join("")}
+			</select>`.val(inh2.scfType || "")
+				.onn("change", () => {
+					const v = sel.val();
+					if (v) inh2.scfType = v; else delete inh2.scfType;
+					cb();
+				});
+			rowInner.appends(sel);
+			row.appendTo(wrp);
+		}
+	}
+
+	_buildInheritsMiscFlagsSection (wrp, cb) {
+		const inh = this.__state.inherits;
+
+		this._buildInheritsCheckboxRow("Grants Proficiency", wrp, cb, "grantsProficiency");
+		this._buildInheritsCheckboxRow("Grants Language",    wrp, cb, "grantsLanguage");
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Crit Threshold", {isRow: true,
+				title: "Minimum die roll needed to score a critical hit (default 20)."});
+			const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 19" style="max-width:70px">`
+				.val(inh.critThreshold != null ? inh.critThreshold : "")
+				.onn("change", () => {
+					const v = parseInt(ipt.val());
+					if (!isNaN(v)) inh.critThreshold = v;
+					else delete inh.critThreshold;
+					cb();
+				});
+			rowInner.appends(ipt);
+			row.appendTo(wrp);
+		}
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Misc Tags", {isRow: false});
+			const cur = new Set(inh.miscTags || []);
+			const checkboxes = _MISC_TAGS.map(({v, label}) => {
+				const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+					.onn("change", () => {
+						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
+						if (selected.length) inh.miscTags = selected;
+						else delete inh.miscTags;
+						cb();
+					});
+				return {v, chk, ele: ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${chk}<span>${label}</span></label>`};
+			});
+			rowInner.style.flexWrap = "wrap";
+			checkboxes.forEach(c => rowInner.appends(c.ele));
+			row.appendTo(wrp);
+		}
+
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Poison Types", {isRow: false});
+			const cur = new Set(inh.poisonTypes || []);
+			const checkboxes = _POISON_TYPES.map(({v, label}) => {
+				const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+					.onn("change", () => {
+						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
+						if (selected.length) inh.poisonTypes = selected;
+						else delete inh.poisonTypes;
+						cb();
+					});
+				return {v, chk, ele: ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${chk}<span>${label}</span></label>`};
+			});
+			rowInner.style.flexWrap = "wrap";
+			checkboxes.forEach(c => rowInner.appends(c.ele));
+			row.appendTo(wrp);
+		}
+	}
+
+	_buildInheritsLightInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Range", {isRow: true});
+		const inh = this.__state.inherits;
+		const cur = (inh.light || [])[0] || {};
+
+		const iptBright = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="bright ft." style="width:70px">`.val(cur.bright ?? "");
+		const iptDim    = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="dim ft."   style="width:70px">`.val(cur.dim    ?? "");
+
+		const doUpdate = () => {
+			const bright = parseInt(iptBright.val());
+			const dim    = parseInt(iptDim.val());
+			const entry  = {};
+			if (!isNaN(bright)) entry.bright = bright;
+			if (!isNaN(dim))    entry.dim    = dim;
+			if (Object.keys(entry).length) inh.light = [entry];
+			else delete inh.light;
+			cb();
+		};
+		iptBright.onn("change", doUpdate);
+		iptDim.onn("change", doUpdate);
+
+		rowInner.appends(iptBright)
+			.appends(ee`<span class="ve-muted ve-mx-1" style="font-size:.85em">bright /</span>`)
+			.appends(iptDim)
+			.appends(ee`<span class="ve-muted ve-ml-1" style="font-size:.85em">dim</span>`);
+		row.appendTo(wrp);
+	}
+
+	_buildInheritsAttuneTagsInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Class Requirement", {isRow: false});
+		const inh = this.__state.inherits;
+		ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">Specify which classes may attune to this item (in addition to the condition above).</div>`.appendTo(rowInner);
+
+		const cur = inh.reqAttuneTags || [];
+		const curClasses = new Set(cur.filter(t => t.class).map(t => t.class.split("|")[0].toLowerCase()));
+		const hasSpellcasting = cur.some(t => t.spellcasting);
+		const hasPsionics     = cur.some(t => t.psionics);
+
+		const save = () => {
+			const tags = [];
+			if (cbSpellcasting.prop("checked")) tags.push({spellcasting: true});
+			if (cbPsionics.prop("checked"))     tags.push({psionics: true});
+			classChecks.filter(c => c.chk.prop("checked")).forEach(c => tags.push({class: c.cls.toLowerCase()}));
+			if (tags.length) inh.reqAttuneTags = tags;
+			else delete inh.reqAttuneTags;
+			cb();
+		};
+
+		const cbSpellcasting = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasSpellcasting).onn("change", save);
+		const cbPsionics     = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasPsionics).onn("change", save);
+
+		ee`<div class="ve-flex ve-flex-wrap ve-mb-1" style="gap:4px"></div>`
+			.appends(ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbSpellcasting}<span>Any Spellcaster</span></label>`)
+			.appends(ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbPsionics}<span>Psionics</span></label>`)
+			.appendTo(rowInner);
+
+		const ALL_CLASSES = ["Artificer", "Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"];
+		const wrpClasses = ee`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.appendTo(rowInner);
+		const classChecks = ALL_CLASSES.map(cls => {
+			const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", curClasses.has(cls.toLowerCase())).onn("change", save);
+			return {cls, chk, ele: ee`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.appendTo(wrpClasses)};
+		});
+
+		{
+			const [row2, rowInner2] = BuilderUi.getLabelledRowTuple("Alt. Attunement", {isRow: true,
+				title: "An alternate attunement path (e.g. \"optional\"). Rare — most items don't need this."});
+			const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder='e.g. "optional"'>`
+				.val(inh.reqAttuneAlt || "")
+				.onn("change", () => {
+					const v = ipt.val().trim();
+					if (v === "true") inh.reqAttuneAlt = true;
+					else if (v) inh.reqAttuneAlt = v;
+					else delete inh.reqAttuneAlt;
+					cb();
+				});
+			rowInner2.appends(ipt);
+			row2.appendTo(rowInner);
+		}
+
+		row.appendTo(wrp);
+	}
+
+	// =========================================================================
+	// -- Links tab --
+	// =========================================================================
+
+	_buildLinksTab (wrp, cb) {
+		this._buildSectionHeader("Attached Spells", wrp);
+		this._buildInheritsAttachedSpellsInput(wrp, cb);
+	}
+
+	_buildInheritsAttachedSpellsInput (wrp, cb) {
+		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Spells", {isRow: false});
+		const inh = this.__state.inherits;
+		ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">For daily/charges scheduling, edit the JSON Data tab directly.</div>`.appendTo(rowInner);
+
+		const wrpRows = ee`<div class="ve-flex-col"></div>`.appendTo(rowInner);
+		const rows = [];
+
+		const saveSpells = () => {
+			const vals = rows.map(r => r.name);
+			if (vals.length) inh.attachedSpells = vals;
+			else delete inh.attachedSpells;
+			cb();
+		};
+
+		const addRow = (name) => {
+			const rowEl = ee`<div class="ve-flex-v-center ve-mb-1" style="gap:4px"></div>`.appendTo(wrpRows);
+			const rowMeta = {name, rowEl};
+			rows.push(rowMeta);
+			ee`<button class="ve-btn ve-btn-xs ve-btn-danger ve-no-shrink" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+				.onn("click", () => { rows.splice(rows.indexOf(rowMeta), 1); rowEl.remove(); saveSpells(); })
+				.appendTo(rowEl);
+			ee`<span style="font-size:.85em">${name}</span>`.appendTo(rowEl);
+		};
+
+		const raw = inh.attachedSpells;
+		if (Array.isArray(raw)) raw.forEach(s => addRow(s));
+
+		ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Spells</button>`
+			.onn("click", async () => {
+				this._modalFilterSpells ??= new ModalFilterSpells({namespace: "makebrew.magicvariant.spells"});
+				const selected = await this._modalFilterSpells.pGetUserSelection();
+				if (!selected?.length) return;
+				selected.forEach(it => addRow(it.name.toLowerCase()));
+				saveSpells();
+			})
+			.appendTo(rowInner);
+
+		row.appendTo(wrp);
 	}
 
 	// =========================================================================

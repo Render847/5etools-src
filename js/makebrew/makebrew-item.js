@@ -1032,12 +1032,13 @@ export class ItemBuilder extends BuilderBase {
 					cb();
 				});
 			return {abv, chk,
-				ele: ee`<label class="ve-flex-v-center ve-mr-2 ve-mb-1" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${name}</span></label>`,
+				ele: ee`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${name}</span></label>`,
 			};
 		});
 
-		rowInner.style.flexWrap = "wrap";
-		checkboxes.forEach(c => rowInner.appends(c.ele));
+		const grid = ee`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
+		checkboxes.forEach(c => grid.appends(c.ele));
+		rowInner.appends(grid);
 		row.appendTo(wrp);
 	}
 
@@ -1055,12 +1056,13 @@ export class ItemBuilder extends BuilderBase {
 					cb();
 				});
 			return {cond, chk,
-				ele: ee`<label class="ve-flex-v-center ve-mr-2 ve-mb-1" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cond.charAt(0).toUpperCase() + cond.slice(1)}</span></label>`,
+				ele: ee`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cond.charAt(0).toUpperCase() + cond.slice(1)}</span></label>`,
 			};
 		});
 
-		rowInner.style.flexWrap = "wrap";
-		checkboxes.forEach(c => rowInner.appends(c.ele));
+		const grid = ee`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
+		checkboxes.forEach(c => grid.appends(c.ele));
+		rowInner.appends(grid);
 		row.appendTo(wrp);
 	}
 
