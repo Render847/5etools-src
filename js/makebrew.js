@@ -3,6 +3,7 @@ import {SpellBuilder} from "./makebrew/makebrew-spell.js";
 import {CreatureBuilder} from "./makebrew/makebrew-creature.js";
 import {LegendaryGroupBuilder} from "./makebrew/makebrew-legendarygroup.js";
 import {ItemBuilder} from "./makebrew/makebrew-item.js";
+import {MagicVariantBuilder} from "./makebrew/makebrew-magicvariant.js";
 import {TagCondition, TaggerUtils} from "./converter/converterutils-tags.js";
 import {SITE_STYLE__CLASSIC} from "./consts.js";
 import {SourceUiUtil} from "./utils-ui/utils-ui-sourcebuilder.js";
@@ -38,6 +39,7 @@ class PageUi extends ProxyBase {
 	set legendaryGroupBuilder (legendaryGroupBuilder) { this._builders.legendaryGroupBuilder = legendaryGroupBuilder; }
 	set spellBuilder (spellBuilder) { this._builders.spellBuilder = spellBuilder; }
 	set itemBuilder (itemBuilder) { this._builders.itemBuilder = itemBuilder; }
+	set magicVariantBuilder (magicVariantBuilder) { this._builders.magicVariantBuilder = magicVariantBuilder; }
 
 	get creatureBuilder () { return this._builders.creatureBuilder; }
 
@@ -161,6 +163,7 @@ class PageUi extends ProxyBase {
 		this._selBuilderMode = ee`<select class="ve-form-control ve-input-xs">
 			<option value="creatureBuilder">Creature</option>
 			<option value="itemBuilder">Item</option>
+			<option value="magicVariantBuilder">Generic Variant</option>
 			<option value="legendaryGroupBuilder">Legendary Group</option>
 			<option value="spellBuilder">Spell</option>
 			<option value="none" class="ve-italic">Everything Else?</option>
@@ -479,6 +482,10 @@ legendaryGroupBuilder.ui = ui;
 const itemBuilder = new ItemBuilder();
 ui.itemBuilder = itemBuilder;
 itemBuilder.ui = ui;
+
+const magicVariantBuilder = new MagicVariantBuilder();
+ui.magicVariantBuilder = magicVariantBuilder;
+magicVariantBuilder.ui = ui;
 
 window.addEventListener("load", async () => {
 	await Makebrew.doPageInit();

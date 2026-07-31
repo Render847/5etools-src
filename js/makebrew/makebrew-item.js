@@ -195,7 +195,7 @@ export class ItemBuilder extends BuilderBase {
 			...super._getInitialState(),
 			name:    "New Item",
 			source:  this._ui ? this._ui.source : "",
-			rarity:  "uncommon",
+			rarity:  "",
 			wondrous: true,
 			entries: [],
 		};
