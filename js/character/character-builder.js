@@ -1824,6 +1824,28 @@ export class CharacterBuilder extends BuilderBase {
 					}
 				}
 			});
+
+			// Feat-granted optional feature progressions (e.g. Metamagic Adept → 2 MM choices).
+			// Merge into existing slots by featureType key so the combined count is correct.
+			const _activeFeatNamesOF = [
+				...(this._state.bgFeat ? [this._state.bgFeat] : []),
+				...(this._state.feats || []),
+				...(this._state.asiChoices || []).filter(c => c.featName).map(c => c.featName),
+			].filter(Boolean);
+			_activeFeatNamesOF.forEach(fn => {
+				const fe = this._getFeatEntry(fn);
+				if (!fe) return;
+				(fe.optionalfeatureProgression || []).forEach(prog => {
+					const key = (prog.featureType || [])[0];
+					if (!key) return;
+					const count = prog.progression?.["*"] ?? _getProgCount(prog.progression, 20);
+					if (!count) return;
+					const existing = slots.find(s => s.key === key);
+					if (existing) existing.count += count;
+					else slots.push({name: prog.name, featureType: prog.featureType, count, dataSource: "optFeature", key});
+				});
+			});
+
 			this._state._optionalFeatureSlots = slots;
 			// Trim saved choices that exceed the new count
 			const validKeys  = new Set(slots.map(s => s.key).filter(Boolean));
@@ -1940,6 +1962,36 @@ export class CharacterBuilder extends BuilderBase {
 					});
 				});
 			});
+
+			// Feat-granted class resources (e.g. Metamagic Adept → +2 Sorcery Points)
+			const _activeFeatNamesRes = [
+				...(this._state.bgFeat ? [this._state.bgFeat] : []),
+				...(this._state.feats || []),
+				...(this._state.asiChoices || []).filter(/** @type {any} */ c => c.featName).map(/** @type {any} */ c => c.featName),
+			].filter(Boolean);
+			if (_activeFeatNamesRes.some(n => n.toLowerCase() === "metamagic adept")) {
+				const sp = resources.find(r => r.label === "Sorcery Points");
+				if (sp) sp.value = String(parseInt(sp.value) + 2);
+				else resources.push({label: "Sorcery Points", value: "2"});
+			}
+
+			// Superiority dice: Battle Master subclass + Martial Adept feat + Superior Technique fighting style
+			{
+				let sdCount = 0, sdDie = "d6";
+				classes.forEach((/** @type {any} */ c) => {
+					if (!(c.sub || "").toLowerCase().includes("battle master")) return;
+					const clsLvl = Math.max(1, Math.min(20, parseInt(c.level) || 1));
+					sdCount += clsLvl >= 15 ? 6 : clsLvl >= 7 ? 5 : 4;
+					sdDie = clsLvl >= 18 ? "d12" : clsLvl >= 10 ? "d10" : "d8";
+				});
+				if (_activeFeatNamesRes.some(n => n.toLowerCase() === "martial adept")) sdCount += 1;
+				const _allFSChoices = Object.values(this._state.optionalFeatureChoices || {}).flat().filter(Boolean);
+				if (_allFSChoices.some((/** @type {any} */ f) => f.toLowerCase() === "superior technique")) sdCount += 1;
+				if (sdCount > 0) resources.push({label: "Superiority Dice", value: `${sdCount}${sdDie}`});
+			}
+
+			// Assign after all pushes so the proxy sees a non-empty array
+			// (the proxy skips re-assignment when both old and new are empty [])
 			this._state._classResources = resources;
 		}
 
@@ -3204,7 +3256,7 @@ export class CharacterBuilder extends BuilderBase {
 
 		const doUpdateState = () => {
 			this._state.feats = featRows.map(r => r.name).filter(Boolean);
-			this._applyFeatData();
+			this._onLevelOrClassChange(); // recomputes opt-feature slots and class resources from feats
 			this._sg_syncAbilityScores();
 			if (this._sg_doRebuild) this._sg_doRebuild();
 			cb();
@@ -5890,14 +5942,12 @@ export class CharacterBuilder extends BuilderBase {
 
 	// Class features (two columns), species traits, feats
 		const _cfTexts = [
-			...(s.classFeatureItems || []).filter(i => !i.excluded).map(i => i.text),
 			...(s._optionalFeatureSlots || []).flatMap(slot => {
 				const chosen = ((s.optionalFeatureChoices || {})[slot.key] || []).filter(Boolean);
 				return chosen.length ? [`${slot.name}: ${chosen.join(", ")}`] : [];
 			}),
+			...(s.classFeatureItems || []).filter(i => !i.excluded).map(i => i.text),
 		];
-		const _cfHalf  = Math.ceil(_cfTexts.length / 2);
-
 		// Class resources header — rendered full-width at the top of the features box.
 		// When present, the feature columns start 22pt lower to make room.
 		const _cfBoxTop    = 361.2;
@@ -5916,12 +5966,36 @@ export class CharacterBuilder extends BuilderBase {
 			inFieldML(_resLine, 232.1, _cfBoxTop, 593.7, _cfBoxTop + 22, 7);
 		}
 
+		// True two-column text flow: flatten all blocks to individual rendered lines, fill
+		// col1 to capacity, then continue from that exact line into col2.
+		const _renderTwoColFlow = (
+			/** @type {string[]} */ blocks,
+			/** @type {number} */ x0c1, /** @type {number} */ topC1, /** @type {number} */ x1c1, /** @type {number} */ botC1,
+			/** @type {number} */ x0c2, /** @type {number} */ topC2, /** @type {number} */ x1c2, /** @type {number} */ botC2,
+			/** @type {number} */ sz,
+		) => {
+			doc.setFontSize(sz); doc.setFont("helvetica","normal");
+			const lh = sz * 0.352 * 1.6;
+			const w = pt(x1c1 - x0c1) - 1; // both cols are near-equal width
+
+			// Flatten: wrap each block then insert a blank separator between blocks
+			const lines = /** @type {string[]} */ ([]);
+			for (let i = 0; i < blocks.length; i++) {
+				lines.push(...doc.splitTextToSize(String(blocks[i]), w));
+				if (i < blocks.length - 1) lines.push("");
+			}
+
+			const cap1 = Math.floor((pt(botC1 - topC1) - lh - 0.5) / lh);
+			const cap2 = Math.floor((pt(botC2 - topC2) - lh - 0.5) / lh);
+			const y1 = pt(topC1) + lh, y2 = pt(topC2) + lh;
+			lines.slice(0, cap1).forEach((l, i) => doc.text(l, pt(x0c1) + 0.5, y1 + i * lh));
+			lines.slice(cap1, cap1 + cap2).forEach((l, i) => doc.text(l, pt(x0c2) + 0.5, y2 + i * lh));
+		};
+
 		if (sheetMode === "extended") {
-			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1, _cfFeatTop, 407.9, 770.3, 6.5);
-			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5, _cfFeatTop, 593.7, 770.9, 6.5);
+			_renderTwoColFlow(_cfTexts, 232.1, _cfFeatTop, 407.9, 770.3, 418.5, _cfFeatTop, 593.7, 770.9, 6.5);
 		} else {
-			inFieldML(_cfTexts.slice(0, _cfHalf).join("\n\n"),  232.1, _cfFeatTop, 407.9, 563.8, 6.5);
-			inFieldML(_cfTexts.slice(_cfHalf).join("\n\n"),     418.5, _cfFeatTop, 593.7, 563.4, 6.5);
+			_renderTwoColFlow(_cfTexts, 232.1, _cfFeatTop, 407.9, 563.8, 418.5, _cfFeatTop, 593.7, 563.4, 6.5);
 			inFieldML((s.speciesTraitItems || []).filter(i => !i.excluded).map(i => i.text).join("\n"), 232.4,606.2,395.9,770.3, 6.5);
 			inFieldML(this._buildFeatsDescription(),            419.1,605.5,595.3,770.9, 6.5);
 		}
