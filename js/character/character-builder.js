@@ -4390,7 +4390,8 @@ export class CharacterBuilder extends BuilderBase {
 			for (const it of [...(this._state.equipment || []), ...(this._state.magicEquipment || [])]) {
 				if (!it.equipped || it.excluded) continue;
 				const e = this._getItemEntry(it.name);
-				if (!e?.weapon) continue;
+				const _eTypeAbv = (e?.type || "").split("|")[0];
+				if (!e || (!e.weapon && _eTypeAbv !== "M" && _eTypeAbv !== "R")) continue;
 				autoNames.push(it.name);
 			}
 			for (const sp of (this._state.spells || [])) {
@@ -4687,7 +4688,8 @@ export class CharacterBuilder extends BuilderBase {
 			// Auto-granted items (removeable, with equip checkbox for weapons/armor/shields)
 			(this._state.equipment || []).filter(() => false).forEach(item => {
 				const entry = this._getItemEntry(item.name);
-				const isEquippable = !!(entry && (entry.weapon || entry.armor || (entry.type || "").split("|")[0] === "S"));
+				const _eqTypeAbv0 = (entry?.type || "").split("|")[0];
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv0 === "S" || _eqTypeAbv0 === "M" || _eqTypeAbv0 === "R" || _eqTypeAbv0 === "LA" || _eqTypeAbv0 === "MA" || _eqTypeAbv0 === "HA"));
 				const row = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
 				if (isEquippable) {
 					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(row);
@@ -4714,7 +4716,8 @@ export class CharacterBuilder extends BuilderBase {
 				if (initial?.autoGranted && initial?.excluded) return;
 
 				const entry = this._getItemEntry(initial?.name || "");
-				const isEquippable = !!(entry && (entry.weapon || entry.armor || (entry.type || "").split("|")[0] === "S"));
+				const _eqTypeAbv1 = (entry?.type || "").split("|")[0];
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv1 === "S" || _eqTypeAbv1 === "M" || _eqTypeAbv1 === "R" || _eqTypeAbv1 === "LA" || _eqTypeAbv1 === "MA" || _eqTypeAbv1 === "HA"));
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
 				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateEqState);
 				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
@@ -4808,7 +4811,8 @@ export class CharacterBuilder extends BuilderBase {
 			let _mgDragSrcIdx = -1;
 			const addMgRow = (initial) => {
 				const entry = this._getItemEntry(initial?.name || "");
-				const isEquippable = !!(entry && (entry.weapon || entry.armor || (entry.type || "").split("|")[0] === "S"));
+				const _eqTypeAbv2 = (entry?.type || "").split("|")[0];
+				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv2 === "S" || _eqTypeAbv2 === "M" || _eqTypeAbv2 === "R" || _eqTypeAbv2 === "LA" || _eqTypeAbv2 === "MA" || _eqTypeAbv2 === "HA"));
 				const needsAttune = !!(entry?.reqAttune);
 				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
 				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateMgState);
@@ -4935,10 +4939,12 @@ export class CharacterBuilder extends BuilderBase {
 		const matches = this._allItems.filter(it => it.name.toLowerCase() === name.toLowerCase());
 		if (!matches.length) return null;
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
-		return (isNew
+		const entry = (isNew
 			? matches.find(it => !SourceUtil.isClassicSource(it.source))
 			: matches.find(it => SourceUtil.isClassicSource(it.source))
 		) || matches[0];
+		if (entry) Renderer.item.enhanceItem(entry);
+		return entry;
 	}
 
 	// Returns a sorted list of weapon names the character is proficient with,
@@ -4997,10 +5003,10 @@ export class CharacterBuilder extends BuilderBase {
 			} else if (entryType === "S") {
 				equippedShield = true;
 			}
-			if (entry.weapon) {
+			if (entry.weapon || entryType === "M" || entryType === "R") {
 				const props = entry.property || [];
 				const isFinesse = props.includes("F");
-				const isRanged  = entry.type === "R" || entry.type === "A";
+				const isRanged  = entryType === "R" || entryType === "A";
 				const abilMod   = isFinesse ? Math.max(strMod, dexMod) : (isRanged ? dexMod : strMod);
 				const atkBonus  = _fmtMod(abilMod + prof);
 				const dmgType   = _DMG_TYPE[entry.dmgType] || entry.dmgType || "";
@@ -5566,11 +5572,11 @@ export class CharacterBuilder extends BuilderBase {
 			else if (_eType === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
 			else if (_eType === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
 			else if (_eType === "S")  _hasEquippedShield = true;
-			if (_e.weapon) {
+			if (_e.weapon || _eType === "M" || _eType === "R") {
 				const _props     = _e.property || [];
 				const _propAbvs  = _props.map(p => (p?.uid || p || "").split("|")[0]);
 				const _finesse   = _propAbvs.includes("F");
-				const _ranged    = (_e.type || "").split("|")[0] === "R" || (_e.type || "").split("|")[0] === "A";
+				const _ranged    = _eType === "R" || _eType === "A";
 				const _amod      = _finesse ? Math.max(abilMods.str, abilMods.dex) : (_ranged ? abilMods.dex : abilMods.str);
 				const _atkBonus  = fmod(_amod + profBonus);
 				const _dmgType   = _DMG_TYPES[_e.dmgType] || _e.dmgType || "";

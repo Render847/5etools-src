@@ -777,12 +777,6 @@ export class MagicVariantBuilder extends BuilderBase {
 		this._buildSectionHeader("Loot Tables", wrp);
 		this._buildLootTablesInput(wrp, cb);
 
-		this._buildSectionHeader("Inherited Description", wrp);
-		BuilderUi.getStateIptEntries(
-			"Text", cb, inh,
-			{fnPostProcess: BuilderUi.fnPostProcessDice},
-			"entries",
-		).appendTo(wrp);
 	}
 
 	_buildAttuneInput (wrp, cb) {
@@ -826,7 +820,7 @@ export class MagicVariantBuilder extends BuilderBase {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
 		const inh = this.__state.inherits;
 
-		const sel = ee`<select class="ve-form-control ve-input-xs ve-flex-1">
+		const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:90px">
 			<option value="">(none)</option>
 			${_BONUS_VALS.map(v => `<option value="${v}">${v}</option>`)}
 		</select>`.val(inh?.[key] || "").onn("change", () => {
@@ -917,7 +911,7 @@ export class MagicVariantBuilder extends BuilderBase {
 		this._buildInheritsEnumRow("Weapon Crit Damage", wrp, cb, "bonusWeaponCritDamage");
 
 		this._buildSectionHeader("Defenses", wrp);
-		this._buildInheritsEnumRow("AC Bonus",     wrp, cb, "bonusAc");
+		this._buildInheritsEnumRow("Armor Class",  wrp, cb, "bonusAc");
 		this._buildInheritsEnumRow("Saving Throw", wrp, cb, "bonusSavingThrow");
 
 		this._buildSectionHeader("Spells", wrp);
@@ -1524,9 +1518,20 @@ export class MagicVariantBuilder extends BuilderBase {
 	// =========================================================================
 
 	_buildTextTab (wrp, cb) {
-		ee`<div class="ve-muted ve-mb-1" style="font-size:.82em">Top-level entries appear on the generic variant itself (e.g. variant-specific notes). Description that should appear on all specific variants goes in the Inherits tab.</div>`.appendTo(wrp);
+		const inh = this.__state.inherits;
+
+		this._buildSectionHeader("Variant Text", wrp);
+		ee`<div class="ve-muted ve-mb-1" style="font-size:.82em">Appears on the generic variant listing only.</div>`.appendTo(wrp);
 		BuilderUi.getStateIptEntries(
 			"Text", cb, this._state,
+			{fnPostProcess: BuilderUi.fnPostProcessDice},
+			"entries",
+		).appendTo(wrp);
+
+		this._buildSectionHeader("Inherited Description", wrp);
+		ee`<div class="ve-muted ve-mb-1" style="font-size:.82em">Appears on every specific variant created from this template.</div>`.appendTo(wrp);
+		BuilderUi.getStateIptEntries(
+			"Text", cb, inh,
 			{fnPostProcess: BuilderUi.fnPostProcessDice},
 			"entries",
 		).appendTo(wrp);

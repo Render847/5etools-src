@@ -761,12 +761,20 @@ export class ItemBuilder extends BuilderBase {
 	_buildBonusesTab (wrp, cb) {
 		ee`<div class="mkbru__row ve-mb-2 ve-muted" style="font-size:.85em">Bonus values are strings such as "+1", "+2", "+3".</div>`.appendTo(wrp);
 
+		this._buildSectionHeader("Weapon", wrp);
 		this._buildWeaponBonusField(wrp, cb);
-		this._buildBonusField("Weapon Crit Damage",wrp, cb, "bonusWeaponCritDamage");
-		this._buildBonusField("Armor Class",       wrp, cb, "bonusAc");
-		this._buildBonusField("Spell Attack",      wrp, cb, "bonusSpellAttack");
-		this._buildBonusField("Spell Save DC",     wrp, cb, "bonusSpellSaveDc");
-		this._buildBonusField("Saving Throw",      wrp, cb, "bonusSavingThrow");
+		this._buildBonusField("Weapon Crit Damage", wrp, cb, "bonusWeaponCritDamage");
+
+		this._buildSectionHeader("Defenses", wrp);
+		this._buildBonusField("Armor Class",  wrp, cb, "bonusAc");
+		this._buildBonusField("Saving Throw", wrp, cb, "bonusSavingThrow");
+
+		this._buildSectionHeader("Spells", wrp);
+		this._buildBonusField("Spell Damage",  wrp, cb, "bonusSpellDamage");
+		this._buildBonusField("Spell Attack",  wrp, cb, "bonusSpellAttack");
+		this._buildBonusField("Spell Save DC", wrp, cb, "bonusSpellSaveDc");
+
+		this._buildSectionHeader("Checks", wrp);
 		this._buildBonusField("Ability Check",     wrp, cb, "bonusAbilityCheck");
 		this._buildBonusField("Proficiency Bonus", wrp, cb, "bonusProficiencyBonus");
 
@@ -1440,8 +1448,25 @@ export class ItemBuilder extends BuilderBase {
 				const result = await SearchWidget.pGetUserItemSearch();
 				if (!result) return;
 				this._state.baseItem = `${result.n}|${result.s}`.toLowerCase();
-				nameSpan.txt(this._state.baseItem).removeClass("ve-muted").removeClass("ve-italic");
-				cb();
+
+				const hash = UrlUtil.encodeArrayForHash(result.n, result.s);
+				const baseItem = await DataLoader.pCacheAndGet(UrlUtil.PG_ITEMS, result.s, hash);
+				if (baseItem) {
+					for (const f of ["dmg1", "dmgType", "dmg2", "range", "mastery", "property"]) {
+						if (baseItem[f] != null) this._state[f] = baseItem[f];
+						else delete this._state[f];
+					}
+					// Sync type fields so the brew item has the correct weapon/armor type
+					if (baseItem.type) {
+						this._state.typesAll = [baseItem.type];
+						this._state.type = baseItem.type;
+						delete this._state.wondrous;
+						delete this._state.typeAlt;
+					}
+				}
+
+				this.renderInput();
+				this.renderOutput();
 			}).appendTo(rowInner);
 
 		ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Clear">&times;</button>`
