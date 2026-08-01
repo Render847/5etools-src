@@ -165,7 +165,7 @@ export class CharacterBuilder extends BuilderBase {
 			DataUtil.class.loadRawJSON().catch(() => ({subclassFeature: []})),
 		]).then(([resolved, raw]) => ({...resolved, subclassFeature: raw.subclassFeature || []}));
 
-		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, items, brewItems, prereleaseItems] = await Promise.all([
+		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, brewSpells, prereleaseSpells, items, brewItems, prereleaseItems] = await Promise.all([
 			pLoadClasses(),
 			// Use DataLoader so that _versions (subspecies like "Dragonborn (Black)") are expanded
 			DataLoader.pCacheAndGetAllSite(UrlUtil.PG_RACES).catch(() => []),
@@ -174,6 +174,9 @@ export class CharacterBuilder extends BuilderBase {
 			DataLoader.pCacheAndGetAllSite(UrlUtil.PG_FEATS).catch(() => []),
 			DataUtil.loadJSON("data/optionalfeatures.json").catch(() => ({})),
 			DataUtil.spell.pLoadAll().catch(() => []),
+			// Also load brew/prerelease spells so hover works and _getSpellEntry can find them
+			DataLoader.pCacheAndGetAllBrew(UrlUtil.PG_SPELLS).catch(() => []),
+			DataLoader.pCacheAndGetAllPrerelease(UrlUtil.PG_SPELLS).catch(() => []),
 			Renderer.item.pBuildList().catch(() => []),
 			Renderer.item.pGetItemsFromBrew().catch(() => []),
 			Renderer.item.pGetItemsFromPrerelease().catch(() => []),
@@ -191,7 +194,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._allBackgrounds = (bgData.background || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allFeats       = (featDataAll || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allOptFeatures = (optFeatData.optionalfeature || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
-		this._allSpells      = (spellData || []).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
+		this._allSpells      = [...(spellData || []), ...(brewSpells || []), ...(prereleaseSpells || [])].sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 		this._allItems       = [...(items || []), ...(brewItems || []), ...(prereleaseItems || [])].filter(it => it.name).sort((a, b) => SortUtil.ascSortLower(a.name, b.name));
 
 		this._isDataLoaded = true;
