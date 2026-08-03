@@ -262,7 +262,9 @@ export class CharacterBuilder extends BuilderBase {
 			// combat
 			ac: 10,
 			speed: 30,
-			initiative: null, // null = auto from dex
+			initiative: null,     // null = auto from dex
+			spellAtkOverride: null, // null = auto (profBonus + spellMod)
+			spellDCOverride:  null, // null = auto (8 + profBonus + spellMod)
 			hp: 0,
 			hpMax: 0,
 			hitDice: "",
@@ -1468,6 +1470,11 @@ export class CharacterBuilder extends BuilderBase {
 			for (const e of entries) {
 				if (!e || typeof e !== "object") continue;
 				if (e.type === "options" && e.count === 1 && Array.isArray(e.entries)) {
+					// Skip optional-feature pools (Eldritch Invocations, Fighting Styles, etc.)
+					// DataLoader resolves refOptionalfeature → full optional-feature objects (featureType
+					// deleted, no className). True class-feature choices (Divine Order, Primal Order)
+					// resolve to class features which keep className. Guard both resolved and raw forms.
+					if (e.entries.some(opt => opt?.type === "refOptionalfeature" || (opt?.name && !opt?.className))) continue;
 					const options = e.entries.map(opt => {
 						if (!opt || typeof opt !== "object") return null;
 						if (opt.name) return CharacterBuilder._stripTags(opt.name);
@@ -4426,6 +4433,29 @@ export class CharacterBuilder extends BuilderBase {
 		// Prof bonus
 		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._getTotalLevel())})`}, "profBonusOverride").appendTo(wrp);
 
+		// Spell attack / save DC overrides
+		{
+			const pb = () => this._state.profBonusOverride ?? _profBonus(this._getTotalLevel());
+			const spellAbil = () => this._state.spellcastingAbility || (this._state.spellcastingAbilities || [])[0] || "";
+			const spellMod = () => { const a = spellAbil(); return a ? _abilMod(this._state[a] || 10) : null; };
+			const autoAtk = () => { const m = spellMod(); return m != null ? `Auto (${m + pb() >= 0 ? "+" : ""}${m + pb()})` : "Auto"; };
+			const autoDC  = () => { const m = spellMod(); return m != null ? `Auto (${8 + pb() + m})` : "Auto"; };
+
+			const atkRow = BuilderUi.getStateIptNumber("Spell Attack Bonus", cb, this._state, {nullable: true, placeholder: autoAtk()}, "spellAtkOverride").appendTo(wrp);
+			const dcRow  = BuilderUi.getStateIptNumber("Spell Save DC",      cb, this._state, {nullable: true, placeholder: autoDC()},  "spellDCOverride").appendTo(wrp);
+
+			const refreshPlaceholders = () => {
+				const atkIpt = atkRow.querySelector("input");
+				const dcIpt  = dcRow.querySelector("input");
+				if (atkIpt) atkIpt.placeholder = autoAtk();
+				if (dcIpt)  dcIpt.placeholder  = autoDC();
+			};
+			this._addHook("state", "spellcastingAbility",   refreshPlaceholders);
+			this._addHook("state", "spellcastingAbilities", refreshPlaceholders);
+			this._addHook("state", "profBonusOverride",     refreshPlaceholders);
+			["str","dex","con","int","wis","cha"].forEach(a => this._addHook("state", a, refreshPlaceholders));
+		}
+
 		// Weapons table
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
 
@@ -5598,8 +5628,8 @@ export class CharacterBuilder extends BuilderBase {
 			return [...abils].filter(Boolean);
 		})();
 		const spellMod   = spellAbilList.length ? abilMods[spellAbilList[0]] : null;
-		const spellDC    = spellMod != null ? 8 + profBonus + spellMod : null;
-		const spellAtk   = spellMod != null ? profBonus + spellMod : null;
+		const spellDC    = s.spellDCOverride  != null ? s.spellDCOverride  : (spellMod != null ? 8 + profBonus + spellMod : null);
+		const spellAtk   = s.spellAtkOverride != null ? s.spellAtkOverride : (spellMod != null ? profBonus + spellMod : null);
 
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
 		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk) || (s.classSkillChoices||[]).includes(sk);
@@ -5695,6 +5725,28 @@ export class CharacterBuilder extends BuilderBase {
 				const ly = y + i*lh;
 				if (ly > pt(bot) - 0.5) return;  // clip to field bottom
 				doc.text(l, pt(x0)+0.5, ly);
+			});
+		};
+		// Like inFieldML but shrinks the font until all lines fit (min 4.5pt)
+		const inFieldMLFit = (/** @type {string} */ text, /** @type {number} */ x0, /** @type {number} */ top, /** @type {number} */ x1, /** @type {number} */ bot, sz=7) => {
+			if (!text) return;
+			const w = pt(x1 - x0) - 1;
+			const maxH = pt(bot - top) - 0.5;
+			let curSz = sz;
+			let lines = /** @type {string[]} */ ([]);
+			doc.setFont("helvetica","normal");
+			while (curSz >= 4.5) {
+				doc.setFontSize(curSz);
+				lines = doc.splitTextToSize(String(text), w);
+				if (lines.length * (curSz * 0.352 * 1.6) <= maxH) break;
+				curSz -= 0.5;
+			}
+			const lh = curSz * 0.352 * 1.6;
+			const y = pt(top) + lh;
+			lines.forEach((l, /** @type {number} */ i) => {
+				const ly = y + i * lh;
+				if (ly > pt(bot) - 0.5) return;
+				doc.text(l, pt(x0) + 0.5, ly);
 			});
 		};
 		// Place text centred horizontally at a specific pt y midpoint (for label-aligned fields)
@@ -5835,7 +5887,7 @@ export class CharacterBuilder extends BuilderBase {
 		const _wpnMasteries = (s.weaponMasteries || []).filter(Boolean);
 		const _weaponProfsText = [allWeaponProfs.join(", ") || allArmorProfs.join(", "), _wpnMasteries.length ? `Masteries: ${_wpnMasteries.join(", ")}` : ""].filter(Boolean).join("\n");
 		inFieldML(_weaponProfsText,  17.8,682.2,208.9,732.4, 6.5);
-		inFieldML(allToolProfs.join(", "),   16.8,741.8,209.2,762.5, 6.5);
+		inFieldMLFit(allToolProfs.join(", "), 16.8,741.8,209.2,762.5, 6.5);
 
 		// Weapons table
 		const wpnFields = [
