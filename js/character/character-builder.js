@@ -5089,8 +5089,8 @@ export class CharacterBuilder extends BuilderBase {
 				equippedShield = true;
 			}
 			if (entry.weapon || entryType === "M" || entryType === "R") {
-				const props = entry.property || [];
-				const isFinesse = props.includes("F");
+				const propAbvs = (entry.property || []).map((/** @type {any} */ p) => (p?.uid || p || "").split("|")[0]);
+				const isFinesse = propAbvs.includes("F");
 				const isRanged  = entryType === "R" || entryType === "A";
 				const abilMod   = isFinesse ? Math.max(strMod, dexMod) : (isRanged ? dexMod : strMod);
 				const atkBonus  = _fmtMod(abilMod + prof);
