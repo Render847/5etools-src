@@ -1034,6 +1034,7 @@ export class CharacterBuilder extends BuilderBase {
 					this._state.classes = cur;
 					rebuildSubs();
 					this._onLevelOrClassChange({resetClass: ix === 0});
+					cb();
 				});
 
 				selSubclass.onn("change", () => {
@@ -1045,6 +1046,7 @@ export class CharacterBuilder extends BuilderBase {
 					this._applyClassData();
 					this.renderInput();
 					this.renderOutput();
+					cb();
 				});
 
 				selLevel.onn("change", () => {
@@ -1053,6 +1055,7 @@ export class CharacterBuilder extends BuilderBase {
 					cur[ix] = {...cur[ix], level: parseInt(selLevel.val()) || 1};
 					this._state.classes = cur;
 					this._onLevelOrClassChange();
+					cb();
 				});
 
 				btnRemove.onn("click", () => {
@@ -1062,6 +1065,7 @@ export class CharacterBuilder extends BuilderBase {
 					this._state.classes = cur;
 					this._onLevelOrClassChange({resetClass: false});
 					rebuildAllRows();
+					cb();
 				});
 
 				ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100">
@@ -1117,6 +1121,7 @@ export class CharacterBuilder extends BuilderBase {
 			cur.push({cls: "", sub: "", level: 1});
 			this._state.classes = cur;
 			rebuildAllRows();
+			cb();
 		});
 
 		rebuildAllRows();
@@ -1185,6 +1190,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._applyFeatData();
 			this.renderInput();
 			this.renderOutput();
+			cb();
 		};
 
 		ipt.onn("change", () => doApply(ipt.val()));
@@ -1325,6 +1331,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._applyFeatData();
 			this.renderInput();
 			this.renderOutput();
+			cb();
 		};
 
 		ipt.onn("change", () => doApply(ipt.val()));
@@ -2027,6 +2034,7 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		this._syncGrantedEquipment();
+		this._syncGrantedSpells();
 		this._rebuildHpSection?.();
 	}
 
@@ -2151,7 +2159,7 @@ export class CharacterBuilder extends BuilderBase {
 		if (typeof obj === "string") return [obj.split("|")[0].replace(/#[a-z]$/, "").trim()];
 		if (Array.isArray(obj))      return obj.flatMap(CharacterBuilder._collectSpells);
 		if (obj && typeof obj === "object") {
-			if (obj.choose !== undefined) return [];
+			if (obj.choose !== undefined || obj.all !== undefined) return [];
 			return Object.values(obj).flatMap(CharacterBuilder._collectSpells);
 		}
 		return [];
