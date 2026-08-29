@@ -420,48 +420,91 @@ export class CharacterBuilder extends BuilderBase {
 	async pRenderSideMenu () { /* no-op: character list is now accessed via the Characters button */ }
 
 	async _pShowCharactersModal () {
-		const {eleModalInner, doClose} = UiUtil.getShowModal({title: "Saved Characters", isMinHeight0: true});
+		const {eleModalInner, doClose} = UiUtil.getShowModal({title: "Saved Characters", isMinHeight0: true, isWidth100: true, isUncappedHeight: true});
 
-		const wrpList = ee`<div class="ve-flex-col ve-w-100 ve-p-1">`.appendTo(eleModalInner);
+		const iptSearch = ee`<input type="search" class="search ve-form-control ve-w-100 ve-lst__search ve-lst__search--no-border-h" placeholder="Search characters...">`;
+		const disp = ee`<div class="ve-lst__wrp-search-visible ve-no-events ve-flex-vh-center"></div>`;
+		const wrpBtnsSort = ee`<div class="filtertools ve-input-group ve-input-group--bottom ve-flex ve-no-shrink">
+			<button class="ve-col-3 sort ve-btn ve-btn-default ve-btn-xs" data-sort="name">Name</button>
+			<button class="ve-col-1 sort ve-btn ve-btn-default ve-btn-xs" data-sort="level">Lvl</button>
+			<button class="ve-col-2 sort ve-btn ve-btn-default ve-btn-xs" data-sort="cls">Class</button>
+			<button class="ve-col-2 sort ve-btn ve-btn-default ve-btn-xs" data-sort="sub">Subclass</button>
+			<button class="ve-col-2 sort ve-btn ve-btn-default ve-btn-xs" data-sort="species">Species</button>
+			<button class="ve-col-2 ve-btn ve-btn-default ve-btn-xs ve-grow" disabled>&nbsp;</button>
+		</div>`;
+		const wrpRows = ee`<div class="list ve-flex-col ve-w-100 ve-max-h-unset"></div>`;
 
-		const doRenderList = async () => {
-			wrpList.empty();
-			const chars = await this._pGetSavedCharacters();
-			if (!chars.length) {
-				ee`<div class="ve-muted ve-italic ve-p-2 ve-text-center">No saved characters.</div>`.appendTo(wrpList);
-				return;
-			}
-			chars.forEach(char => {
-				const btnLoad = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Load this character"><span class="glyphicon glyphicon-pencil ve-mr-1"></span>Load</button>`
-					.onn("click", async () => {
-						if (
-							this._meta?.isModified
-							&& !await InputUiUtil.pGetUserBoolean({title: "Discard Unsaved Changes", htmlDescription: "You have unsaved changes. Are you sure?", textYes: "Yes", textNo: "Cancel"})
-						) return;
-						doClose(true);
-						this.setStateFromLoaded({s: MiscUtil.copy(char.s), m: MiscUtil.copy(char.m)});
-						this.renderInput();
-						this.renderOutput();
-						this.doUiSave();
-					});
+		ee`<div class="ve-flex-v-stretch ve-input-group ve-input-group--top ve-no-shrink ve-mt-1 ve-mb-0">
+			<div class="ve-w-100 ve-relative">
+				${iptSearch}
+				<div class="ve-lst__wrp-search-glass ve-no-events ve-flex-vh-center"><span class="glyphicon glyphicon-search"></span></div>
+				${disp}
+			</div>
+		</div>`.appendTo(eleModalInner);
+		wrpBtnsSort.appendTo(eleModalInner);
+		wrpRows.appendTo(eleModalInner);
 
-				const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete this character"><span class="glyphicon glyphicon-trash"></span></button>`
-					.onn("click", async () => {
-						if (!await InputUiUtil.pGetUserBoolean({title: "Delete Character", htmlDescription: `Delete "${char.name}"?`, textYes: "Yes", textNo: "Cancel"})) return;
-						const next = (await this._pGetSavedCharacters()).filter(c => c.uniqueId !== char.uniqueId);
-						await StorageUtil.pSetForPage(CharacterBuilder._STORAGE_KEY_SAVED, next);
-						if (this.__state.uniqueId === char.uniqueId) this.reset();
-						await doRenderList();
-					});
+		const chars = await this._pGetSavedCharacters();
 
-				ee`<div class="ve-split-v-center ve-py-1 ve-px-2 stripe-even">
-					<span class="ve-flex-1 ve-mr-2">${char.name.qq()}</span>
-					<div class="ve-no-shrink">${btnLoad}${btnDelete}</div>
-				</div>`.appendTo(wrpList);
-			});
-		};
+		if (!chars.length) {
+			ee`<div class="ve-muted ve-italic ve-p-2 ve-text-center">No saved characters.</div>`.appendTo(wrpRows);
+		}
 
-		await doRenderList();
+		const list = new List({iptSearch, wrpList: wrpRows, fnSort: SortUtil.listSort});
+		list.on("updated", () => disp.html(`${list.visibleItems.length}/${list.items.length}`));
+		SortUtil.initBtnSortHandlers(wrpBtnsSort, list);
+
+		chars.forEach((/** @type {any} */ char) => {
+			const s = char.s || {};
+			const totalLevel = (s.classes || []).reduce((/** @type {number} */ sum, /** @type {any} */ c) => sum + (c.level || 0), 0) || (s.level || 1);
+			const className = (s.classes || []).filter((/** @type {any} */ c) => c.cls).map((/** @type {any} */ c) => c.cls).join("/") || s.class || "";
+			const subName = (s.classes || []).filter((/** @type {any} */ c) => c.sub).map((/** @type {any} */ c) => c.sub).join("/") || s.subclass || "";
+			const speciesName = s.species || "";
+
+			const btnLoad = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Load this character"><span class="glyphicon glyphicon-pencil"></span></button>`
+				.onn("click", async evt => {
+					evt.stopPropagation();
+					if (
+						this._meta?.isModified
+						&& !await InputUiUtil.pGetUserBoolean({title: "Discard Unsaved Changes", htmlDescription: "You have unsaved changes. Are you sure?", textYes: "Yes", textNo: "Cancel"})
+					) return;
+					doClose(true);
+					this.setStateFromLoaded({s: MiscUtil.copy(char.s), m: MiscUtil.copy(char.m)});
+					this.renderInput();
+					this.renderOutput();
+					this.doUiSave();
+				});
+
+			const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete this character"><span class="glyphicon glyphicon-trash"></span></button>`
+				.onn("click", async evt => {
+					evt.stopPropagation();
+					if (!await InputUiUtil.pGetUserBoolean({title: "Delete Character", htmlDescription: `Delete "${char.name}"?`, textYes: "Yes", textNo: "Cancel"})) return;
+					const next = (await this._pGetSavedCharacters()).filter((/** @type {any} */ c) => c.uniqueId !== char.uniqueId);
+					await StorageUtil.pSetForPage(CharacterBuilder._STORAGE_KEY_SAVED, next);
+					if (this.__state.uniqueId === char.uniqueId) this.reset();
+					list.removeItem(listItem);
+					list.update();
+				});
+
+			const eleLi = ee`<div class="ve-lst__row ve-flex-col ve-px-0">
+				<label class="ve-lst__row-border ve-lst__row-inner ve-no-select ve-mb-0 ve-flex-v-center">
+					<div class="ve-col-3 ve-px-1 ve-overflow-hidden ve-text-truncate">${char.name.qq()}</div>
+					<div class="ve-col-1 ve-px-1 ve-text-center ve-muted">${totalLevel}</div>
+					<div class="ve-col-2 ve-px-1 ve-overflow-hidden ve-text-truncate ve-muted">${className.qq()}</div>
+					<div class="ve-col-2 ve-px-1 ve-overflow-hidden ve-text-truncate ve-muted">${subName.qq()}</div>
+					<div class="ve-col-2 ve-px-1 ve-overflow-hidden ve-text-truncate ve-muted">${speciesName.qq()}</div>
+					<div class="ve-col-2 ve-flex-vh-center ve-pl-1 ve-pr-0 ve-btn-group">
+						${btnLoad}${btnDelete}
+					</div>
+				</label>
+			</div>`;
+
+			const listItem = new ListItem(char.uniqueId, eleLi, char.name, {level: totalLevel, cls: className, sub: subName, species: speciesName}, {});
+			list.addItem(listItem);
+		});
+
+		list.init();
+		iptSearch.focuse();
 	}
 
 	async pHandleSidebarDownloadJsonClick () {
