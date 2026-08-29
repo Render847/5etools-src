@@ -260,7 +260,7 @@ export class CharacterBuilder extends BuilderBase {
 			bgToolProfs: [],         // auto-managed: background-granted tool proficiencies
 			excludedBgToolProfs: [], // user-excluded background tool proficiencies
 			// combat
-			ac: 10,
+			ac: null,
 			speed: 30,
 			initiative: null,     // null = auto from dex
 			spellAtkOverride: null, // null = auto (profBonus + spellMod)
@@ -285,7 +285,8 @@ export class CharacterBuilder extends BuilderBase {
 			asiChoices: [],              // [{featName}]
 			_asiCount: 0,                // computed: number of ASI slots from class at current level
 			speciesTraitItems: [],   // [{text, excluded}] - auto-filled from species data
-			speciesChoices: {},      // {speciesSpell_0: "Thorn Whip", ...} - user-chosen species spells
+			speciesChoices: {},      // {speciesSpell_0: "Thorn Whip", speciesSkill_0: "Perception", ...}
+			speciesSkillProfs: [],   // auto-managed: species-granted skill proficiencies
 			// weapon masteries
 			weaponMasteries: [],        // [weaponName, ...] - user-chosen weapon masteries
 			_weaponMasteryCount: 0,     // computed: number of mastery slots from class at current level
@@ -295,6 +296,7 @@ export class CharacterBuilder extends BuilderBase {
 			// class resources (computed from classTableGroups)
 			_classResources: [],         // computed: [{label, value}] e.g. Sneak Attack, Ki Points
 			_classSpeedBonus: 0,         // computed: Unarmored Movement bonus (Monk)
+			_speciesAcBonus: 0,          // computed: species AC bonus (e.g. Warforged +1)
 			// shield (toggled in Combat tab)
 			shield: false,
 			// magic item attunement slots
@@ -1318,6 +1320,8 @@ export class CharacterBuilder extends BuilderBase {
 			this._state.species          = newVal;
 			this._state.speciesTraitItems = [];
 			this._state.speciesChoices    = {};
+			this._state.speciesSkillProfs = [];
+			this._state._speciesAcBonus   = 0;
 			this._state.size          = "Medium";
 			this._state.speed         = 30;
 			this._state._speciesSpeed = null;  // reset so _applySpeciesData always applies new species defaults
@@ -1348,19 +1352,40 @@ export class CharacterBuilder extends BuilderBase {
 		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
 		wrp.append(row);
 
-		// Species spell-choice dropdowns (e.g. "choose a druid cantrip" from Lorwyn lineage)
-		const [spellChoiceRow, spellChoiceRowInner] = BuilderUi.getLabelledRowTuple("Species Spells");
-		const wrpSpellChoices = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(spellChoiceRowInner);
+		// Species choices: spell-choice and skill-proficiency dropdowns
+		const [choiceRow, choiceRowInner] = BuilderUi.getLabelledRowTuple("Species Choices");
+		const wrpChoices = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(choiceRowInner);
 
-		const buildSpeciesSpellChoiceUI = () => {
-			wrpSpellChoices.empty();
+		const buildSpeciesChoiceUI = () => {
+			wrpChoices.empty();
 			const speciesEntry = this._sg_getSpeciesEntry();
-			const choices = this._getSpeciesSpellChoices(speciesEntry);
-			spellChoiceRow.toggleVe(choices.length > 0);
-			if (!choices.length) return;
+			const spellChoices = this._getSpeciesSpellChoices(speciesEntry);
+			const skillChoices = this._getSpeciesSkillChoices(speciesEntry);
+			const allChoices = [...skillChoices, ...spellChoices];
+			choiceRow.toggleVe(allChoices.length > 0);
+			if (!allChoices.length) return;
 
 			const saved = this._state.speciesChoices || {};
-			choices.forEach(({key, label, options}) => {
+
+			// Skill proficiency dropdowns first
+			skillChoices.forEach((/** @type {any} */ {key, label, options}) => {
+				const savedVal = options?.find((/** @type {any} */ o) => o.value === saved[key]) ? saved[key] : "";
+				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
+					<option value="">- Choose ${label} -</option>
+					${(options || []).map((/** @type {any} */ o) => `<option value="${o.value}"${o.value === savedVal ? " selected" : ""}>${o.label}</option>`).join("")}
+				</select>`;
+				sel.onn("change", () => {
+					const updated = {...(this._state.speciesChoices || {})};
+					updated[key] = sel.val();
+					this._state.speciesChoices = updated;
+					this._syncSpeciesSkillProfs();
+					cb();
+				});
+				wrpChoices.append(sel);
+			});
+
+			// Spell-choice dropdowns
+			spellChoices.forEach((/** @type {any} */ {key, label, options}) => {
 				const savedVal = options?.find((/** @type {any} */ o) => o.value === saved[key]) ? saved[key] : "";
 				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
 					<option value="">- Choose ${label} -</option>
@@ -1373,14 +1398,14 @@ export class CharacterBuilder extends BuilderBase {
 					this._syncGrantedSpells();
 					cb();
 				});
-				wrpSpellChoices.append(sel);
+				wrpChoices.append(sel);
 			});
 		};
 
-		buildSpeciesSpellChoiceUI();
-		this._addHook("state", "species",  buildSpeciesSpellChoiceUI);
-		this._addHook("state", "styleHint", buildSpeciesSpellChoiceUI);
-		this._speciesSpellChoiceRow = spellChoiceRow;
+		buildSpeciesChoiceUI();
+		this._addHook("state", "species",  buildSpeciesChoiceUI);
+		this._addHook("state", "styleHint", buildSpeciesChoiceUI);
+		this._speciesSpellChoiceRow = choiceRow;
 	}
 
 	// Returns [{key, label, options}] for each spell-choose slot in a species entry's additionalSpells.
@@ -1400,6 +1425,39 @@ export class CharacterBuilder extends BuilderBase {
 			}
 		}
 		return choices;
+	}
+
+	// Returns [{key, label, options}] for each skill proficiency choice slot in a species entry.
+	_getSpeciesSkillChoices (speciesEntry) {
+		if (!speciesEntry?.skillProficiencies?.length) return [];
+		const choices = [];
+		let idx = 0;
+		const allSkillOpts = _SKILLS.map(s => ({value: s.name, label: s.name}));
+		for (const sp of speciesEntry.skillProficiencies) {
+			const anyCount = typeof sp.any === "number" ? sp.any : 0;
+			for (let i = 0; i < anyCount; i++) {
+				choices.push({key: `speciesSkill_${idx++}`, label: "Skill", options: allSkillOpts});
+			}
+			if (sp.choose?.from) {
+				const count = sp.choose.count || 1;
+				const opts = _SKILLS
+					.filter(s => sp.choose.from.some((/** @type {any} */ f) => s.name.toLowerCase() === f.toLowerCase()))
+					.map(s => ({value: s.name, label: s.name}));
+				for (let i = 0; i < count; i++) {
+					choices.push({key: `speciesSkill_${idx++}`, label: "Skill", options: opts.length ? opts : allSkillOpts});
+				}
+			}
+		}
+		return choices;
+	}
+
+	// Updates speciesSkillProfs from current speciesChoices.
+	_syncSpeciesSkillProfs () {
+		if (!this._state) return;
+		const speciesEntry = this._sg_getSpeciesEntry();
+		const skillChoices = this._getSpeciesSkillChoices(speciesEntry);
+		const saved = this._state.speciesChoices || {};
+		this._state.speciesSkillProfs = skillChoices.map(({key}) => saved[key]).filter(Boolean);
 	}
 
 	_autoSetSpellcastingAbility () {
@@ -2372,7 +2430,12 @@ export class CharacterBuilder extends BuilderBase {
 			});
 		}
 
+		// AC bonus from species trait text (e.g. Warforged: "+1 bonus to your Armor Class")
+		const acBonusMatch = traitLines.join(" ").match(/\+(\d+)\s+bonus\s+to\s+your\s+Armor\s+Class/i);
+		this._state._speciesAcBonus = acBonusMatch ? parseInt(acBonusMatch[1]) : 0;
+
 		this._syncGrantedSpells();
+		this._syncSpeciesSkillProfs();
 		this._sg_syncAbilityScores();
 		this._rebuildHpSection?.();
 	}
@@ -2810,6 +2873,7 @@ export class CharacterBuilder extends BuilderBase {
 						...(this._state.skillProfs || []),
 						...(this._state.classSkillChoices || []),
 						...(this._state.featSkillProfs || []).filter(s => !ownChoices.has(s.toLowerCase())),
+						...(this._state.speciesSkillProfs || []).filter((/** @type {string} */ s) => !ownChoices.has(s.toLowerCase())),
 					].map(s => s.toLowerCase()));
 					const pool = (!from || from.some(f => ANY_LABELS[f]))
 						? _SKILLS.map(s => ({value: s.name, label: s.name}))
@@ -2852,7 +2916,7 @@ export class CharacterBuilder extends BuilderBase {
 			expertise: {
 				label:       (from, cnt) => cnt > 1 ? `Expertise Skills (×${cnt})` : "Expertise Skill",
 				options:     () => {
-					const allProf = [...new Set([...(this._state.skillProfs||[]), ...(this._state.featSkillProfs||[]), ...(this._state.classSkillChoices||[])])];
+					const allProf = [...new Set([...(this._state.skillProfs||[]), ...(this._state.featSkillProfs||[]), ...(this._state.speciesSkillProfs||[]), ...(this._state.classSkillChoices||[])])];
 					const pool = allProf.length ? allProf : _SKILLS.map(s => s.name);
 					return pool.map(s => ({value: s, label: s}));
 				},
@@ -4118,6 +4182,7 @@ export class CharacterBuilder extends BuilderBase {
 				const allProfSkills = _SKILLS.filter(s =>
 					(this._state.skillProfs        || []).includes(s.name) ||
 					(this._state.featSkillProfs    || []).includes(s.name) ||
+					(this._state.speciesSkillProfs || []).includes(s.name) ||
 					(this._state.classSkillChoices || []).includes(s.name),
 				);
 				const saved = this._state.classExpertise || [];
@@ -4156,6 +4221,7 @@ export class CharacterBuilder extends BuilderBase {
 			this._addHook("state", "classSkillChoices",    buildExpertiseDropdowns);
 			this._addHook("state", "skillProfs",           buildExpertiseDropdowns);
 			this._addHook("state", "featSkillProfs",       buildExpertiseDropdowns);
+			this._addHook("state", "speciesSkillProfs",    buildExpertiseDropdowns);
 
 			wrp.append(choiceRow);
 		}
@@ -4167,6 +4233,7 @@ export class CharacterBuilder extends BuilderBase {
 			const isProficient = () =>
 				(this._state.skillProfs         || []).includes(name) ||
 				(this._state.featSkillProfs      || []).includes(name) ||
+				(this._state.speciesSkillProfs   || []).includes(name) ||
 				(this._state.classSkillChoices   || []).includes(name);
 			const isExpert     = () => (this._state.skillExpertise || []).includes(name) || (this._state.featExpertise || []).includes(name) || (this._state.classExpertise || []).includes(name);
 			const isHalfProf   = () => (this._state.skillHalfProfs || []).includes(name);
@@ -4219,6 +4286,7 @@ export class CharacterBuilder extends BuilderBase {
 				});
 			if (isExpert()) btnExpert.addClass("ve-active");
 			this._addHook("state", "featSkillProfs",    () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
+			this._addHook("state", "speciesSkillProfs", () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
 			this._addHook("state", "featExpertise",     () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
 			this._addHook("state", "classSkillChoices", () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
 			this._addHook("state", "classExpertise",    () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
@@ -4405,6 +4473,14 @@ export class CharacterBuilder extends BuilderBase {
 			const btnReset = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Reset to automatic calculation">Auto</button>`
 				.onn("click", () => { this._state.ac = null; cb(); });
 			acRow.querySelector(".mkbru__wrp-row").append(btnReset);
+			const acLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(acRow);
+			const refreshAcLbl = () => {
+				const bonus = this._state._speciesAcBonus || 0;
+				acLbl.toggleVe(bonus !== 0);
+			};
+			this._addHook("state", "_speciesAcBonus", refreshAcLbl);
+			this._addHook("state", "ac",              refreshAcLbl);
+			refreshAcLbl();
 		}
 
 		{
@@ -5441,7 +5517,7 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		const allSaveProfs = new Set([...(s.savingThrowProfs || []), ...(s.featSavingThrowProfs || [])]);
-		const allSkillProfs = new Set([...(s.skillProfs || []), ...(s.featSkillProfs || []), ...(s.classSkillChoices || [])]);
+		const allSkillProfs = new Set([...(s.skillProfs || []), ...(s.featSkillProfs || []), ...(s.speciesSkillProfs || []), ...(s.classSkillChoices || [])]);
 		const allExpertise  = new Set([...(s.skillExpertise || []), ...(s.featExpertise || []), ...(s.classExpertise || [])]);
 		const allHalfProfs  = new Set(s.skillHalfProfs || []);
 
@@ -5458,7 +5534,7 @@ export class CharacterBuilder extends BuilderBase {
 			}).join(", ");
 
 		const passPerc = 10 + _mod(s.wis || 10) + (allSkillProfs.has("Perception") ? (allExpertise.has("Perception") ? prof * 2 : prof) : 0);
-		const ac = s.equippedAC != null ? s.equippedAC + (s.equippedShield ? 2 : 0) : s.ac;
+		const ac = (s.equippedAC != null ? s.equippedAC + (s.equippedShield ? 2 : 0) : s.ac) + (s._speciesAcBonus || 0);
 		const languages = [...new Set([...(s.languages || []), ...(s.featLanguages || [])])].join(", ") || "\u2014";
 		const classLine = (s.classes || (s.class ? [{cls: s.class, sub: s.subclass, level: s.level}] : []))
 			.filter(c => c.cls)
@@ -5622,7 +5698,7 @@ export class CharacterBuilder extends BuilderBase {
 		const profBonus  = s.profBonusOverride ?? _profBonus(totalLevel);
 		const abilMods   = Object.fromEntries(_ABILITIES.map(a => [a, _abilMod(totalAbl(a))]));
 		const initiative = (s.initiative ?? abilMods.dex) + (s.featInitiativeBonus || 0);
-		const _percMult  = ((s.skillExpertise||[]).includes("Perception") || (s.featExpertise||[]).includes("Perception") || (s.classExpertise||[]).includes("Perception")) ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception") || (s.featSkillProfs||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
+		const _percMult  = ((s.skillExpertise||[]).includes("Perception") || (s.featExpertise||[]).includes("Perception") || (s.classExpertise||[]).includes("Perception")) ? 2 : ((s.skillProfs||[]).includes("Perception") || (s.classSkillChoices||[]).includes("Perception") || (s.featSkillProfs||[]).includes("Perception") || (s.speciesSkillProfs||[]).includes("Perception")) ? 1 : (s.skillHalfProfs||[]).includes("Perception") ? 0.5 : 0;
 		const passPer    = 10 + abilMods.wis + profBonus * _percMult;
 		// Collect all unique spellcasting abilities: from class data, feat choices, fallback to primary
 		const spellAbilList = (() => {
@@ -5640,7 +5716,7 @@ export class CharacterBuilder extends BuilderBase {
 		const spellAtk   = s.spellAtkOverride != null ? s.spellAtkOverride : (spellMod != null ? profBonus + spellMod : null);
 
 		const hasSave    = abl => (s.savingThrowProfs||[]).includes(abl) || (s.featSavingThrowProfs||[]).some(p=>p.toLowerCase()===_ABILITY_FULL[abl]?.toLowerCase()||p.toLowerCase()===abl.toLowerCase());
-		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk) || (s.classSkillChoices||[]).includes(sk);
+		const hasSkill    = sk => (s.skillProfs||[]).includes(sk) || (s.featSkillProfs||[]).includes(sk) || (s.speciesSkillProfs||[]).includes(sk) || (s.classSkillChoices||[]).includes(sk);
 		const hasExpert   = sk => (s.skillExpertise||[]).includes(sk) || (s.featExpertise||[]).includes(sk) || (s.classExpertise||[]).includes(sk);
 		const hasHalfProf = sk => (s.skillHalfProfs||[]).includes(sk);
 		const saveBonus  = abl => abilMods[abl] + (hasSave(abl) ? profBonus : 0);
@@ -5686,7 +5762,7 @@ export class CharacterBuilder extends BuilderBase {
 		                       : _hasBarbUD                 ? 10 + abilMods.dex + abilMods.con
 		                       : _hasMonkUD                 ? 10 + abilMods.dex + abilMods.wis
 		                       :                             10 + abilMods.dex;
-		const effectiveAC = s.ac != null ? s.ac : (_armorAC ?? _baseUnarmoredAC) + (_hasEquippedShield ? 2 : 0);
+		const effectiveAC = (s.ac != null ? s.ac : (_armorAC ?? _baseUnarmoredAC) + (_hasEquippedShield ? 2 : 0)) + (s._speciesAcBonus || 0);
 
 		if (!window.jspdf) await new Promise((res,rej) => {
 			const el = document.createElement("script");
