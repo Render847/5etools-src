@@ -309,8 +309,9 @@ export class CharacterBuilder extends BuilderBase {
 			// magic item attunement slots
 			magicItems: ["", "", ""],
 			// equipment (non-magic user items + auto-granted; autoGranted managed by _syncGrantedEquipment)
-			magicEquipment: [],      // [{name, qty, note}] - user-added magic items
-			equipmentChoices: {},    // {cls_0:"a", bg_0:"b"} - starting equipment choice selections
+			magicEquipment: [],        // [{name, qty, note}] - user-added magic items
+			equipmentChoices: {},      // {cls_0:"a", bg_0:"b"} - starting equipment choice selections
+			excludedGrantNames: [],    // [lowercase name, ...] - auto-granted items user has removed
 			// equipped-item computed values (managed by _syncEquippedItems)
 			equippedAC:      null,   // number | null - set when armor is equipped
 			equippedShield:  false,  // bool - set when a shield item is equipped
@@ -381,6 +382,19 @@ export class CharacterBuilder extends BuilderBase {
 			delete state.s.class;
 			delete state.s.subclass;
 			delete state.s.level;
+		}
+		// Migrate old inline excluded:true items to the dedicated excludedGrantNames list
+		if (Array.isArray(state.s.equipment)) {
+			const oldExcluded = state.s.equipment.filter((/** @type {any} */ e) => e.autoGranted && e.excluded);
+			if (oldExcluded.length) {
+				state.s.excludedGrantNames = [
+					...new Set([
+						...(state.s.excludedGrantNames || []),
+						...oldExcluded.map((/** @type {any} */ e) => (e.name || "").toLowerCase()).filter(Boolean),
+					]),
+				];
+				state.s.equipment = state.s.equipment.filter((/** @type {any} */ e) => !(e.autoGranted && e.excluded));
+			}
 		}
 		this.__state = state.s;
 		this.__meta = state.m;
@@ -4795,12 +4809,15 @@ export class CharacterBuilder extends BuilderBase {
 
 		// Diff: keep user-added items, then match desired grants against existing auto-granted items
 		// (preserving user edits), adding fresh entries only for newly-granted items.
-		const existingGrants = (this._state.equipment || []).filter(e => e.autoGranted);
+		// Items whose names are in excludedGrantNames are permanently skipped — they were explicitly removed by the user.
+		const excludedGrantSet = new Set((this._state.excludedGrantNames || []).map((/** @type {string} */ n) => n.toLowerCase()));
+		const existingGrants = (this._state.equipment || []).filter((/** @type {any} */ e) => e.autoGranted);
 		const matched = new Set();
-		const newEquipment = (this._state.equipment || []).filter(e => !e.autoGranted);
+		const newEquipment = (this._state.equipment || []).filter((/** @type {any} */ e) => !e.autoGranted);
 
 		for (const grant of desiredGrants) {
 			const key = grant.name.toLowerCase();
+			if (excludedGrantSet.has(key)) continue; // user explicitly removed this grant
 			const existingIdx = existingGrants.findIndex((e, i) => !matched.has(i) && e.name.toLowerCase() === key);
 			if (existingIdx >= 0) {
 				matched.add(existingIdx);
@@ -4885,10 +4902,7 @@ export class CharacterBuilder extends BuilderBase {
 			const [eqRow, eqRowInner] = BuilderUi.getLabelledRowTuple("Equipment", {isMarked: true});
 			const eqRows = /** @type {any[]} */ ([]);
 			const doUpdateEqState = () => {
-				const activeItems = eqRows.map(r => r.getState()).filter(it => it.name);
-				// Excluded auto-granted items are not in eqRows; pass them through directly from state
-				const excludedItems = (this._state.equipment || []).filter(e => e.autoGranted && e.excluded);
-				this._state.equipment = [...activeItems, ...excludedItems];
+				this._state.equipment = eqRows.map(r => r.getState()).filter(it => it.name);
 				this._syncEquippedItems();
 				cb();
 			};
@@ -4931,9 +4945,6 @@ export class CharacterBuilder extends BuilderBase {
 			// Equipment items (auto-granted + user-added)
 			let _eqDragSrcIdx = -1;
 			const addEqRow = (initial) => {
-				// Excluded auto-granted items are kept in state but not rendered
-				if (initial?.autoGranted && initial?.excluded) return;
-
 				const entry = this._getItemEntry(initial?.name || "");
 				const _eqTypeAbv1 = (entry?.type || "").split("|")[0];
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv1 === "S" || _eqTypeAbv1 === "M" || _eqTypeAbv1 === "R" || _eqTypeAbv1 === "LA" || _eqTypeAbv1 === "MA" || _eqTypeAbv1 === "HA"));
@@ -4946,8 +4957,9 @@ export class CharacterBuilder extends BuilderBase {
 					: null;
 				const btnRm = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.vee.onn("click", () => {
 					if (initial?.autoGranted) {
-						// Mark as excluded so sync won't re-add it; remove from eqRows so doUpdateEqState won't re-include it as active
-						initial.excluded = true;
+						// Record the excluded name so _syncGrantedEquipment won't re-add it on future syncs
+						const nm = (initial.name || "").toLowerCase();
+						if (nm) this._state.excludedGrantNames = [...new Set([...(this._state.excludedGrantNames || []), nm])];
 						eqRows.splice(eqRows.indexOf(rowMeta), 1);
 						rowEle.remove();
 					} else {
