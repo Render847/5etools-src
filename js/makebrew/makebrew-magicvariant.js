@@ -1,4 +1,4 @@
-import {BuilderBase} from "./makebrew-builder-base.js";
+﻿import {BuilderBase} from "./makebrew-builder-base.js";
 import {BuilderUi} from "./makebrew-builderui.js";
 
 // ---- Static lookup tables ------------------------------------------------
@@ -336,7 +336,7 @@ export class MagicVariantBuilder extends BuilderBase {
 
 	_renderInputMain () {
 		this._sourcesCache = MiscUtil.copy(this._ui.allSources);
-		const wrp = this._ui.wrpInput.empty();
+		const wrp = this._ui.wrpInput.vee.empty();
 
 		// Ensure inherits object exists (may be absent after loading minimal data)
 		this.__state.inherits ||= {};
@@ -371,8 +371,8 @@ export class MagicVariantBuilder extends BuilderBase {
 		);
 		const [infoTab, reqTab, inheritsTab, bonusesTab, traitsTab, linksTab, textTab] = tabs;
 
-		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ve-ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
-		tabs.forEach(it => it.wrpTab.appendTo(wrp));
+		veT`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ve-ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.vee.appendTo(wrp);
+		tabs.forEach(it => it.wrpTab.vee.appendTo(wrp));
 
 		this._buildInfoTab(infoTab.wrpTab, cb);
 		this._buildRequiresTab(reqTab.wrpTab, cb);
@@ -388,17 +388,17 @@ export class MagicVariantBuilder extends BuilderBase {
 	// =========================================================================
 
 	_buildInfoTab (wrp, cb) {
-		BuilderUi.getStateIptString("Name", cb, this._state, {nullable: false}, "name").appendTo(wrp);
-		this._selSource = this.getSourceInput(cb).appendTo(wrp);
-		BuilderUi.getStateIptString("Page", cb, this._state, {}, "page").appendTo(wrp);
+		BuilderUi.getStateIptString("Name", cb, this._state, {nullable: false}, "name").vee.appendTo(wrp);
+		this._selSource = this.getSourceInput(cb).vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Page", cb, this._state, {}, "page").vee.appendTo(wrp);
 
 		BuilderUi.getStateIptEnum(
 			"Edition", cb, this._state,
 			{nullable: true, vals: ["classic"], fnDisplay: () => "Classic"},
 			"edition",
-		).appendTo(wrp);
+		).vee.appendTo(wrp);
 
-		BuilderUi.getStateIptBoolean("Ammunition Variant", cb, this._state, {nullable: true}, "ammo").appendTo(wrp);
+		BuilderUi.getStateIptBoolean("Ammunition Variant", cb, this._state, {nullable: true}, "ammo").vee.appendTo(wrp);
 
 		this._buildSectionHeader("Name Modification", wrp);
 		this._buildInheritsStringRow("Name Prefix", wrp, cb, "namePrefix");
@@ -413,9 +413,9 @@ export class MagicVariantBuilder extends BuilderBase {
 	_buildRequiresTab (wrp, cb) {
 		// --- Requires ---
 		this._buildSectionHeader("What This Variant Applies To", wrp);
-		ee`<div class="ve-muted ve-mb-2" style="font-size:.82em">Each row adds items that qualify. A base item becomes a specific variant if it matches <em>any</em> row below.</div>`.appendTo(wrp);
+		veT`<div class="ve-muted ve-mb-2" style="font-size:.82em">Each row adds items that qualify. A base item becomes a specific variant if it matches <em>any</em> row below.</div>`.vee.appendTo(wrp);
 
-		const wrpReq = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(wrp);
+		const wrpReq = veT`<div class="ve-flex-col ve-w-100"></div>`.vee.appendTo(wrp);
 		const reqRows = [];
 
 		const saveRequires = () => {
@@ -425,24 +425,24 @@ export class MagicVariantBuilder extends BuilderBase {
 
 		const addReqRow = (uiData) => {
 			const ctrl = this._buildConditionRow(uiData || {category: "weapon", subtype: "any", edition: "both"}, saveRequires);
-			ctrl.btnDelete.onn("click", () => {
+			ctrl.btnDelete.vee.onn("click", () => {
 				reqRows.splice(reqRows.indexOf(ctrl), 1);
 				ctrl.element.remove();
 				saveRequires();
 			});
-			ctrl.element.appendTo(wrpReq);
+			ctrl.element.vee.appendTo(wrpReq);
 			reqRows.push(ctrl);
 		};
 
 		MagicVariantBuilder._parseConditionsToUIData(this.__state.requires || []).forEach(d => addReqRow(d));
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Row</button>`
-			.onn("click", () => addReqRow(null))
-			.appendTo(wrp);
+		veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Row</button>`
+			.vee.onn("click", () => addReqRow(null))
+			.vee.appendTo(wrp);
 
 		// --- Excludes ---
 		this._buildSectionHeader("Exclusions", wrp);
-		ee`<div class="ve-muted ve-mb-2" style="font-size:.82em">Items matching any exclusion are removed even if they satisfy a row above.</div>`.appendTo(wrp);
+		veT`<div class="ve-muted ve-mb-2" style="font-size:.82em">Items matching any exclusion are removed even if they satisfy a row above.</div>`.vee.appendTo(wrp);
 		this._buildExcludesSection(wrp, cb);
 	}
 
@@ -510,52 +510,52 @@ export class MagicVariantBuilder extends BuilderBase {
 			...uiData,
 		};
 
-		const element = ee`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-py-1 ve-flex-v-center ve-mb-1 ve-px-1" style="border-left:3px solid var(--col-border-default,#888)"></div>`;
+		const element = veT`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-py-1 ve-flex-v-center ve-mb-1 ve-px-1" style="border-left:3px solid var(--col-border-default,#888)"></div>`;
 
 		// Category
-		const catSel = ee`<select class="ve-form-control ve-input-xs">
+		const catSel = veT`<select class="ve-form-control ve-input-xs">
 			${_COND_CATEGORIES.map(c => `<option value="${c.v}">${c.label}</option>`)}
-		</select>`.val(state.category);
+		</select>`.vee.val(state.category);
 
 		// Sub-type (contents are rebuilt when category changes)
-		const subSel = ee`<select class="ve-form-control ve-input-xs"></select>`;
+		const subSel = veT`<select class="ve-form-control ve-input-xs"></select>`;
 
 		const rebuildSubOpts = () => {
-			const cat = catSel.val();
-			const prev = subSel.val();
-			subSel.empty();
+			const cat = catSel.vee.val();
+			const prev = subSel.vee.val();
+			subSel.vee.empty();
 			let opts = [];
 			if (cat === "weapon") opts = _WEAPON_TYPES;
 			else if (cat === "armor") opts = _ARMOR_TYPES;
 			else if (cat === "ammo")  opts = _AMMO_TYPES;
-			opts.forEach(o => subSel.appends(`<option value="${o.v}">${o.label}</option>`));
-			subSel.val(opts.find(o => o.v === prev) ? prev : (opts[0]?.v ?? ""));
-			subSel.toggleVe(opts.length > 0);
+			opts.forEach(o => subSel.vee.appends(`<option value="${o.v}">${o.label}</option>`));
+			subSel.vee.val(opts.find(o => o.v === prev) ? prev : (opts[0]?.v ?? ""));
+			subSel.vee.toggle(opts.length > 0);
 		};
 
 		// Edition — only shown when the chosen selection uses a type string (not a boolean flag)
-		const edSel = ee`<select class="ve-form-control ve-input-xs">
+		const edSel = veT`<select class="ve-form-control ve-input-xs">
 			<option value="both">Any Edition</option>
 			<option value="classic">Classic (pre-2024)</option>
 			<option value="new">2024 (One D&D)</option>
-		</select>`.val(state.edition);
+		</select>`.vee.val(state.edition);
 
 		// Weapon category — only shown for weapon rows
-		const wpnCatSel = ee`<select class="ve-form-control ve-input-xs">
+		const wpnCatSel = veT`<select class="ve-form-control ve-input-xs">
 			<option value="any">Any Category</option>
 			<option value="simple">Simple Weapons</option>
 			<option value="martial">Martial Weapons</option>
-		</select>`.val(state.weaponCategory || "any");
+		</select>`.vee.val(state.weaponCategory || "any");
 
 		// Specific-item: chip list + modal-select button
 		const selectedItems = [...(state.items || [])]; // [{name, source}]
-		const wrpSpecific = ee`<div class="ve-flex-col ve-w-100 ve-mt-1"></div>`;
+		const wrpSpecific = veT`<div class="ve-flex-col ve-w-100 ve-mt-1"></div>`;
 
 		const renderChips = () => {
-			wrpSpecific.empty();
-			const chipRow = ee`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.appendTo(wrpSpecific);
+			wrpSpecific.vee.empty();
+			const chipRow = veT`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.vee.appendTo(wrpSpecific);
 			selectedItems.forEach((item, idx) => {
-				const chip = ee`<div class="ve-flex-v-center ve-badge ve-badge--default ve-no-select" style="cursor:default">
+				const chip = veT`<div class="ve-flex-v-center ve-badge ve-badge--default ve-no-select" style="cursor:default">
 					${item.name}
 					<button class="ve-btn ve-btn-danger ve-p-0 ve-ml-1" style="font-size:.7em;line-height:1;border:none;background:none;color:inherit" title="Remove">×</button>
 				</div>`;
@@ -564,13 +564,13 @@ export class MagicVariantBuilder extends BuilderBase {
 					renderChips();
 					onChange();
 				});
-				chipRow.appends(chip);
+				chipRow.vee.appends(chip);
 			});
 			if (!selectedItems.length) {
-				ee`<span class="ve-muted ve-italic" style="font-size:.85em">No items selected — click Add to choose.</span>`.appendTo(chipRow);
+				veT`<span class="ve-muted ve-italic" style="font-size:.85em">No items selected — click Add to choose.</span>`.vee.appendTo(chipRow);
 			}
-			ee`<button class="ve-btn ve-btn-xs ve-btn-default">+ Add Items...</button>`
-				.onn("click", async () => {
+			veT`<button class="ve-btn ve-btn-xs ve-btn-default">+ Add Items...</button>`
+				.vee.onn("click", async () => {
 					this._modalFilterItems ??= new ModalFilterItems({namespace: "makebrew.magicvariant.requires"});
 					const selected = await this._modalFilterItems.pGetUserSelection();
 					if (!selected?.length) return;
@@ -582,45 +582,45 @@ export class MagicVariantBuilder extends BuilderBase {
 					renderChips();
 					onChange();
 				})
-				.appendTo(wrpSpecific);
+				.vee.appendTo(wrpSpecific);
 		};
 
 		renderChips();
 
 		const updateVisibility = () => {
-			const cat = catSel.val();
-			const sub = subSel.val();
+			const cat = catSel.vee.val();
+			const sub = subSel.vee.val();
 			// Edition selector: only relevant when the selection produces type-string conditions (not boolean flags)
 			const needsEdition = (cat === "weapon" && (sub === "melee" || sub === "ranged"))
 				|| (cat === "armor" && sub !== "any")
 				|| cat === "shield" || cat === "ammo" || cat === "scf";
-			edSel.toggleVe(needsEdition);
-			wpnCatSel.toggleVe(cat === "weapon");
-			subSel.toggleVe(cat !== "specific" && subSel.options?.length > 0);
-			wrpSpecific.toggleVe(cat === "specific");
+			edSel.vee.toggle(needsEdition);
+			wpnCatSel.vee.toggle(cat === "weapon");
+			subSel.vee.toggle(cat !== "specific" && subSel.options?.length > 0);
+			wrpSpecific.vee.toggle(cat === "specific");
 		};
 
-		catSel.onn("change", () => { rebuildSubOpts(); updateVisibility(); onChange(); });
-		subSel.onn("change", () => { updateVisibility(); onChange(); });
-		edSel.onn("change", onChange);
-		wpnCatSel.onn("change", onChange);
+		catSel.vee.onn("change", () => { rebuildSubOpts(); updateVisibility(); onChange(); });
+		subSel.vee.onn("change", () => { updateVisibility(); onChange(); });
+		edSel.vee.onn("change", onChange);
+		wpnCatSel.vee.onn("change", onChange);
 
 		rebuildSubOpts();
-		subSel.val(state.subtype ?? subSel.val());
+		subSel.vee.val(state.subtype ?? subSel.vee.val());
 		updateVisibility();
 
-		const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger ve-align-self-start"><span class="glyphicon glyphicon-trash"></span></button>`;
+		const btnDelete = veT`<button class="ve-btn ve-btn-xs ve-btn-danger ve-align-self-start"><span class="glyphicon glyphicon-trash"></span></button>`;
 
-		const topRow = ee`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-flex-v-center"></div>`
-			.appends(catSel).appends(subSel).appends(edSel).appends(wpnCatSel).appends(btnDelete);
-		element.appends(topRow).appends(wrpSpecific);
+		const topRow = veT`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-flex-v-center"></div>`
+			.vee.appends(catSel).vee.appends(subSel).vee.appends(edSel).vee.appends(wpnCatSel).vee.appends(btnDelete);
+		element.vee.appends(topRow).vee.appends(wrpSpecific);
 
 		const getConditions = () => {
-			const cat   = catSel.val();
-			const sub   = subSel.val();
-			const ed    = edSel.val();
+			const cat   = catSel.vee.val();
+			const sub   = subSel.vee.val();
+			const ed    = edSel.vee.val();
 			const eds   = ed === "both" ? ["classic", "new"] : [ed];
-			const wc    = wpnCatSel.val();
+			const wc    = wpnCatSel.vee.val();
 
 			if (cat === "specific") return selectedItems.map(item => ({name: item.name}));
 
@@ -673,9 +673,9 @@ export class MagicVariantBuilder extends BuilderBase {
 		const initNames = excl.name ? (Array.isArray(excl.name) ? excl.name : [excl.name]) : [];
 		const excludedItems = initNames.map(n => ({name: n, source: ""}));
 
-		const cbBullet = ee`<input type="checkbox">`;  cbBullet.checked = hasBullet;
-		const cbCell   = ee`<input type="checkbox">`;  cbCell.checked   = hasCell;
-		const cbNet    = ee`<input type="checkbox">`;  cbNet.checked    = hasNet;
+		const cbBullet = veT`<input type="checkbox">`;  cbBullet.checked = hasBullet;
+		const cbCell   = veT`<input type="checkbox">`;  cbCell.checked   = hasCell;
+		const cbNet    = veT`<input type="checkbox">`;  cbNet.checked    = hasNet;
 
 		const save = () => {
 			const out = {};
@@ -688,24 +688,24 @@ export class MagicVariantBuilder extends BuilderBase {
 			cb();
 		};
 
-		cbBullet.onn("change", save);
-		cbCell.onn("change", save);
-		cbNet.onn("change", save);
+		cbBullet.vee.onn("change", save);
+		cbCell.vee.onn("change", save);
+		cbNet.vee.onn("change", save);
 
-		ee`<div class="ve-flex ve-flex-col ve-gap-1 ve-mb-2">
+		veT`<div class="ve-flex ve-flex-col ve-gap-1 ve-mb-2">
 			<label class="ve-flex-v-center ve-no-select">${cbBullet} <span class="ve-ml-1">Firearm Ammunition (bullets)</span></label>
 			<label class="ve-flex-v-center ve-no-select">${cbCell}   <span class="ve-ml-1">Energy Cells</span></label>
 			<label class="ve-flex-v-center ve-no-select">${cbNet}    <span class="ve-ml-1">Nets</span></label>
-		</div>`.appendTo(wrp);
+		</div>`.vee.appendTo(wrp);
 
-		ee`<div class="ve-bold ve-mb-1" style="font-size:.82em">Specific items to exclude:</div>`.appendTo(wrp);
+		veT`<div class="ve-bold ve-mb-1" style="font-size:.82em">Specific items to exclude:</div>`.vee.appendTo(wrp);
 
-		const wrpChips = ee`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.appendTo(wrp);
+		const wrpChips = veT`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.vee.appendTo(wrp);
 
 		const renderExcludeChips = () => {
-			wrpChips.empty();
+			wrpChips.vee.empty();
 			excludedItems.forEach((item, idx) => {
-				const chip = ee`<div class="ve-flex-v-center ve-badge ve-badge--default ve-no-select" style="cursor:default">
+				const chip = veT`<div class="ve-flex-v-center ve-badge ve-badge--default ve-no-select" style="cursor:default">
 					${item.name}
 					<button class="ve-btn ve-btn-danger ve-p-0 ve-ml-1" style="font-size:.7em;line-height:1;border:none;background:none;color:inherit" title="Remove">×</button>
 				</div>`;
@@ -714,17 +714,17 @@ export class MagicVariantBuilder extends BuilderBase {
 					renderExcludeChips();
 					save();
 				});
-				wrpChips.appends(chip);
+				wrpChips.vee.appends(chip);
 			});
 			if (!excludedItems.length) {
-				ee`<span class="ve-muted ve-italic" style="font-size:.85em">No items excluded — click Add to choose.</span>`.appendTo(wrpChips);
+				veT`<span class="ve-muted ve-italic" style="font-size:.85em">No items excluded — click Add to choose.</span>`.vee.appendTo(wrpChips);
 			}
 		};
 
 		renderExcludeChips();
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Exclude Items...</button>`
-			.onn("click", async () => {
+		veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Exclude Items...</button>`
+			.vee.onn("click", async () => {
 				this._modalFilterItems ??= new ModalFilterItems({namespace: "makebrew.magicvariant.requires"});
 				const selected = await this._modalFilterItems.pGetUserSelection();
 				if (!selected?.length) return;
@@ -736,7 +736,7 @@ export class MagicVariantBuilder extends BuilderBase {
 				renderExcludeChips();
 				save();
 			})
-			.appendTo(wrp);
+			.vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -751,13 +751,13 @@ export class MagicVariantBuilder extends BuilderBase {
 			"Rarity", cb, inh,
 			{nullable: false, vals: _ITEM_RARITIES, fnDisplay: v => v.toTitleCase()},
 			"rarity",
-		).appendTo(wrp);
+		).vee.appendTo(wrp);
 
 		BuilderUi.getStateIptEnum(
 			"Tier", cb, inh,
 			{nullable: true, vals: ["minor", "major"], fnDisplay: v => v.toTitleCase()},
 			"tier",
-		).appendTo(wrp);
+		).vee.appendTo(wrp);
 
 		this._buildSectionHeader("Attunement", wrp);
 		this._buildAttuneInput(wrp, cb);
@@ -766,10 +766,10 @@ export class MagicVariantBuilder extends BuilderBase {
 		this._buildChargesInput(wrp, cb);
 
 		this._buildSectionHeader("Flags", wrp);
-		BuilderUi.getStateIptBoolean("Wondrous Item",              cb, inh, {nullable: true}, "wondrous").appendTo(wrp);
-		BuilderUi.getStateIptBoolean("Cursed",                     cb, inh, {nullable: true}, "curse").appendTo(wrp);
-		BuilderUi.getStateIptBoolean("Sentient",                   cb, inh, {nullable: true}, "sentient").appendTo(wrp);
-		BuilderUi.getStateIptBoolean("Stealth Disadvantage",       cb, inh, {nullable: true}, "stealth").appendTo(wrp);
+		BuilderUi.getStateIptBoolean("Wondrous Item",              cb, inh, {nullable: true}, "wondrous").vee.appendTo(wrp);
+		BuilderUi.getStateIptBoolean("Cursed",                     cb, inh, {nullable: true}, "curse").vee.appendTo(wrp);
+		BuilderUi.getStateIptBoolean("Sentient",                   cb, inh, {nullable: true}, "sentient").vee.appendTo(wrp);
+		BuilderUi.getStateIptBoolean("Stealth Disadvantage",       cb, inh, {nullable: true}, "stealth").vee.appendTo(wrp);
 
 		this._buildSectionHeader("Armor", wrp);
 		this._buildStrengthInput(wrp, cb);
@@ -783,97 +783,97 @@ export class MagicVariantBuilder extends BuilderBase {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Requires Attunement", {isRow: true});
 		const inh = this.__state.inherits;
 
-		const iptText = ee`<input type="text" class="ve-form-control ve-input-xs ve-flex-1 ve-ml-1" placeholder="condition text">`;
+		const iptText = veT`<input type="text" class="ve-form-control ve-input-xs ve-flex-1 ve-ml-1" placeholder="condition text">`;
 
-		const sel = ee`<select class="ve-form-control ve-input-xs">
+		const sel = veT`<select class="ve-form-control ve-input-xs">
 			<option value="no">No</option>
 			<option value="yes">Yes (Any)</option>
 			<option value="optional">Optional</option>
 			<option value="text">Yes, with condition...</option>
-		</select>`.onn("change", () => {
-			const mode = sel.val();
-			iptText.toggleVe(mode === "text");
+		</select>`.vee.onn("change", () => {
+			const mode = sel.vee.val();
+			iptText.vee.toggle(mode === "text");
 			if (mode === "no")            { inh.reqAttune = null; cb(); }
 			else if (mode === "yes")      { inh.reqAttune = true; cb(); }
 			else if (mode === "optional") { inh.reqAttune = "optional"; cb(); }
 		});
 
-		iptText.onn("change", () => {
-			inh.reqAttune = iptText.val().trim() || true;
+		iptText.vee.onn("change", () => {
+			inh.reqAttune = iptText.vee.val().trim() || true;
 			cb();
 		});
 
 		const cur = inh?.reqAttune;
-		if (!cur)                    sel.val("no");
-		else if (cur === true)        sel.val("yes");
-		else if (cur === "optional")  sel.val("optional");
-		else { sel.val("text"); iptText.val(cur); }
+		if (!cur)                    sel.vee.val("no");
+		else if (cur === true)        sel.vee.val("yes");
+		else if (cur === "optional")  sel.vee.val("optional");
+		else { sel.vee.val("text"); iptText.vee.val(cur); }
 
-		iptText.toggleVe(sel.val() === "text");
+		iptText.vee.toggle(sel.vee.val() === "text");
 
-		sel.appendTo(rowInner);
-		iptText.appendTo(rowInner);
-		row.appendTo(wrp);
+		sel.vee.appendTo(rowInner);
+		iptText.vee.appendTo(rowInner);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsEnumRow (label, wrp, cb, key) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
 		const inh = this.__state.inherits;
 
-		const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:90px">
+		const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:90px">
 			<option value="">(none)</option>
 			${_BONUS_VALS.map(v => `<option value="${v}">${v}</option>`)}
-		</select>`.val(inh?.[key] || "").onn("change", () => {
-			inh[key] = sel.val() || null;
+		</select>`.vee.val(inh?.[key] || "").vee.onn("change", () => {
+			inh[key] = sel.vee.val() || null;
 			cb();
 		});
-		rowInner.appends(sel);
-		row.appendTo(wrp);
+		rowInner.vee.appends(sel);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildChargesInput (wrp, cb) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Charges", {isRow: true});
 		const inh = this.__state.inherits;
 
-		const iptCharges = ee`<input type="number" class="ve-form-control ve-input-xs" style="width:70px" min="1" max="999" placeholder="#">`
-			.val(inh?.charges ?? "")
-			.onn("change", () => doUpdate());
+		const iptCharges = veT`<input type="number" class="ve-form-control ve-input-xs" style="width:70px" min="1" max="999" placeholder="#">`
+			.vee.val(inh?.charges ?? "")
+			.vee.onn("change", () => doUpdate());
 
-		const selRecharge = ee`<select class="ve-form-control ve-input-xs ve-ml-1">
+		const selRecharge = veT`<select class="ve-form-control ve-input-xs ve-ml-1">
 			<option value="">(No Recharge)</option>
 			${_RECHARGE_VALS.map(r => `<option value="${r.v}">${r.label}</option>`)}
-		</select>`.val(inh?.recharge || "").onn("change", () => doUpdate());
+		</select>`.vee.val(inh?.recharge || "").vee.onn("change", () => doUpdate());
 
 		const doUpdate = () => {
-			const n = parseInt(iptCharges.val());
+			const n = parseInt(iptCharges.vee.val());
 			inh.charges = isNaN(n) ? null : n;
-			inh.recharge = selRecharge.val() || null;
+			inh.recharge = selRecharge.vee.val() || null;
 			cb();
 		};
 
-		rowInner.appends(iptCharges).appends(selRecharge);
-		row.appendTo(wrp);
+		rowInner.vee.appends(iptCharges).vee.appends(selRecharge);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildStrengthInput (wrp, cb) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Min. Strength", {isRow: true});
 		const inh = this.__state.inherits;
 
-		const ipt = ee`<input type="number" class="ve-form-control ve-input-xs" style="width:70px" min="1" max="30" placeholder="#">`
-			.val(inh?.strength ?? "")
-			.onn("change", () => {
-				const v = parseInt(ipt.val());
+		const ipt = veT`<input type="number" class="ve-form-control ve-input-xs" style="width:70px" min="1" max="30" placeholder="#">`
+			.vee.val(inh?.strength ?? "")
+			.vee.onn("change", () => {
+				const v = parseInt(ipt.vee.val());
 				inh.strength = isNaN(v) ? null : v;
 				cb();
 			});
-		rowInner.appends(ipt);
-		ee`<span class="ve-muted ve-ml-2" style="font-size:.85em">(for heavy armor only)</span>`.appendTo(rowInner);
-		row.appendTo(wrp);
+		rowInner.vee.appends(ipt);
+		veT`<span class="ve-muted ve-ml-2" style="font-size:.85em">(for heavy armor only)</span>`.vee.appendTo(rowInner);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildLootTablesInput (wrp, cb) {
 		const inh = this.__state.inherits;
-		const wrpList = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(wrp);
+		const wrpList = veT`<div class="ve-flex-col ve-w-100"></div>`.vee.appendTo(wrp);
 
 		const save = () => {
 			inh.lootTables = [...wrpList.querySelectorAll(".mv-loot-row input")]
@@ -883,20 +883,20 @@ export class MagicVariantBuilder extends BuilderBase {
 		};
 
 		const addRow = (v) => {
-			const ipt = ee`<input type="text" class="ve-form-control ve-input-xs ve-flex-1" list="mv-loot-datalist" placeholder="Table name...">`.val(v || "");
-			ipt.onn("change", save);
-			const btnDel = ee`<button class="ve-btn ve-btn-xs ve-btn-danger ve-ml-1"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
+			const ipt = veT`<input type="text" class="ve-form-control ve-input-xs ve-flex-1" list="mv-loot-datalist" placeholder="Table name...">`.vee.val(v || "");
+			ipt.vee.onn("change", save);
+			const btnDel = veT`<button class="ve-btn ve-btn-xs ve-btn-danger ve-ml-1"><span class="glyphicon glyphicon-trash"></span></button>`.vee.onn("click", () => {
 				rowEl.remove(); save();
 			});
-			const rowEl = ee`<div class="ve-flex ve-gap-1 ve-mb-1 mv-loot-row">${ipt}${btnDel}</div>`.appendTo(wrpList);
+			const rowEl = veT`<div class="ve-flex ve-gap-1 ve-mb-1 mv-loot-row">${ipt}${btnDel}</div>`.vee.appendTo(wrpList);
 		};
 
-		ee`<datalist id="mv-loot-datalist">${_LOOT_TABLES_BASE.map(t => `<option value="${t}">`)}</datalist>`.appendTo(wrp);
+		veT`<datalist id="mv-loot-datalist">${_LOOT_TABLES_BASE.map(t => `<option value="${t}">`)}</datalist>`.vee.appendTo(wrp);
 		(inh?.lootTables || []).forEach(t => addRow(t));
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Table</button>`
-			.onn("click", () => addRow(""))
-			.appendTo(wrp);
+		veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Table</button>`
+			.vee.onn("click", () => addRow(""))
+			.vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -904,7 +904,7 @@ export class MagicVariantBuilder extends BuilderBase {
 	// =========================================================================
 
 	_buildBonusesTab (wrp, cb) {
-		ee`<div class="mkbru__row ve-mb-2 ve-muted" style="font-size:.85em">Bonus values are strings such as "+1", "+2", "+3". All fields go into the inherited item.</div>`.appendTo(wrp);
+		veT`<div class="mkbru__row ve-mb-2 ve-muted" style="font-size:.85em">Bonus values are strings such as "+1", "+2", "+3". All fields go into the inherited item.</div>`.vee.appendTo(wrp);
 
 		this._buildSectionHeader("Weapon", wrp);
 		this._buildInheritsWeaponBonusField(wrp, cb);
@@ -946,7 +946,7 @@ export class MagicVariantBuilder extends BuilderBase {
 		const initDmg = !hasAny || !!(inh.bonusWeapon || inh.bonusWeaponDamage);
 
 		const doUpdate = () => {
-			const bonus = sel.val();
+			const bonus = sel.vee.val();
 			const isAtk = cbAtk.prop("checked");
 			const isDmg = cbDmg.prop("checked");
 			delete inh.bonusWeapon; delete inh.bonusWeaponAttack; delete inh.bonusWeaponDamage;
@@ -958,19 +958,19 @@ export class MagicVariantBuilder extends BuilderBase {
 			cb();
 		};
 
-		const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:90px">
+		const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:90px">
 			<option value="">(none)</option>
 			${_BONUS_VALS.map(v => `<option value="${v}">${v}</option>`).join("")}
-		</select>`.val(existingBonus).onn("change", doUpdate);
+		</select>`.vee.val(existingBonus).vee.onn("change", doUpdate);
 
-		const cbAtk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", initAtk).onn("change", doUpdate);
-		const cbDmg = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", initDmg).onn("change", doUpdate);
+		const cbAtk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", initAtk).vee.onn("change", doUpdate);
+		const cbDmg = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", initDmg).vee.onn("change", doUpdate);
 
 		rowInner
-			.appends(sel)
-			.appends(ee`<label class="ve-flex-v-center ve-ml-2 ve-no-select">${cbAtk}<span>Attack</span></label>`)
-			.appends(ee`<label class="ve-flex-v-center ve-ml-2 ve-no-select">${cbDmg}<span>Damage</span></label>`);
-		row.appendTo(wrp);
+			.vee.appends(sel)
+			.vee.appends(veT`<label class="ve-flex-v-center ve-ml-2 ve-no-select">${cbAtk}<span>Attack</span></label>`)
+			.vee.appends(veT`<label class="ve-flex-v-center ve-ml-2 ve-no-select">${cbDmg}<span>Damage</span></label>`);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsAbilityInput (wrp, cb) {
@@ -983,30 +983,30 @@ export class MagicVariantBuilder extends BuilderBase {
 			return "modifier";
 		};
 
-		const wrpInputs = ee`<div class="ve-flex-col ve-ml-2" style="flex:1"></div>`.appendTo(rowInner);
+		const wrpInputs = veT`<div class="ve-flex-col ve-ml-2" style="flex:1"></div>`.vee.appendTo(rowInner);
 
-		const selMode = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:100px">
+		const selMode = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:100px">
 			<option value="none">(None)</option>
 			<option value="modifier">Modifier</option>
 			<option value="static">Set to Value</option>
-		</select>`.val(getMode()).appendTo(rowInner);
+		</select>`.vee.val(getMode()).vee.appendTo(rowInner);
 
 		const buildInputs = () => {
-			wrpInputs.empty();
-			const mode = selMode.val();
+			wrpInputs.vee.empty();
+			const mode = selMode.vee.val();
 			if (mode === "none") { delete inh.ability; cb(); return; }
 
 			if (mode === "modifier") {
 				const cur = inh.ability && !inh.ability.static ? inh.ability : {};
-				const row2 = ee`<div class="ve-flex ve-flex-wrap ve-mt-1" style="gap:4px"></div>`.appendTo(wrpInputs);
+				const row2 = veT`<div class="ve-flex ve-flex-wrap ve-mt-1" style="gap:4px"></div>`.vee.appendTo(wrpInputs);
 				const inputs = {};
 				_ABILITIES.forEach(abl => {
-					const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="0" style="width:48px" title="${_ABILITIES_FULL[abl]}">`
-						.val(cur[abl] != null ? cur[abl] : "")
-						.onn("change", () => {
+					const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="0" style="width:48px" title="${_ABILITIES_FULL[abl]}">`
+						.vee.val(cur[abl] != null ? cur[abl] : "")
+						.vee.onn("change", () => {
 							const obj = {};
 							_ABILITIES.forEach(a => {
-								const v = parseInt(inputs[a].val());
+								const v = parseInt(inputs[a].vee.val());
 								if (!isNaN(v) && v !== 0) obj[a] = v;
 							});
 							if (Object.keys(obj).length) inh.ability = obj;
@@ -1014,38 +1014,38 @@ export class MagicVariantBuilder extends BuilderBase {
 							cb();
 						});
 					inputs[abl] = ipt;
-					ee`<div class="ve-flex-col ve-flex-vh-center" style="gap:2px">
+					veT`<div class="ve-flex-col ve-flex-vh-center" style="gap:2px">
 						<span style="font-size:.75em;font-weight:bold">${abl.toUpperCase()}</span>
-					</div>`.appends(ipt).appendTo(row2);
+					</div>`.vee.appends(ipt).vee.appendTo(row2);
 				});
 			} else if (mode === "static") {
 				const cur = inh.ability?.static || {};
 				const firstAbl = Object.keys(cur)[0] || "str";
 				const firstVal = cur[firstAbl] ?? "";
-				const row2 = ee`<div class="ve-flex-v-center ve-mt-1" style="gap:4px"></div>`.appendTo(wrpInputs);
+				const row2 = veT`<div class="ve-flex-v-center ve-mt-1" style="gap:4px"></div>`.vee.appendTo(wrpInputs);
 
-				const selAbl = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
+				const selAbl = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
 					${_ABILITIES.map(a => `<option value="${a}">${_ABILITIES_FULL[a]}</option>`).join("")}
-				</select>`.val(firstAbl).appendTo(row2);
+				</select>`.vee.val(firstAbl).vee.appendTo(row2);
 
-				const iptVal = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="e.g. 19" style="width:60px">`
-					.val(firstVal).appendTo(row2);
+				const iptVal = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="e.g. 19" style="width:60px">`
+					.vee.val(firstVal).vee.appendTo(row2);
 
 				const doUpdate = () => {
-					const abl = selAbl.val();
-					const v = parseInt(iptVal.val());
+					const abl = selAbl.vee.val();
+					const v = parseInt(iptVal.vee.val());
 					if (!isNaN(v)) inh.ability = {static: {[abl]: v}};
 					else delete inh.ability;
 					cb();
 				};
-				selAbl.onn("change", doUpdate);
-				iptVal.onn("change", doUpdate);
+				selAbl.vee.onn("change", doUpdate);
+				iptVal.vee.onn("change", doUpdate);
 			}
 		};
 
-		selMode.onn("change", buildInputs);
+		selMode.vee.onn("change", buildInputs);
 		buildInputs();
-		row.appendTo(wrp);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsModifySpeedInput (wrp, cb) {
@@ -1057,19 +1057,19 @@ export class MagicVariantBuilder extends BuilderBase {
 			return Object.keys(inh.modifySpeed)[0] || "none";
 		};
 
-		const wrpInputs = ee`<div class="ve-flex ve-flex-wrap ve-mt-1 ve-ml-2" style="gap:4px;flex:1"></div>`.appendTo(rowInner);
+		const wrpInputs = veT`<div class="ve-flex ve-flex-wrap ve-mt-1 ve-ml-2" style="gap:4px;flex:1"></div>`.vee.appendTo(rowInner);
 
-		const selMode = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
+		const selMode = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
 			<option value="none">(None)</option>
 			<option value="bonus">Bonus</option>
 			<option value="static">Set Static</option>
 			<option value="multiply">Multiply</option>
 			<option value="equal">Equal To</option>
-		</select>`.val(getMode()).appendTo(rowInner);
+		</select>`.vee.val(getMode()).vee.appendTo(rowInner);
 
 		const buildInputs = () => {
-			wrpInputs.empty();
-			const mode = selMode.val();
+			wrpInputs.vee.empty();
+			const mode = selMode.vee.val();
 			if (mode === "none") { delete inh.modifySpeed; cb(); return; }
 
 			const curInner = (inh.modifySpeed || {})[mode] || {};
@@ -1078,71 +1078,71 @@ export class MagicVariantBuilder extends BuilderBase {
 				const speedType = Object.keys(curInner)[0] || "walk";
 				const speedVal  = curInner[speedType] ?? "";
 
-				const selSpeed = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+				const selSpeed = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
 					<option value="*">All</option>
 					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
-				</select>`.val(speedType).appendTo(wrpInputs);
+				</select>`.vee.val(speedType).vee.appendTo(wrpInputs);
 
-				const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="ft." style="width:60px">`
-					.val(speedVal).appendTo(wrpInputs);
-				ee`<span class="ve-muted ve-no-shrink" style="font-size:.85em">ft.</span>`.appendTo(wrpInputs);
+				const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="ft." style="width:60px">`
+					.vee.val(speedVal).vee.appendTo(wrpInputs);
+				veT`<span class="ve-muted ve-no-shrink" style="font-size:.85em">ft.</span>`.vee.appendTo(wrpInputs);
 
 				const doUpdate = () => {
-					const v = parseInt(ipt.val());
-					if (!isNaN(v)) inh.modifySpeed = {[mode]: {[selSpeed.val()]: v}};
+					const v = parseInt(ipt.vee.val());
+					if (!isNaN(v)) inh.modifySpeed = {[mode]: {[selSpeed.vee.val()]: v}};
 					else delete inh.modifySpeed;
 					cb();
 				};
-				selSpeed.onn("change", doUpdate);
-				ipt.onn("change", doUpdate);
+				selSpeed.vee.onn("change", doUpdate);
+				ipt.vee.onn("change", doUpdate);
 
 			} else if (mode === "multiply") {
 				const speedType = Object.keys(curInner)[0] || "walk";
 				const speedVal  = curInner[speedType] ?? "";
 
-				const selSpeed = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+				const selSpeed = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
 					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
-				</select>`.val(speedType).appendTo(wrpInputs);
+				</select>`.vee.val(speedType).vee.appendTo(wrpInputs);
 
-				const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 2" style="width:60px">`
-					.val(speedVal).appendTo(wrpInputs);
-				ee`<span class="ve-muted ve-no-shrink" style="font-size:.85em">×</span>`.appendTo(wrpInputs);
+				const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 2" style="width:60px">`
+					.vee.val(speedVal).vee.appendTo(wrpInputs);
+				veT`<span class="ve-muted ve-no-shrink" style="font-size:.85em">×</span>`.vee.appendTo(wrpInputs);
 
 				const doUpdate = () => {
-					const v = parseFloat(ipt.val());
-					if (!isNaN(v)) inh.modifySpeed = {multiply: {[selSpeed.val()]: v}};
+					const v = parseFloat(ipt.vee.val());
+					if (!isNaN(v)) inh.modifySpeed = {multiply: {[selSpeed.vee.val()]: v}};
 					else delete inh.modifySpeed;
 					cb();
 				};
-				selSpeed.onn("change", doUpdate);
-				ipt.onn("change", doUpdate);
+				selSpeed.vee.onn("change", doUpdate);
+				ipt.vee.onn("change", doUpdate);
 
 			} else if (mode === "equal") {
 				const targetSpeed = Object.keys(curInner)[0] || "fly";
 				const sourceSpeed = curInner[targetSpeed] || "walk";
 
-				const selTarget = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+				const selTarget = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
 					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
-				</select>`.val(targetSpeed).appendTo(wrpInputs);
+				</select>`.vee.val(targetSpeed).vee.appendTo(wrpInputs);
 
-				ee`<span class="ve-muted ve-no-shrink" style="font-size:.85em">= </span>`.appendTo(wrpInputs);
+				veT`<span class="ve-muted ve-no-shrink" style="font-size:.85em">= </span>`.vee.appendTo(wrpInputs);
 
-				const selSource = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
+				const selSource = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:80px">
 					${_SPEED_TYPES.map(s => `<option value="${s}">${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join("")}
-				</select>`.val(sourceSpeed).appendTo(wrpInputs);
+				</select>`.vee.val(sourceSpeed).vee.appendTo(wrpInputs);
 
 				const doUpdate = () => {
-					inh.modifySpeed = {equal: {[selTarget.val()]: selSource.val()}};
+					inh.modifySpeed = {equal: {[selTarget.vee.val()]: selSource.vee.val()}};
 					cb();
 				};
-				selTarget.onn("change", doUpdate);
-				selSource.onn("change", doUpdate);
+				selTarget.vee.onn("change", doUpdate);
+				selSource.vee.onn("change", doUpdate);
 			}
 		};
 
-		selMode.onn("change", buildInputs);
+		selMode.vee.onn("change", buildInputs);
 		buildInputs();
-		row.appendTo(wrp);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsDamageDefenseInput (label, wrp, cb, prop) {
@@ -1151,23 +1151,23 @@ export class MagicVariantBuilder extends BuilderBase {
 		const cur = new Set(inh[prop] || []);
 
 		const checkboxes = _DAMAGE_TYPES.map(({abv, name}) => {
-			const chk = ee`<input type="checkbox" class="ve-mr-1">`
+			const chk = veT`<input type="checkbox" class="ve-mr-1">`
 				.prop("checked", cur.has(abv))
-				.onn("change", () => {
+				.vee.onn("change", () => {
 					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.abv);
 					if (selected.length) inh[prop] = selected;
 					else delete inh[prop];
 					cb();
 				});
 			return {abv, chk,
-				ele: ee`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${name}</span></label>`,
+				ele: veT`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${name}</span></label>`,
 			};
 		});
 
-		const grid = ee`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
-		checkboxes.forEach(c => grid.appends(c.ele));
-		rowInner.appends(grid);
-		row.appendTo(wrp);
+		const grid = veT`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
+		checkboxes.forEach(c => grid.vee.appends(c.ele));
+		rowInner.vee.appends(grid);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsConditionImmuneInput (wrp, cb) {
@@ -1176,23 +1176,23 @@ export class MagicVariantBuilder extends BuilderBase {
 		const cur = new Set(inh.conditionImmune || []);
 
 		const checkboxes = _CONDITIONS.map(cond => {
-			const chk = ee`<input type="checkbox" class="ve-mr-1">`
+			const chk = veT`<input type="checkbox" class="ve-mr-1">`
 				.prop("checked", cur.has(cond))
-				.onn("change", () => {
+				.vee.onn("change", () => {
 					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.cond);
 					if (selected.length) inh.conditionImmune = selected;
 					else delete inh.conditionImmune;
 					cb();
 				});
 			return {cond, chk,
-				ele: ee`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cond.charAt(0).toUpperCase() + cond.slice(1)}</span></label>`,
+				ele: veT`<label class="ve-flex-v-center" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cond.charAt(0).toUpperCase() + cond.slice(1)}</span></label>`,
 			};
 		});
 
-		const grid = ee`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
-		checkboxes.forEach(c => grid.appends(c.ele));
-		rowInner.appends(grid);
-		row.appendTo(wrp);
+		const grid = veT`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:2px 4px;width:100%"></div>`;
+		checkboxes.forEach(c => grid.vee.appends(c.ele));
+		rowInner.vee.appends(grid);
+		row.vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -1219,14 +1219,14 @@ export class MagicVariantBuilder extends BuilderBase {
 	_buildInheritsCheckboxRow (label, wrp, cb, key) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
 		const inh = this.__state.inherits;
-		const chk = ee`<input type="checkbox">`.prop("checked", !!inh[key])
-			.onn("change", () => {
+		const chk = veT`<input type="checkbox">`.prop("checked", !!inh[key])
+			.vee.onn("change", () => {
 				if (chk.prop("checked")) inh[key] = true;
 				else delete inh[key];
 				cb();
 			});
-		rowInner.appends(chk);
-		row.appendTo(wrp);
+		rowInner.vee.appends(chk);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsTypeFlagsSection (wrp, cb) {
@@ -1234,32 +1234,32 @@ export class MagicVariantBuilder extends BuilderBase {
 
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Weapon Category", {isRow: true});
-			const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
+			const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:110px">
 				<option value="">(None)</option>
 				${_INH_WEAPON_CATEGORIES.map(c => `<option value="${c.v}">${c.label}</option>`).join("")}
-			</select>`.val(inh.weaponCategory || "")
-				.onn("change", () => {
-					const v = sel.val();
+			</select>`.vee.val(inh.weaponCategory || "")
+				.vee.onn("change", () => {
+					const v = sel.vee.val();
 					if (v) inh.weaponCategory = v; else delete inh.weaponCategory;
 					cb();
 				});
-			rowInner.appends(sel);
-			row.appendTo(wrp);
+			rowInner.vee.appends(sel);
+			row.vee.appendTo(wrp);
 		}
 
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Age", {isRow: true});
-			const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:130px">
+			const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="max-width:130px">
 				<option value="">(None)</option>
 				${_AGE_VALS.map(a => `<option value="${a.v}">${a.label}</option>`).join("")}
-			</select>`.val(inh.age || "")
-				.onn("change", () => {
-					const v = sel.val();
+			</select>`.vee.val(inh.age || "")
+				.vee.onn("change", () => {
+					const v = sel.vee.val();
 					if (v) inh.age = v; else delete inh.age;
 					cb();
 				});
-			rowInner.appends(sel);
-			row.appendTo(wrp);
+			rowInner.vee.appends(sel);
+			row.vee.appendTo(wrp);
 		}
 
 		this._buildInheritsCheckboxRow("Firearm", wrp, cb, "firearm");
@@ -1278,15 +1278,15 @@ export class MagicVariantBuilder extends BuilderBase {
 			const isAll = cur === true;
 			const curArr = Array.isArray(cur) ? cur : [];
 
-			const wrpClass = ee`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.appendTo(rowInner);
+			const wrpClass = veT`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.vee.appendTo(rowInner);
 
-			const cbAll = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", isAll);
-			ee`<label class="ve-flex-v-center ve-w-100 ve-mb-1" style="font-weight:bold;cursor:pointer">${cbAll}<span>All Spellcasters</span></label>`.appendTo(rowInner);
+			const cbAll = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", isAll);
+			veT`<label class="ve-flex-v-center ve-w-100 ve-mb-1" style="font-weight:bold;cursor:pointer">${cbAll}<span>All Spellcasters</span></label>`.vee.appendTo(rowInner);
 
 			const classChecks = _SPELLCASTER_CLASSES.map(cls => {
-				const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", curArr.includes(cls));
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", curArr.includes(cls));
 				return {cls, chk,
-					ele: ee`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.appendTo(wrpClass),
+					ele: veT`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.vee.appendTo(wrpClass),
 				};
 			});
 
@@ -1300,26 +1300,26 @@ export class MagicVariantBuilder extends BuilderBase {
 				}
 				cb();
 			};
-			cbAll.onn("change", doUpdate);
-			classChecks.forEach(c => c.chk.onn("change", doUpdate));
-			row.appendTo(wrp);
+			cbAll.vee.onn("change", doUpdate);
+			classChecks.forEach(c => c.chk.vee.onn("change", doUpdate));
+			row.vee.appendTo(wrp);
 		}
 
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("SCF Subtype", {isRow: true,
 				title: "For Spellcasting Focus type items, specifies which spellcasting tradition uses it."});
 			const inh2 = this.__state.inherits;
-			const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal">
+			const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal">
 				<option value="">(None)</option>
 				${_FOCUS_SCF_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join("")}
-			</select>`.val(inh2.scfType || "")
-				.onn("change", () => {
-					const v = sel.val();
+			</select>`.vee.val(inh2.scfType || "")
+				.vee.onn("change", () => {
+					const v = sel.vee.val();
 					if (v) inh2.scfType = v; else delete inh2.scfType;
 					cb();
 				});
-			rowInner.appends(sel);
-			row.appendTo(wrp);
+			rowInner.vee.appends(sel);
+			row.vee.appendTo(wrp);
 		}
 	}
 
@@ -1332,52 +1332,52 @@ export class MagicVariantBuilder extends BuilderBase {
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Crit Threshold", {isRow: true,
 				title: "Minimum die roll needed to score a critical hit (default 20)."});
-			const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 19" style="max-width:70px">`
-				.val(inh.critThreshold != null ? inh.critThreshold : "")
-				.onn("change", () => {
-					const v = parseInt(ipt.val());
+			const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 19" style="max-width:70px">`
+				.vee.val(inh.critThreshold != null ? inh.critThreshold : "")
+				.vee.onn("change", () => {
+					const v = parseInt(ipt.vee.val());
 					if (!isNaN(v)) inh.critThreshold = v;
 					else delete inh.critThreshold;
 					cb();
 				});
-			rowInner.appends(ipt);
-			row.appendTo(wrp);
+			rowInner.vee.appends(ipt);
+			row.vee.appendTo(wrp);
 		}
 
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Misc Tags", {isRow: false});
 			const cur = new Set(inh.miscTags || []);
 			const checkboxes = _MISC_TAGS.map(({v, label}) => {
-				const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
-					.onn("change", () => {
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+					.vee.onn("change", () => {
 						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
 						if (selected.length) inh.miscTags = selected;
 						else delete inh.miscTags;
 						cb();
 					});
-				return {v, chk, ele: ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${chk}<span>${label}</span></label>`};
+				return {v, chk, ele: veT`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${chk}<span>${label}</span></label>`};
 			});
 			rowInner.style.flexWrap = "wrap";
-			checkboxes.forEach(c => rowInner.appends(c.ele));
-			row.appendTo(wrp);
+			checkboxes.forEach(c => rowInner.vee.appends(c.ele));
+			row.vee.appendTo(wrp);
 		}
 
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Poison Types", {isRow: false});
 			const cur = new Set(inh.poisonTypes || []);
 			const checkboxes = _POISON_TYPES.map(({v, label}) => {
-				const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
-					.onn("change", () => {
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+					.vee.onn("change", () => {
 						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
 						if (selected.length) inh.poisonTypes = selected;
 						else delete inh.poisonTypes;
 						cb();
 					});
-				return {v, chk, ele: ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${chk}<span>${label}</span></label>`};
+				return {v, chk, ele: veT`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${chk}<span>${label}</span></label>`};
 			});
 			rowInner.style.flexWrap = "wrap";
-			checkboxes.forEach(c => rowInner.appends(c.ele));
-			row.appendTo(wrp);
+			checkboxes.forEach(c => rowInner.vee.appends(c.ele));
+			row.vee.appendTo(wrp);
 		}
 	}
 
@@ -1386,12 +1386,12 @@ export class MagicVariantBuilder extends BuilderBase {
 		const inh = this.__state.inherits;
 		const cur = (inh.light || [])[0] || {};
 
-		const iptBright = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="bright ft." style="width:70px">`.val(cur.bright ?? "");
-		const iptDim    = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="dim ft."   style="width:70px">`.val(cur.dim    ?? "");
+		const iptBright = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="bright ft." style="width:70px">`.vee.val(cur.bright ?? "");
+		const iptDim    = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-text-center" placeholder="dim ft."   style="width:70px">`.vee.val(cur.dim    ?? "");
 
 		const doUpdate = () => {
-			const bright = parseInt(iptBright.val());
-			const dim    = parseInt(iptDim.val());
+			const bright = parseInt(iptBright.vee.val());
+			const dim    = parseInt(iptDim.vee.val());
 			const entry  = {};
 			if (!isNaN(bright)) entry.bright = bright;
 			if (!isNaN(dim))    entry.dim    = dim;
@@ -1399,20 +1399,20 @@ export class MagicVariantBuilder extends BuilderBase {
 			else delete inh.light;
 			cb();
 		};
-		iptBright.onn("change", doUpdate);
-		iptDim.onn("change", doUpdate);
+		iptBright.vee.onn("change", doUpdate);
+		iptDim.vee.onn("change", doUpdate);
 
-		rowInner.appends(iptBright)
-			.appends(ee`<span class="ve-muted ve-mx-1" style="font-size:.85em">bright /</span>`)
-			.appends(iptDim)
-			.appends(ee`<span class="ve-muted ve-ml-1" style="font-size:.85em">dim</span>`);
-		row.appendTo(wrp);
+		rowInner.vee.appends(iptBright)
+			.vee.appends(veT`<span class="ve-muted ve-mx-1" style="font-size:.85em">bright /</span>`)
+			.vee.appends(iptDim)
+			.vee.appends(veT`<span class="ve-muted ve-ml-1" style="font-size:.85em">dim</span>`);
+		row.vee.appendTo(wrp);
 	}
 
 	_buildInheritsAttuneTagsInput (wrp, cb) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Class Requirement", {isRow: false});
 		const inh = this.__state.inherits;
-		ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">Specify which classes may attune to this item (in addition to the condition above).</div>`.appendTo(rowInner);
+		veT`<div class="ve-muted ve-mb-1" style="font-size:.8em">Specify which classes may attune to this item (in addition to the condition above).</div>`.vee.appendTo(rowInner);
 
 		const cur = inh.reqAttuneTags || [];
 		const curClasses = new Set(cur.filter(t => t.class).map(t => t.class.split("|")[0].toLowerCase()));
@@ -1429,38 +1429,38 @@ export class MagicVariantBuilder extends BuilderBase {
 			cb();
 		};
 
-		const cbSpellcasting = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasSpellcasting).onn("change", save);
-		const cbPsionics     = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasPsionics).onn("change", save);
+		const cbSpellcasting = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasSpellcasting).vee.onn("change", save);
+		const cbPsionics     = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasPsionics).vee.onn("change", save);
 
-		ee`<div class="ve-flex ve-flex-wrap ve-mb-1" style="gap:4px"></div>`
-			.appends(ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbSpellcasting}<span>Any Spellcaster</span></label>`)
-			.appends(ee`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbPsionics}<span>Psionics</span></label>`)
-			.appendTo(rowInner);
+		veT`<div class="ve-flex ve-flex-wrap ve-mb-1" style="gap:4px"></div>`
+			.vee.appends(veT`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbSpellcasting}<span>Any Spellcaster</span></label>`)
+			.vee.appends(veT`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbPsionics}<span>Psionics</span></label>`)
+			.vee.appendTo(rowInner);
 
 		const ALL_CLASSES = ["Artificer", "Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"];
-		const wrpClasses = ee`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.appendTo(rowInner);
+		const wrpClasses = veT`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.vee.appendTo(rowInner);
 		const classChecks = ALL_CLASSES.map(cls => {
-			const chk = ee`<input type="checkbox" class="ve-mr-1">`.prop("checked", curClasses.has(cls.toLowerCase())).onn("change", save);
-			return {cls, chk, ele: ee`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.appendTo(wrpClasses)};
+			const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", curClasses.has(cls.toLowerCase())).vee.onn("change", save);
+			return {cls, chk, ele: veT`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.vee.appendTo(wrpClasses)};
 		});
 
 		{
 			const [row2, rowInner2] = BuilderUi.getLabelledRowTuple("Alt. Attunement", {isRow: true,
 				title: "An alternate attunement path (e.g. \"optional\"). Rare — most items don't need this."});
-			const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder='e.g. "optional"'>`
-				.val(inh.reqAttuneAlt || "")
-				.onn("change", () => {
-					const v = ipt.val().trim();
+			const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder='e.g. "optional"'>`
+				.vee.val(inh.reqAttuneAlt || "")
+				.vee.onn("change", () => {
+					const v = ipt.vee.val().trim();
 					if (v === "true") inh.reqAttuneAlt = true;
 					else if (v) inh.reqAttuneAlt = v;
 					else delete inh.reqAttuneAlt;
 					cb();
 				});
-			rowInner2.appends(ipt);
-			row2.appendTo(rowInner);
+			rowInner2.vee.appends(ipt);
+			row2.vee.appendTo(rowInner);
 		}
 
-		row.appendTo(wrp);
+		row.vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -1475,9 +1475,9 @@ export class MagicVariantBuilder extends BuilderBase {
 	_buildInheritsAttachedSpellsInput (wrp, cb) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple("Spells", {isRow: false});
 		const inh = this.__state.inherits;
-		ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">For daily/charges scheduling, edit the JSON Data tab directly.</div>`.appendTo(rowInner);
+		veT`<div class="ve-muted ve-mb-1" style="font-size:.8em">For daily/charges scheduling, edit the JSON Data tab directly.</div>`.vee.appendTo(rowInner);
 
-		const wrpRows = ee`<div class="ve-flex-col"></div>`.appendTo(rowInner);
+		const wrpRows = veT`<div class="ve-flex-col"></div>`.vee.appendTo(rowInner);
 		const rows = [];
 
 		const saveSpells = () => {
@@ -1488,29 +1488,29 @@ export class MagicVariantBuilder extends BuilderBase {
 		};
 
 		const addRow = (name) => {
-			const rowEl = ee`<div class="ve-flex-v-center ve-mb-1" style="gap:4px"></div>`.appendTo(wrpRows);
+			const rowEl = veT`<div class="ve-flex-v-center ve-mb-1" style="gap:4px"></div>`.vee.appendTo(wrpRows);
 			const rowMeta = {name, rowEl};
 			rows.push(rowMeta);
-			ee`<button class="ve-btn ve-btn-xs ve-btn-danger ve-no-shrink" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
-				.onn("click", () => { rows.splice(rows.indexOf(rowMeta), 1); rowEl.remove(); saveSpells(); })
-				.appendTo(rowEl);
-			ee`<span style="font-size:.85em">${name}</span>`.appendTo(rowEl);
+			veT`<button class="ve-btn ve-btn-xs ve-btn-danger ve-no-shrink" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+				.vee.onn("click", () => { rows.splice(rows.indexOf(rowMeta), 1); rowEl.remove(); saveSpells(); })
+				.vee.appendTo(rowEl);
+			veT`<span style="font-size:.85em">${name}</span>`.vee.appendTo(rowEl);
 		};
 
 		const raw = inh.attachedSpells;
 		if (Array.isArray(raw)) raw.forEach(s => addRow(s));
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Spells</button>`
-			.onn("click", async () => {
+		veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Spells</button>`
+			.vee.onn("click", async () => {
 				this._modalFilterSpells ??= new ModalFilterSpells({namespace: "makebrew.magicvariant.spells"});
 				const selected = await this._modalFilterSpells.pGetUserSelection();
 				if (!selected?.length) return;
 				selected.forEach(it => addRow(it.name.toLowerCase()));
 				saveSpells();
 			})
-			.appendTo(rowInner);
+			.vee.appendTo(rowInner);
 
-		row.appendTo(wrp);
+		row.vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -1521,20 +1521,20 @@ export class MagicVariantBuilder extends BuilderBase {
 		const inh = this.__state.inherits;
 
 		this._buildSectionHeader("Variant Text", wrp);
-		ee`<div class="ve-muted ve-mb-1" style="font-size:.82em">Appears on the generic variant listing only.</div>`.appendTo(wrp);
+		veT`<div class="ve-muted ve-mb-1" style="font-size:.82em">Appears on the generic variant listing only.</div>`.vee.appendTo(wrp);
 		BuilderUi.getStateIptEntries(
 			"Text", cb, this._state,
 			{fnPostProcess: BuilderUi.fnPostProcessDice},
 			"entries",
-		).appendTo(wrp);
+		).vee.appendTo(wrp);
 
 		this._buildSectionHeader("Inherited Description", wrp);
-		ee`<div class="ve-muted ve-mb-1" style="font-size:.82em">Appears on every specific variant created from this template.</div>`.appendTo(wrp);
+		veT`<div class="ve-muted ve-mb-1" style="font-size:.82em">Appears on every specific variant created from this template.</div>`.vee.appendTo(wrp);
 		BuilderUi.getStateIptEntries(
 			"Text", cb, inh,
 			{fnPostProcess: BuilderUi.fnPostProcessDice},
 			"entries",
-		).appendTo(wrp);
+		).vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -1542,20 +1542,20 @@ export class MagicVariantBuilder extends BuilderBase {
 	// =========================================================================
 
 	_buildSectionHeader (label, wrp) {
-		ee`<div class="mkbru__row ve-mt-2 ve-mb-1 ve-bold" style="font-size:.8em;text-transform:uppercase;letter-spacing:.06em;color:var(--col-heading-grey,#888);border-bottom:1px solid var(--col-border-default,#ccc)">${label}</div>`.appendTo(wrp);
+		veT`<div class="mkbru__row ve-mt-2 ve-mb-1 ve-bold" style="font-size:.8em;text-transform:uppercase;letter-spacing:.06em;color:var(--col-heading-grey,#888);border-bottom:1px solid var(--col-border-default,#ccc)">${label}</div>`.vee.appendTo(wrp);
 	}
 
 	_buildInheritsStringRow (label, wrp, cb, key) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
 		const inh = this.__state.inherits;
-		const ipt = ee`<input type="text" class="ve-form-control ve-input-xs ve-flex-1" placeholder="(none)">`;
-		ipt.val(inh?.[key] || "");
-		ipt.onn("change", () => {
-			inh[key] = ipt.val() || null;
+		const ipt = veT`<input type="text" class="ve-form-control ve-input-xs ve-flex-1" placeholder="(none)">`;
+		ipt.vee.val(inh?.[key] || "");
+		ipt.vee.onn("change", () => {
+			inh[key] = ipt.vee.val() || null;
 			cb();
 		});
-		rowInner.appends(ipt);
-		row.appendTo(wrp);
+		rowInner.vee.appends(ipt);
+		row.vee.appendTo(wrp);
 	}
 
 	// =========================================================================
@@ -1563,7 +1563,7 @@ export class MagicVariantBuilder extends BuilderBase {
 	// =========================================================================
 
 	_renderOutput () {
-		const wrp = this._ui.wrpOutput.empty();
+		const wrp = this._ui.wrpOutput.vee.empty();
 		this._resetTabs({tabGroup: "output"});
 
 		const tabs = this._renderTabs(
@@ -1574,8 +1574,8 @@ export class MagicVariantBuilder extends BuilderBase {
 			{tabGroup: "output", cbTabChange: this.doUiSave.bind(this)},
 		);
 		const [previewTab, dataTab] = tabs;
-		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
-		tabs.forEach(it => it.wrpTab.appendTo(wrp));
+		veT`<div class="ve-flex-v-center ve-w-100 ve-no-shrink">${tabs.map(it => it.btnTab)}</div>`.vee.appendTo(wrp);
+		tabs.forEach(it => it.wrpTab.vee.appendTo(wrp));
 
 		// Preview — promote inherits properties then render as an item
 		try {
@@ -1590,13 +1590,13 @@ export class MagicVariantBuilder extends BuilderBase {
 			Renderer.item._genericVariants_addInheritedPropertiesToSelf(procItem);
 			Renderer.item.enhanceItem(procItem);
 
-			const tbl = ee`<table class="ve-w-100 ve-stats"></table>`.appendTo(previewTab.wrpTab);
-			tbl.appends(Renderer.utils.getBorderTr());
-			tbl.appends(Renderer.item.getCompactRenderedString(procItem));
-			tbl.appends(Renderer.utils.getPageTr(procItem));
-			tbl.appends(Renderer.utils.getBorderTr());
+			const tbl = veT`<table class="ve-w-100 ve-stats"></table>`.vee.appendTo(previewTab.wrpTab);
+			tbl.vee.appends(Renderer.utils.getBorderTr());
+			tbl.vee.appends(Renderer.item.getCompactRenderedString(procItem));
+			tbl.vee.appends(Renderer.utils.getPageTr(procItem));
+			tbl.vee.appends(Renderer.utils.getBorderTr());
 		} catch (e) {
-			ee`<div class="ve-muted ve-italic ve-p-2">Preview unavailable: ${e.message}</div>`.appendTo(previewTab.wrpTab);
+			veT`<div class="ve-muted ve-italic ve-p-2">Preview unavailable: ${e.message}</div>`.vee.appendTo(previewTab.wrpTab);
 		}
 
 		// Raw JSON
@@ -1607,7 +1607,7 @@ export class MagicVariantBuilder extends BuilderBase {
 			cleanState.inherits.page   = cleanState.page || "";
 		}
 
-		const tblData = ee`<table class="ve-w-100 ve-stats ve-stats--book mkbru__wrp-output-tab-data"></table>`.appendTo(dataTab.wrpTab);
+		const tblData = veT`<table class="ve-w-100 ve-stats ve-stats--book mkbru__wrp-output-tab-data"></table>`.vee.appendTo(dataTab.wrpTab);
 		const asCode = Renderer.get().render({
 			type: "entries",
 			entries: [{
@@ -1616,8 +1616,8 @@ export class MagicVariantBuilder extends BuilderBase {
 				preformatted: JSON.stringify(cleanState, null, "\t"),
 			}],
 		});
-		tblData.appends(Renderer.utils.getBorderTr());
-		tblData.appends(`<tr><td colspan="6">${asCode}</td></tr>`);
-		tblData.appends(Renderer.utils.getBorderTr());
+		tblData.vee.appends(Renderer.utils.getBorderTr());
+		tblData.vee.appends(`<tr><td colspan="6">${asCode}</td></tr>`);
+		tblData.vee.appends(Renderer.utils.getBorderTr());
 	}
 }

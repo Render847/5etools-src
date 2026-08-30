@@ -1,4 +1,4 @@
-import {BuilderBase} from "../makebrew/makebrew-builder-base.js";
+﻿import {BuilderBase} from "../makebrew/makebrew-builder-base.js";
 import {BuilderUi} from "../makebrew/makebrew-builderui.js";
 import {SITE_STYLE__CLASSIC, SITE_STYLE__ONE} from "../consts.js";
 import {VetoolsConfig} from "../utils-config/utils-config-config.js";
@@ -422,9 +422,9 @@ export class CharacterBuilder extends BuilderBase {
 	async _pShowCharactersModal () {
 		const {eleModalInner, doClose} = UiUtil.getShowModal({title: "Saved Characters", isMinHeight0: true, isWidth100: true, isUncappedHeight: true});
 
-		const iptSearch = ee`<input type="search" class="search ve-form-control ve-w-100 ve-lst__search ve-lst__search--no-border-h" placeholder="Search characters...">`;
-		const disp = ee`<div class="ve-lst__wrp-search-visible ve-no-events ve-flex-vh-center"></div>`;
-		const wrpBtnsSort = ee`<div class="filtertools ve-input-group ve-input-group--bottom ve-flex ve-no-shrink">
+		const iptSearch = veT`<input type="search" class="search ve-form-control ve-w-100 ve-lst__search ve-lst__search--no-border-h" placeholder="Search characters...">`;
+		const disp = veT`<div class="ve-lst__wrp-search-visible ve-no-events ve-flex-vh-center"></div>`;
+		const wrpBtnsSort = veT`<div class="filtertools ve-input-group ve-input-group--bottom ve-flex ve-no-shrink">
 			<button class="ve-col-3 sort ve-btn ve-btn-default ve-btn-xs" data-sort="name">Name</button>
 			<button class="ve-col-1 sort ve-btn ve-btn-default ve-btn-xs" data-sort="level">Lvl</button>
 			<button class="ve-col-2 sort ve-btn ve-btn-default ve-btn-xs" data-sort="cls">Class</button>
@@ -432,26 +432,26 @@ export class CharacterBuilder extends BuilderBase {
 			<button class="ve-col-2 sort ve-btn ve-btn-default ve-btn-xs" data-sort="species">Species</button>
 			<button class="ve-col-2 ve-btn ve-btn-default ve-btn-xs ve-grow" disabled>&nbsp;</button>
 		</div>`;
-		const wrpRows = ee`<div class="list ve-flex-col ve-w-100 ve-max-h-unset"></div>`;
+		const wrpRows = veT`<div class="list ve-flex-col ve-w-100 ve-max-h-unset"></div>`;
 
-		ee`<div class="ve-flex-v-stretch ve-input-group ve-input-group--top ve-no-shrink ve-mt-1 ve-mb-0">
+		veT`<div class="ve-flex-v-stretch ve-input-group ve-input-group--top ve-no-shrink ve-mt-1 ve-mb-0">
 			<div class="ve-w-100 ve-relative">
 				${iptSearch}
 				<div class="ve-lst__wrp-search-glass ve-no-events ve-flex-vh-center"><span class="glyphicon glyphicon-search"></span></div>
 				${disp}
 			</div>
-		</div>`.appendTo(eleModalInner);
-		wrpBtnsSort.appendTo(eleModalInner);
-		wrpRows.appendTo(eleModalInner);
+		</div>`.vee.appendTo(eleModalInner);
+		wrpBtnsSort.vee.appendTo(eleModalInner);
+		wrpRows.vee.appendTo(eleModalInner);
 
 		const chars = await this._pGetSavedCharacters();
 
 		if (!chars.length) {
-			ee`<div class="ve-muted ve-italic ve-p-2 ve-text-center">No saved characters.</div>`.appendTo(wrpRows);
+			veT`<div class="ve-muted ve-italic ve-p-2 ve-text-center">No saved characters.</div>`.vee.appendTo(wrpRows);
 		}
 
 		const list = new List({iptSearch, wrpList: wrpRows, fnSort: SortUtil.listSort});
-		list.on("updated", () => disp.html(`${list.visibleItems.length}/${list.items.length}`));
+		list.on("updated", () => disp.vee.html(`${list.visibleItems.length}/${list.items.length}`));
 		SortUtil.initBtnSortHandlers(wrpBtnsSort, list);
 
 		chars.forEach((/** @type {any} */ char) => {
@@ -461,8 +461,8 @@ export class CharacterBuilder extends BuilderBase {
 			const subName = (s.classes || []).filter((/** @type {any} */ c) => c.sub).map((/** @type {any} */ c) => c.sub).join("/") || s.subclass || "";
 			const speciesName = s.species || "";
 
-			const btnLoad = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Load this character"><span class="glyphicon glyphicon-pencil"></span></button>`
-				.onn("click", async evt => {
+			const btnLoad = veT`<button class="ve-btn ve-btn-xs ve-btn-default" title="Load this character"><span class="glyphicon glyphicon-pencil"></span></button>`
+				.vee.onn("click", async evt => {
 					evt.stopPropagation();
 					if (
 						this._meta?.isModified
@@ -475,8 +475,8 @@ export class CharacterBuilder extends BuilderBase {
 					this.doUiSave();
 				});
 
-			const btnDelete = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete this character"><span class="glyphicon glyphicon-trash"></span></button>`
-				.onn("click", async evt => {
+			const btnDelete = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Delete this character"><span class="glyphicon glyphicon-trash"></span></button>`
+				.vee.onn("click", async evt => {
 					evt.stopPropagation();
 					if (!await InputUiUtil.pGetUserBoolean({title: "Delete Character", htmlDescription: `Delete "${char.name}"?`, textYes: "Yes", textNo: "Cancel"})) return;
 					const next = (await this._pGetSavedCharacters()).filter((/** @type {any} */ c) => c.uniqueId !== char.uniqueId);
@@ -486,7 +486,7 @@ export class CharacterBuilder extends BuilderBase {
 					list.update();
 				});
 
-			const eleLi = ee`<div class="ve-lst__row ve-flex-col ve-px-0">
+			const eleLi = veT`<div class="ve-lst__row ve-flex-col ve-px-0">
 				<label class="ve-lst__row-border ve-lst__row-inner ve-no-select ve-mb-0 ve-flex-v-center">
 					<div class="ve-col-3 ve-px-1 ve-overflow-hidden ve-text-truncate">${char.name.qq()}</div>
 					<div class="ve-col-1 ve-px-1 ve-text-center ve-muted">${totalLevel}</div>
@@ -504,7 +504,7 @@ export class CharacterBuilder extends BuilderBase {
 		});
 
 		list.init();
-		iptSearch.focuse();
+		iptSearch.vee.focus();
 	}
 
 	async pHandleSidebarDownloadJsonClick () {
@@ -519,20 +519,20 @@ export class CharacterBuilder extends BuilderBase {
 	// -------------------------------------------------------------------------
 
 	renderInputControls () {
-		const btnSave = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2">Save</button>`
-			.onn("click", () => this._pSaveCharacter());
-		this._addHook("meta", "isModified", () => btnSave.txt(this._meta.isModified ? "Save *" : "Save"))();
+		const btnSave = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2">Save</button>`
+			.vee.onn("click", () => this._pSaveCharacter());
+		this._addHook("meta", "isModified", () => btnSave.vee.txt(this._meta.isModified ? "Save *" : "Save"))();
 
-		const btnNew = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="SHIFT to reset additional state">New Character</button>`
-			.onn("click", async (evt) => {
+		const btnNew = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="SHIFT to reset additional state">New Character</button>`
+			.vee.onn("click", async (evt) => {
 				if (!await InputUiUtil.pGetUserBoolean({title: "Reset Builder", htmlDescription: "Are you sure?", textYes: "Yes", textNo: "Cancel"})) return;
 				this.reset({isResetAllMeta: !!evt.shiftKey});
 			});
 
-		const btnChars = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Switch between saved characters"><span class="glyphicon glyphicon-list ve-mr-1"></span>Characters</button>`
-			.onn("click", () => this._pShowCharactersModal());
+		const btnChars = veT`<button class="ve-btn ve-btn-xs ve-btn-default" title="Switch between saved characters"><span class="glyphicon glyphicon-list ve-mr-1"></span>Characters</button>`
+			.vee.onn("click", () => this._pShowCharactersModal());
 
-		ee(this._ui.wrpInputControls.empty())`
+		veT(this._ui.wrpInputControls.vee.empty())`
 			<div class="ve-flex-v-center">${btnSave}${btnNew}${btnChars}</div>
 		`;
 	}
@@ -544,13 +544,13 @@ export class CharacterBuilder extends BuilderBase {
 	}
 
 	_renderInputMain () {
-		const wrp = this._ui.wrpInput.empty();
+		const wrp = this._ui.wrpInput.vee.empty();
 
 		// Data is loaded async - show a spinner until ready, then re-render
 		if (!this._isDataLoaded) {
-			ee`<div class="ve-flex-vh-center ve-w-100 ve-h-100 ve-py-4">
+			veT`<div class="ve-flex-vh-center ve-w-100 ve-h-100 ve-py-4">
 				<span class="ve-muted ve-italic">Loading character data...</span>
-			</div>`.appendTo(wrp);
+			</div>`.vee.appendTo(wrp);
 			return;
 		}
 
@@ -577,8 +577,8 @@ export class CharacterBuilder extends BuilderBase {
 			{tabGroup: "input", cbTabChange: this.doUiSave.bind(this)},
 		);
 		const [identityTab, classOptsTab, abilitiesTab, combatTab, equipTab, featsTab, spellsTab, personalityTab] = tabs;
-		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
-		tabs.forEach(it => it.wrpTab.appendTo(wrp));
+		veT`<div class="ve-flex-v-center ve-w-100 ve-no-shrink ui-tab__wrp-tab-heads--border">${tabs.map(it => it.btnTab)}</div>`.vee.appendTo(wrp);
+		tabs.forEach(it => it.wrpTab.vee.appendTo(wrp));
 
 		// -- IDENTITY ----------------------------------------------------------
 		this._buildIdentityTab(identityTab.wrpTab, cb);
@@ -615,33 +615,33 @@ export class CharacterBuilder extends BuilderBase {
 		// Per-item feature list builder - renders each item as a row with an eye-icon toggle button
 		const buildItemList = (label, stateKey, emptyMsg) => {
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple(label);
-			const listWrp = ee`<div class="ve-flex-col ve-w-100"></div>`;
+			const listWrp = veT`<div class="ve-flex-col ve-w-100"></div>`;
 			let _skipRefresh = false;
 
 			const refresh = () => {
 				if (_skipRefresh) return;
-				listWrp.empty();
+				listWrp.vee.empty();
 				const items = this._state[stateKey] || [];
 				if (!items.length) {
-					listWrp.append(ee`<div class="ve-muted ve-small ve-italic">${emptyMsg}</div>`);
+					listWrp.append(veT`<div class="ve-muted ve-small ve-italic">${emptyMsg}</div>`);
 					return;
 				}
 				items.forEach((item, ix) => {
-					const itemRow = ee`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
-					const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="${item.excluded ? "Show in PDF" : "Hide from PDF"}" style="flex-shrink:0"><span class="glyphicon ${item.excluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`;
-					const ta = ee`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
-					ta.val(item.text);
-					btnEye.onn("click", () => {
+					const itemRow = veT`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
+					const btnEye = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="${item.excluded ? "Show in PDF" : "Hide from PDF"}" style="flex-shrink:0"><span class="glyphicon ${item.excluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`;
+					const ta = veT`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
+					ta.vee.val(item.text);
+					btnEye.vee.onn("click", () => {
 						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, excluded: !it.excluded} : it);
 						this._state[stateKey] = cur;
 						const nowExcluded = cur[ix]?.excluded;
-						btnEye.attr("title", nowExcluded ? "Show in PDF" : "Hide from PDF");
-						btnEye.find("span").attr("class", `glyphicon ${nowExcluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}`);
+						btnEye.vee.attr("title", nowExcluded ? "Show in PDF" : "Hide from PDF");
+						btnEye.vee.find("span").vee.attr("class", `glyphicon ${nowExcluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}`);
 						cb();
 					});
-					ta.onn("input", () => {
+					ta.vee.onn("input", () => {
 						_skipRefresh = true;
-						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val(), _autoText: it._autoText ?? it.text} : it);
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.vee.val(), _autoText: it._autoText ?? it.text} : it);
 						this._state[stateKey] = cur;
 						_skipRefresh = false;
 						cb();
@@ -653,22 +653,22 @@ export class CharacterBuilder extends BuilderBase {
 
 			refresh();
 			this._addHook("state", stateKey, refresh);
-			listWrp.appendTo(rowInner);
+			listWrp.vee.appendTo(rowInner);
 			return row;
 		};
 
 		// Class Features
-		buildItemList("Class Features", "classFeatureItems", "Auto-filled when a class is selected.").appendTo(wrp);
+		buildItemList("Class Features", "classFeatureItems", "Auto-filled when a class is selected.").vee.appendTo(wrp);
 
 		// Optional Feature Choices (Fighting Style, Metamagic, Eldritch Invocations, etc.)
 		{
 			const [optRow, optRowInner] = BuilderUi.getLabelledRowTuple("Class Feature Options");
-			const wrpGroups = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(optRowInner);
+			const wrpGroups = veT`<div class="ve-flex-col ve-w-100"></div>`.vee.appendTo(optRowInner);
 
 			const buildOptFeatUI = () => {
-				wrpGroups.empty();
+				wrpGroups.vee.empty();
 				const slots = this._state._optionalFeatureSlots || [];
-				optRow.toggleVe(slots.length > 0);
+				optRow.vee.toggle(slots.length > 0);
 				if (!slots.length) return;
 
 				const isNew    = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
@@ -693,14 +693,14 @@ export class CharacterBuilder extends BuilderBase {
 					if (editionOpts.length) opts = editionOpts;
 
 					const slotChoices = choices[key] || [];
-					ee`<span class="ve-muted ve-bold ve-mt-1" style="font-size:.8em">${slot.name}</span>`.appendTo(wrpGroups);
-					const wrpSels = ee`<div class="ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.appendTo(wrpGroups);
+					veT`<span class="ve-muted ve-bold ve-mt-1" style="font-size:.8em">${slot.name}</span>`.vee.appendTo(wrpGroups);
+					const wrpSels = veT`<div class="ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.vee.appendTo(wrpGroups);
 
 					const sels = [];
 					const refreshDisabled = () => {
-						const taken = new Set(sels.map(s => s.val()).filter(Boolean));
+						const taken = new Set(sels.map(s => s.vee.val()).filter(Boolean));
 						sels.forEach(sel => {
-							const myVal = sel.val();
+							const myVal = sel.vee.val();
 							Array.from(sel.options).forEach(opt => {
 								if (!opt.value) return;
 								opt.disabled = taken.has(opt.value) && opt.value !== myVal;
@@ -710,13 +710,13 @@ export class CharacterBuilder extends BuilderBase {
 
 					for (let i = 0; i < slot.count; i++) {
 						const savedVal = opts.find(f => f.name === slotChoices[i]) ? slotChoices[i] : "";
-						const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px">
+						const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px">
 							<option value="">- Choose -</option>
 							${opts.map(f => `<option value="${f.name}"${f.name === savedVal ? " selected" : ""}>${f.name}</option>`).join("")}
 						</select>`;
-						sel.onn("change", () => {
+						sel.vee.onn("change", () => {
 							const updated = {...(this._state.optionalFeatureChoices || {})};
-							updated[key] = sels.map(s => s.val()).filter(Boolean);
+							updated[key] = sels.map(s => s.vee.val()).filter(Boolean);
 							this._state.optionalFeatureChoices = updated;
 							refreshDisabled();
 							cb();
@@ -731,18 +731,18 @@ export class CharacterBuilder extends BuilderBase {
 			buildOptFeatUI();
 			this._addHook("state", "_optionalFeatureSlots", buildOptFeatUI);
 			this._addHook("state", "styleHint",             buildOptFeatUI);
-			optRow.appendTo(wrp);
+			optRow.vee.appendTo(wrp);
 		}
 
 	// Weapon Masteries
 	{
 		const [mastRow, mastRowInner] = BuilderUi.getLabelledRowTuple("Weapon Masteries");
-		const wrpMastSels = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(mastRowInner);
+		const wrpMastSels = veT`<div class="ve-flex-wrap ve-gap-1"></div>`.vee.appendTo(mastRowInner);
 
 		const buildMasteryUI = () => {
-			wrpMastSels.empty();
+			wrpMastSels.vee.empty();
 			const count = this._state._weaponMasteryCount || 0;
-			mastRow.toggleVe(count > 0);
+			mastRow.vee.toggle(count > 0);
 			if (!count) return;
 
 			const profWeapons = this._getProficientWeaponNames();
@@ -750,9 +750,9 @@ export class CharacterBuilder extends BuilderBase {
 
 			const sels = [];
 			const refreshDisabled = () => {
-				const taken = new Set(sels.map(s => s.val()).filter(Boolean));
+				const taken = new Set(sels.map(s => s.vee.val()).filter(Boolean));
 				sels.forEach(sel => {
-					const myVal = sel.val();
+					const myVal = sel.vee.val();
 					Array.from(sel.options).forEach(opt => {
 						if (!opt.value) return;
 						opt.disabled = taken.has(opt.value) && opt.value !== myVal;
@@ -762,12 +762,12 @@ export class CharacterBuilder extends BuilderBase {
 
 			for (let i = 0; i < count; i++) {
 				const savedVal = profWeapons.includes(saved[i]) ? saved[i] : "";
-				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:160px">
+				const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:160px">
 					<option value="">- Choose -</option>
 					${profWeapons.map(w => `<option value="${w}"${w === savedVal ? " selected" : ""}>${w}</option>`).join("")}
 				</select>`;
-				sel.onn("change", () => {
-					this._state.weaponMasteries = sels.map(s => s.val()).filter(Boolean);
+				sel.vee.onn("change", () => {
+					this._state.weaponMasteries = sels.map(s => s.vee.val()).filter(Boolean);
 					refreshDisabled();
 					cb();
 				});
@@ -781,19 +781,19 @@ export class CharacterBuilder extends BuilderBase {
 		this._addHook("state", "_weaponMasteryCount", buildMasteryUI);
 		this._addHook("state", "weaponProfs",         buildMasteryUI);
 		this._addHook("state", "featWeaponProfs",     buildMasteryUI);
-		mastRow.appendTo(wrp);
+		mastRow.vee.appendTo(wrp);
 	}
 	}
 
 	// -- Identity tab ----------------------------------------------------------
 
 	_buildIdentityTab (wrp, cb) {
-		BuilderUi.getStateIptString("Character Name", cb, this._state, {nullable: false, callback: () => this.pRenderSideMenu()}, "name").appendTo(wrp);
-		BuilderUi.getStateIptString("Player Name",    cb, this._state, {}, "playerName").appendTo(wrp);
+		BuilderUi.getStateIptString("Character Name", cb, this._state, {nullable: false, callback: () => this.pRenderSideMenu()}, "name").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Player Name",    cb, this._state, {}, "playerName").vee.appendTo(wrp);
 
 		// Edition toggle
 		const editionRow = this._buildEditionToggle(cb);
-		editionRow.appendTo(wrp);
+		editionRow.vee.appendTo(wrp);
 
 		// Class dropdown
 		this._buildClassInput(wrp, cb);
@@ -809,10 +809,10 @@ export class CharacterBuilder extends BuilderBase {
 			"Alignment", cb, this._state,
 			{nullable: false, vals: _ALIGNMENTS, fnDisplay: v => String(v)},
 			"alignment",
-		).appendTo(wrp);
+		).vee.appendTo(wrp);
 
 		// XP
-		BuilderUi.getStateIptNumber("Experience Points", cb, this._state, {nullable: true, placeholder: "0"}, "xp").appendTo(wrp);
+		BuilderUi.getStateIptNumber("Experience Points", cb, this._state, {nullable: true, placeholder: "0"}, "xp").vee.appendTo(wrp);
 
 		// State hook - fires whenever classes array changes
 		this._addHook("state", "classes", () => {
@@ -832,32 +832,32 @@ export class CharacterBuilder extends BuilderBase {
 		{
 			const stateKey = "speciesTraitItems";
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Species Traits");
-			const listWrp = ee`<div class="ve-flex-col ve-w-100"></div>`;
+			const listWrp = veT`<div class="ve-flex-col ve-w-100"></div>`;
 			let _skipRefresh = false;
 			const refresh = () => {
 				if (_skipRefresh) return;
-				listWrp.empty();
+				listWrp.vee.empty();
 				const items = this._state[stateKey] || [];
 				if (!items.length) {
-					listWrp.append(ee`<div class="ve-muted ve-small ve-italic">Auto-filled when a species is selected.</div>`);
+					listWrp.append(veT`<div class="ve-muted ve-small ve-italic">Auto-filled when a species is selected.</div>`);
 					return;
 				}
 				items.forEach((item, ix) => {
-					const itemRow = ee`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
-					const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="${item.excluded ? "Show in PDF" : "Hide from PDF"}" style="flex-shrink:0"><span class="glyphicon ${item.excluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`;
-					const ta = ee`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
-					ta.val(item.text);
-					btnEye.onn("click", () => {
+					const itemRow = veT`<div class="ve-flex ve-mb-1" style="align-items:flex-start"></div>`;
+					const btnEye = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1 ve-mt-1" title="${item.excluded ? "Show in PDF" : "Hide from PDF"}" style="flex-shrink:0"><span class="glyphicon ${item.excluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`;
+					const ta = veT`<textarea class="ve-form-control ve-input-xs form-control--minimal ve-small" rows="2" style="flex:1;resize:vertical"></textarea>`;
+					ta.vee.val(item.text);
+					btnEye.vee.onn("click", () => {
 						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, excluded: !it.excluded} : it);
 						this._state[stateKey] = cur;
 						const nowExcluded = cur[ix]?.excluded;
-						btnEye.attr("title", nowExcluded ? "Show in PDF" : "Hide from PDF");
-						btnEye.find("span").attr("class", `glyphicon ${nowExcluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}`);
+						btnEye.vee.attr("title", nowExcluded ? "Show in PDF" : "Hide from PDF");
+						btnEye.vee.find("span").vee.attr("class", `glyphicon ${nowExcluded ? "glyphicon-eye-close" : "glyphicon-eye-open"}`);
 						cb();
 					});
-					ta.onn("input", () => {
+					ta.vee.onn("input", () => {
 						_skipRefresh = true;
-						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.val(), _autoText: it._autoText ?? it.text} : it);
+						const cur = (this._state[stateKey] || []).map((it, i) => i === ix ? {...it, text: ta.vee.val(), _autoText: it._autoText ?? it.text} : it);
 						this._state[stateKey] = cur;
 						_skipRefresh = false;
 						cb();
@@ -868,12 +868,12 @@ export class CharacterBuilder extends BuilderBase {
 			};
 			refresh();
 			this._addHook("state", stateKey, refresh);
-			listWrp.appendTo(rowInner);
-			row.appendTo(wrp);
+			listWrp.vee.appendTo(rowInner);
+			row.vee.appendTo(wrp);
 		}
 
 		// Species spell-choice dropdowns - shown below species traits
-		if (this._speciesSpellChoiceRow) this._speciesSpellChoiceRow.appendTo(wrp);
+		if (this._speciesSpellChoiceRow) this._speciesSpellChoiceRow.vee.appendTo(wrp);
 	}
 
 	_buildEditionToggle (cb) {
@@ -881,19 +881,19 @@ export class CharacterBuilder extends BuilderBase {
 
 		const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
 
-		const btnClassic = ee`<button class="ve-btn ve-btn-xs ${!isNew ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">5e (2014)</button>`;
-		const btnNew     = ee`<button class="ve-btn ve-btn-xs ${isNew  ? "ve-btn-primary" : "ve-btn-default"}">5.5e (2024)</button>`;
+		const btnClassic = veT`<button class="ve-btn ve-btn-xs ${!isNew ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">5e (2014)</button>`;
+		const btnNew     = veT`<button class="ve-btn ve-btn-xs ${isNew  ? "ve-btn-primary" : "ve-btn-default"}">5.5e (2024)</button>`;
 
 		const doUpdate = () => {
 			const using2024 = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
-			btnClassic.toggleClass("ve-btn-primary", !using2024).toggleClass("ve-btn-default", using2024);
-			btnNew.toggleClass("ve-btn-primary", using2024).toggleClass("ve-btn-default", !using2024);
+			btnClassic.vee.toggleClass("ve-btn-primary", !using2024).vee.toggleClass("ve-btn-default", using2024);
+			btnNew.vee.toggleClass("ve-btn-primary", using2024).vee.toggleClass("ve-btn-default", !using2024);
 		};
 
-		btnClassic.onn("click", () => { this._state.styleHint = SITE_STYLE__CLASSIC; doUpdate(); this._onEditionChange?.(); this.renderInput(); cb(); });
-		btnNew.onn("click",     () => { this._state.styleHint = SITE_STYLE__ONE;     doUpdate(); this._onEditionChange?.(); this.renderInput(); cb(); });
+		btnClassic.vee.onn("click", () => { this._state.styleHint = SITE_STYLE__CLASSIC; doUpdate(); this._onEditionChange?.(); this.renderInput(); cb(); });
+		btnNew.vee.onn("click",     () => { this._state.styleHint = SITE_STYLE__ONE;     doUpdate(); this._onEditionChange?.(); this.renderInput(); cb(); });
 
-		ee`<div class="ve-flex">${btnClassic}${btnNew}</div>`.appendTo(rowInner);
+		veT`<div class="ve-flex">${btnClassic}${btnNew}</div>`.vee.appendTo(rowInner);
 		return row;
 	}
 
@@ -996,21 +996,21 @@ export class CharacterBuilder extends BuilderBase {
 			{name: "View All"},
 		];
 
-		const wrpRows = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(rowInner);
+		const wrpRows = veT`<div class="ve-flex-col ve-w-100"></div>`.vee.appendTo(rowInner);
 
-		const addBtn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Class</button>`;
+		const addBtn = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mt-1">+ Add Class</button>`;
 
 		const rebuildAllRows = () => {
-			wrpRows.empty();
+			wrpRows.vee.empty();
 			const classes = this._state.classes || [{cls: "", sub: "", level: 1}];
 			const showRemove = classes.length > 1;
 			classes.forEach((_, ix) => {
 				const c = this._state.classes[ix];
 
-				const selClass    = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
-				const selSubclass = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
-				const selLevel    = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="width:55px;flex:0 0 55px"></select>`;
-				const btnRemove   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}"><span class="glyphicon glyphicon-trash"></span></button>`;
+				const selClass    = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
+				const selSubclass = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="flex:2"></select>`;
+				const selLevel    = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="width:55px;flex:0 0 55px"></select>`;
+				const btnRemove   = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove class" style="flex:0 0 auto;display:${showRemove ? "" : "none"}"><span class="glyphicon glyphicon-trash"></span></button>`;
 
 				const _othersTotal = (this._state.classes || [])
 					.filter((_, j) => j !== ix)
@@ -1068,11 +1068,11 @@ export class CharacterBuilder extends BuilderBase {
 					)),
 				);
 				let scFilterMenu = buildScFilterMenu();
-				const btnScFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Filter subclass sources: ${_SC_SOURCE_PRESETS[getScMode()].name}" style="flex:0 0 auto"><span class="glyphicon glyphicon-filter"></span></button>`
-					.onn("click", evt => ContextUtil.pOpenMenu(evt, scFilterMenu));
+				const btnScFilter = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Filter subclass sources: ${_SC_SOURCE_PRESETS[getScMode()].name}" style="flex:0 0 auto"><span class="glyphicon glyphicon-filter"></span></button>`
+					.vee.onn("click", evt => ContextUtil.pOpenMenu(evt, scFilterMenu));
 
-				selClass.onn("change", () => {
-					const name = selClass.val();
+				selClass.vee.onn("change", () => {
+					const name = selClass.vee.val();
 					const cur = [...(this._state.classes || [])];
 					if (!cur[ix] || cur[ix].cls === name) return;
 					cur[ix] = {...cur[ix], cls: name, sub: ""};
@@ -1082,8 +1082,8 @@ export class CharacterBuilder extends BuilderBase {
 					cb();
 				});
 
-				selSubclass.onn("change", () => {
-					const name = selSubclass.val();
+				selSubclass.vee.onn("change", () => {
+					const name = selSubclass.vee.val();
 					const cur = [...(this._state.classes || [])];
 					if (!cur[ix] || cur[ix].sub === name) return;
 					cur[ix] = {...cur[ix], sub: name};
@@ -1094,16 +1094,16 @@ export class CharacterBuilder extends BuilderBase {
 					cb();
 				});
 
-				selLevel.onn("change", () => {
+				selLevel.vee.onn("change", () => {
 					const cur = [...(this._state.classes || [])];
 					if (!cur[ix]) return;
-					cur[ix] = {...cur[ix], level: parseInt(selLevel.val()) || 1};
+					cur[ix] = {...cur[ix], level: parseInt(selLevel.vee.val()) || 1};
 					this._state.classes = cur;
 					this._onLevelOrClassChange();
 					cb();
 				});
 
-				btnRemove.onn("click", () => {
+				btnRemove.vee.onn("click", () => {
 					const cur = [...(this._state.classes || [])];
 					if (cur.length <= 1) return;
 					cur.splice(ix, 1);
@@ -1113,9 +1113,9 @@ export class CharacterBuilder extends BuilderBase {
 					cb();
 				});
 
-				ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100">
+				veT`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100">
 					${selClass}${selSubclass}${selLevel}${btnRemove}${btnScFilter}
-				</div>`.appendTo(wrpRows);
+				</div>`.vee.appendTo(wrpRows);
 
 				// Choice dropdowns for features with sub-options (e.g. Divine Order, Primal Order)
 				if (c.cls && this._isDataLoaded) {
@@ -1148,20 +1148,20 @@ export class CharacterBuilder extends BuilderBase {
 							lbl.className = "ve-muted ve-mr-2";
 							lbl.style.cssText = "font-size:.85em;flex:0 0 auto";
 							lbl.textContent = parentName + ":";
-							ee`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100 ve-pl-3">
+							veT`<div class="ve-flex ve-flex-v-center ve-mb-1 ve-w-100 ve-pl-3">
 								${lbl}${sel}
-							</div>`.appendTo(wrpRows);
+							</div>`.vee.appendTo(wrpRows);
 						});
 					}
 				}
 			});
-			addBtn.appendTo(wrpRows);
+			addBtn.vee.appendTo(wrpRows);
 			const _totalLvl = (this._state.classes || []).reduce((s, oc) => s + Math.max(1, Math.min(20, parseInt(oc.level) || 1)), 0);
 			const _takenNames = new Set((this._state.classes || []).map(oc => oc.cls).filter(Boolean));
 			addBtn.disabled = _totalLvl >= 20 || !getFilteredClasses().some(cls => !_takenNames.has(cls.name));
 		};
 
-		addBtn.onn("click", () => {
+		addBtn.vee.onn("click", () => {
 			const cur = [...(this._state.classes || [{cls: "", sub: "", level: 1}])];
 			cur.push({cls: "", sub: "", level: 1});
 			this._state.classes = cur;
@@ -1208,14 +1208,14 @@ export class CharacterBuilder extends BuilderBase {
 			document.body.appendChild(dl);
 		}
 
-		const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.background || "");
+		const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.vee.val(this._state.background || "");
 
 		const doApply = (name) => {
 			const trimmed = (name || "").trim();
 			// Prefer the canonical casing from our loaded list, fall back to whatever was typed/selected
 			const match = this._allBackgrounds.find(b => b.name.toLowerCase() === trimmed.toLowerCase());
 			const newVal = match ? match.name : trimmed;
-			ipt.val(newVal);
+			ipt.vee.val(newVal);
 			if (newVal === this._state.background) return;
 			this._state.background   = newVal;
 			this._state.skillProfs     = [];
@@ -1238,10 +1238,10 @@ export class CharacterBuilder extends BuilderBase {
 			cb();
 		};
 
-		ipt.onn("change", () => doApply(ipt.val()));
+		ipt.vee.onn("change", () => doApply(ipt.vee.val()));
 
-		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter backgrounds"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
-			.onn("click", async () => {
+		const btnFilter = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter backgrounds"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
+			.vee.onn("click", async () => {
 				this._modalFilterBackgrounds = this._modalFilterBackgrounds
 					|| new _CharModalFilterBackgrounds({namespace: "charBuilder.backgrounds", isRadio: true});
 				const selected = await this._modalFilterBackgrounds.pGetUserSelection();
@@ -1249,13 +1249,13 @@ export class CharacterBuilder extends BuilderBase {
 				doApply(selected[0].name);
 			});
 
-		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
+		veT`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.vee.appendTo(rowInner);
 		wrp.append(row);
 
 		// Feat choice row — appended into rowInner so it sits within the Background section
-		const wrpFeatChoiceRow = ee`<div></div>`.appendTo(rowInner);
+		const wrpFeatChoiceRow = veT`<div></div>`.vee.appendTo(rowInner);
 		const buildBgFeatChoiceUI = () => {
-			wrpFeatChoiceRow.empty();
+			wrpFeatChoiceRow.vee.empty();
 			const bgName = this._state.background || "";
 			if (!bgName) return;
 			const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
@@ -1284,10 +1284,10 @@ export class CharacterBuilder extends BuilderBase {
 			// Feat set selector (when multiple alternatives exist)
 			if (featSets.length > 1) {
 				const curSetIx = Math.min(this._state.bgFeatSetIx || 0, featSets.length - 1);
-				const selSet = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
+				const selSet = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
 					${featSets.map((fs, ix) => `<option value="${ix}"${ix === curSetIx ? " selected" : ""}>${getFeatSetLabel(fs)}</option>`).join("")}
-				</select>`.onn("change", () => {
-					this._state.bgFeatSetIx = parseInt(selSet.val());
+				</select>`.vee.onn("change", () => {
+					this._state.bgFeatSetIx = parseInt(selSet.vee.val());
 					this._state.bgFeat = "";
 					this._applyBackgroundData();
 					this._applyFeatData();
@@ -1296,9 +1296,9 @@ export class CharacterBuilder extends BuilderBase {
 					buildBgFeatChoiceUI();
 					cb();
 				});
-				ee`<div class="ve-flex-v-center ve-w-100 ve-mt-1">
+				veT`<div class="ve-flex-v-center ve-w-100 ve-mt-1">
 					<span class="mkbru__row-name ve-mr-2 ve-no-shrink">Feat</span>${selSet}
-				</div>`.appendTo(wrpFeatChoiceRow);
+				</div>`.vee.appendTo(wrpFeatChoiceRow);
 			}
 
 			// Category feat picker (when active set uses anyFromCategory)
@@ -1308,9 +1308,9 @@ export class CharacterBuilder extends BuilderBase {
 				const cats = activeFeatSet.anyFromCategory.category;
 				const catLabel = cats.map(c => Parser.featCategoryToFull(c)).join("/");
 				const curFeat = this._state.bgFeat || "";
-				const spanChosen = ee`<span class="ve-italic ve-muted" style="flex:1">${curFeat || "(choose)"}</span>`;
-				const btnPickFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Choose ${catLabel} feat"><span class="glyphicon glyphicon-filter"></span></button>`
-					.onn("click", async () => {
+				const spanChosen = veT`<span class="ve-italic ve-muted" style="flex:1">${curFeat || "(choose)"}</span>`;
+				const btnPickFeat = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Choose ${catLabel} feat"><span class="glyphicon glyphicon-filter"></span></button>`
+					.vee.onn("click", async () => {
 						if (!this._modalFilterFeatsBg) {
 							this._modalFilterFeatsBg = new _CharModalFilterFeats({
 								namespace: "charBuilder.backgrounds.feat",
@@ -1328,9 +1328,9 @@ export class CharacterBuilder extends BuilderBase {
 						buildBgFeatChoiceUI();
 						cb();
 					});
-				ee`<div class="ve-flex-v-center ve-w-100 ve-mt-1">
+				veT`<div class="ve-flex-v-center ve-w-100 ve-mt-1">
 					<span class="mkbru__row-name ve-mr-2 ve-no-shrink"></span>${btnPickFeat}${spanChosen}
-				</div>`.appendTo(wrpFeatChoiceRow);
+				</div>`.vee.appendTo(wrpFeatChoiceRow);
 			}
 		};
 		buildBgFeatChoiceUI();
@@ -1352,13 +1352,13 @@ export class CharacterBuilder extends BuilderBase {
 			document.body.appendChild(dl);
 		}
 
-		const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.val(this._state.species || "");
+		const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" list="${dlId}" placeholder="(None)" style="flex:1">`.vee.val(this._state.species || "");
 
 		const doApply = (name) => {
 			const trimmed = (name || "").trim();
 			const match = this._allSpecies.find(s => s.name.toLowerCase() === trimmed.toLowerCase());
 			const newVal = match ? match.name : trimmed;
-			ipt.val(newVal);
+			ipt.vee.val(newVal);
 			if (newVal === this._state.species) return;
 			this._state.species          = newVal;
 			this._state.speciesTraitItems = [];
@@ -1381,10 +1381,10 @@ export class CharacterBuilder extends BuilderBase {
 			cb();
 		};
 
-		ipt.onn("change", () => doApply(ipt.val()));
+		ipt.vee.onn("change", () => doApply(ipt.vee.val()));
 
-		const btnFilter = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter species"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
-			.onn("click", async () => {
+		const btnFilter = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Filter species"><span class="glyphicon glyphicon-filter"></span> Filter</button>`
+			.vee.onn("click", async () => {
 				this._modalFilterRaces = this._modalFilterRaces
 					|| new _CharModalFilterRaces({namespace: "charBuilder.races", isRadio: true});
 				const selected = await this._modalFilterRaces.pGetUserSelection();
@@ -1392,20 +1392,20 @@ export class CharacterBuilder extends BuilderBase {
 				doApply(selected[0].name);
 			});
 
-		ee`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.appendTo(rowInner);
+		veT`<div class="ve-flex ve-w-100 ve-flex-v-center">${btnFilter}${ipt}</div>`.vee.appendTo(rowInner);
 		wrp.append(row);
 
 		// Species choices: spell-choice and skill-proficiency dropdowns
 		const [choiceRow, choiceRowInner] = BuilderUi.getLabelledRowTuple("Species Choices");
-		const wrpChoices = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(choiceRowInner);
+		const wrpChoices = veT`<div class="ve-flex-wrap ve-gap-1"></div>`.vee.appendTo(choiceRowInner);
 
 		const buildSpeciesChoiceUI = () => {
-			wrpChoices.empty();
+			wrpChoices.vee.empty();
 			const speciesEntry = this._sg_getSpeciesEntry();
 			const spellChoices = this._getSpeciesSpellChoices(speciesEntry);
 			const skillChoices = this._getSpeciesSkillChoices(speciesEntry);
 			const allChoices = [...skillChoices, ...spellChoices];
-			choiceRow.toggleVe(allChoices.length > 0);
+			choiceRow.vee.toggle(allChoices.length > 0);
 			if (!allChoices.length) return;
 
 			const saved = this._state.speciesChoices || {};
@@ -1413,13 +1413,13 @@ export class CharacterBuilder extends BuilderBase {
 			// Skill proficiency dropdowns first
 			skillChoices.forEach((/** @type {any} */ {key, label, options}) => {
 				const savedVal = options?.find((/** @type {any} */ o) => o.value === saved[key]) ? saved[key] : "";
-				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
+				const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
 					<option value="">- Choose ${label} -</option>
 					${(options || []).map((/** @type {any} */ o) => `<option value="${o.value}"${o.value === savedVal ? " selected" : ""}>${o.label}</option>`).join("")}
 				</select>`;
-				sel.onn("change", () => {
+				sel.vee.onn("change", () => {
 					const updated = {...(this._state.speciesChoices || {})};
-					updated[key] = sel.val();
+					updated[key] = sel.vee.val();
 					this._state.speciesChoices = updated;
 					this._syncSpeciesSkillProfs();
 					cb();
@@ -1430,13 +1430,13 @@ export class CharacterBuilder extends BuilderBase {
 			// Spell-choice dropdowns
 			spellChoices.forEach((/** @type {any} */ {key, label, options}) => {
 				const savedVal = options?.find((/** @type {any} */ o) => o.value === saved[key]) ? saved[key] : "";
-				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
+				const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:160px" title="${label}">
 					<option value="">- Choose ${label} -</option>
 					${(options || []).map(o => `<option value="${o.value}"${o.value === savedVal ? " selected" : ""}>${o.label}</option>`).join("")}
 				</select>`;
-				sel.onn("change", () => {
+				sel.vee.onn("change", () => {
 					const updated = {...(this._state.speciesChoices || {})};
-					updated[key] = sel.val();
+					updated[key] = sel.vee.val();
 					this._state.speciesChoices = updated;
 					this._syncGrantedSpells();
 					cb();
@@ -3146,7 +3146,7 @@ export class CharacterBuilder extends BuilderBase {
 			return this._buildAsiChoiceInputs(container, cb, storageKey || "Ability Score Improvement");
 		}
 		const stateKey = storageKey || featName;
-		const wrp = ee`<div class="cb-feat-choices-wrp"></div>`.appendTo(container);
+		const wrp = veT`<div class="cb-feat-choices-wrp"></div>`.vee.appendTo(container);
 		const stored = () => (this._state.featChoices || {})[stateKey] || {};
 
 		const build = () => {
@@ -3155,7 +3155,7 @@ export class CharacterBuilder extends BuilderBase {
 			if (!choiceList.length) return;
 
 			for (const choice of choiceList) {
-				const choiceRow = ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3"></div>`.appendTo(wrp);
+				const choiceRow = veT`<div class="ve-flex-v-center ve-mt-1 ve-pl-3"></div>`.vee.appendTo(wrp);
 
 				const lbl = document.createElement("span");
 				lbl.className = "ve-mr-2 ve-muted";
@@ -3213,7 +3213,7 @@ export class CharacterBuilder extends BuilderBase {
 		const AKEY = ["str", "dex", "con", "int", "wis", "cha"];
 		const AFULL = {str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma"};
 
-		const wrp = ee`<div class="cb-feat-choices-wrp ve-flex-col"></div>`.appendTo(container);
+		const wrp = veT`<div class="cb-feat-choices-wrp ve-flex-col"></div>`.vee.appendTo(container);
 
 		const getStored = () => (this._state.featChoices || {})[storageKey] || {};
 		const setStored = (patch) => {
@@ -3233,18 +3233,18 @@ export class CharacterBuilder extends BuilderBase {
 			const stored = getStored();
 
 			const mkSel = (/** @type {string} */ val, /** @type {(v: string) => void} */ onChange) => {
-				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
+				const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="flex:1">
 					<option value="">-</option>
 					${AKEY.map(a => `<option value="${a}"${a === val ? " selected" : ""}>${AFULL[a]}</option>`).join("")}
-				</select>`.onn("change", () => onChange(sel.val()));
+				</select>`.vee.onn("change", () => onChange(sel.vee.val()));
 				return sel;
 			};
 
-			const row = ee`<div class="ve-flex-v-center ve-mt-1 ve-pl-3" style="gap:6px"></div>`.appendTo(wrp);
-			ee`<span class="ve-muted" style="font-size:.85em;white-space:nowrap">+1:</span>`.appendTo(row);
-			mkSel(stored.ability_0 || "", (/** @type {string} */ val) => setStored({ability_0: val})).appendTo(row);
-			ee`<span class="ve-muted" style="font-size:.85em;white-space:nowrap;margin-left:6px">+1:</span>`.appendTo(row);
-			mkSel(stored.ability_1 || "", (/** @type {string} */ val) => setStored({ability_1: val})).appendTo(row);
+			const row = veT`<div class="ve-flex-v-center ve-mt-1 ve-pl-3" style="gap:6px"></div>`.vee.appendTo(wrp);
+			veT`<span class="ve-muted" style="font-size:.85em;white-space:nowrap">+1:</span>`.vee.appendTo(row);
+			mkSel(stored.ability_0 || "", (/** @type {string} */ val) => setStored({ability_0: val})).vee.appendTo(row);
+			veT`<span class="ve-muted" style="font-size:.85em;white-space:nowrap;margin-left:6px">+1:</span>`.vee.appendTo(row);
+			mkSel(stored.ability_1 || "", (/** @type {string} */ val) => setStored({ability_1: val})).vee.appendTo(row);
 		};
 
 		// Migrate legacy "+2 to one" format: {asi_mode:"+2", ability:"str"} → {ability_0:"str", ability_1:"str"}.
@@ -3267,7 +3267,7 @@ export class CharacterBuilder extends BuilderBase {
 	_buildFeatsInput (wrp, cb) {
 		const featsArr = () => this._state.feats || [];
 		const featRows = [];
-		const wrpRows = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
+		const wrpRows = veT`<div class="ve-flex-col ve-mb-2"></div>`.vee.appendTo(wrp);
 
 		const _hashBuilder = /** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER);
 		const _getFeatHover = (/** @type {string} */ featName) => {
@@ -3277,7 +3277,7 @@ export class CharacterBuilder extends BuilderBase {
 		const _setFeatHoverAttrs = (/** @type {any} */ span, /** @type {string} */ featName) => {
 			const fe = this._getFeatEntry(featName);
 			if (fe) {
-				span.attr("data-vet-page", UrlUtil.PG_FEATS).attr("data-vet-source", fe.source).attr("data-vet-hash", _hashBuilder[UrlUtil.PG_FEATS](fe));
+				span.vee.attr("data-vet-page", UrlUtil.PG_FEATS).vee.attr("data-vet-source", fe.source).vee.attr("data-vet-hash", _hashBuilder[UrlUtil.PG_FEATS](fe));
 				span.style.cursor = "help";
 				span.onmouseover = (/** @type {MouseEvent} */ evt) => Renderer.hover.pHandleLinkMouseOver(evt, span);
 				span.onmouseleave = (/** @type {MouseEvent} */ evt) => Renderer.hover.handleLinkMouseLeave(evt, span);
@@ -3292,15 +3292,15 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		// Background-granted feat: card at the top, hidden when no bgFeat
-		const bgFeatCard = ee`<div class="ve-mb-2 ve-p-2 ve-hidden" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
-		const bgFeatNameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(bgFeatCard);
-		const bgFeatSpan = ee`<span class="ve-mr-2 ve-bold" style="flex:1"></span>`.appendTo(bgFeatNameRow);
-		ee`<span class="ve-muted ve-italic" style="font-size:.85em">(from background)</span>`.appendTo(bgFeatNameRow);
+		const bgFeatCard = veT`<div class="ve-mb-2 ve-p-2 ve-hidden" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.vee.appendTo(wrpRows);
+		const bgFeatNameRow = veT`<div class="ve-flex-v-center"></div>`.vee.appendTo(bgFeatCard);
+		const bgFeatSpan = veT`<span class="ve-mr-2 ve-bold" style="flex:1"></span>`.vee.appendTo(bgFeatNameRow);
+		veT`<span class="ve-muted ve-italic" style="font-size:.85em">(from background)</span>`.vee.appendTo(bgFeatNameRow);
 
 		const refreshBgFeatRow = () => {
 			const name = this._state.bgFeat || "";
-			bgFeatCard.toggleVe(!!name);
-			bgFeatSpan.txt(name);
+			bgFeatCard.vee.toggle(!!name);
+			bgFeatSpan.vee.txt(name);
 			_setFeatHoverAttrs(bgFeatSpan, name);
 			// Remove any old choice rows, then add fresh ones
 			Array.from(bgFeatCard.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
@@ -3311,14 +3311,14 @@ export class CharacterBuilder extends BuilderBase {
 
 		// ASI-slot feats — mirrors the Class tab's ASI section, using the same per-slot
 		// storage keys so choices are shared between the two views.
-		const wrpAsiSlots = ee`<div class="ve-flex-col"></div>`.appendTo(wrpRows);
+		const wrpAsiSlots = veT`<div class="ve-flex-col"></div>`.vee.appendTo(wrpRows);
 
 		const buildAsiSlotRows = () => {
-			wrpAsiSlots.empty();
+			wrpAsiSlots.vee.empty();
 			const count = this._state._asiCount || 0;
 			if (!count) return;
 
-			ee`<div class="ve-bold ve-mb-1 ve-pb-1" style="font-size:.75em;text-transform:uppercase;letter-spacing:.05em;color:var(--col-heading-grey,#888);border-bottom:1px solid var(--col-border-default,#ccc)">From ASI Slots</div>`.appendTo(wrpAsiSlots);
+			veT`<div class="ve-bold ve-mb-1 ve-pb-1" style="font-size:.75em;text-transform:uppercase;letter-spacing:.05em;color:var(--col-heading-grey,#888);border-bottom:1px solid var(--col-border-default,#ccc)">From ASI Slots</div>`.vee.appendTo(wrpAsiSlots);
 
 			for (let ix = 0; ix < count; ix++) {
 				const ix_ = ix;
@@ -3332,13 +3332,13 @@ export class CharacterBuilder extends BuilderBase {
 					rs.asiChoices[ix_] = {...(rs.asiChoices[ix_] || {}), featName: "Ability Score Improvement"};
 				}
 
-				const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpAsiSlots);
+				const card = veT`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.vee.appendTo(wrpAsiSlots);
 
-				const nameRow = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(card);
-				const spanFeatName = ee`<span class="ve-bold" style="flex:1" ${_getFeatHover(getAsiChoice().featName)}>${getAsiChoice().featName}</span>`;
+				const nameRow = veT`<div class="ve-flex-v-center ve-mb-1"></div>`.vee.appendTo(card);
+				const spanFeatName = veT`<span class="ve-bold" style="flex:1" ${_getFeatHover(getAsiChoice().featName)}>${getAsiChoice().featName}</span>`;
 
-				const btnChangeFeat = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Choose a different feat for this ASI slot"><span class="glyphicon glyphicon-filter ve-mr-1"></span>Change</button>`
-					.onn("click", async () => {
+				const btnChangeFeat = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-2" title="Choose a different feat for this ASI slot"><span class="glyphicon glyphicon-filter ve-mr-1"></span>Change</button>`
+					.vee.onn("click", async () => {
 						if (!this._modalFilterFeatsAsi) {
 							this._modalFilterFeatsAsi = new _CharModalFilterFeats({
 								namespace: "charBuilder.feats.asi",
@@ -3358,7 +3358,7 @@ export class CharacterBuilder extends BuilderBase {
 						if (this._sg_doRebuild) this._sg_doRebuild();
 						cb();
 						// Update local DOM without a full rebuild
-						spanFeatName.txt(name);
+						spanFeatName.vee.txt(name);
 						_setFeatHoverAttrs(spanFeatName, name);
 						Array.from(card.querySelectorAll(".cb-feat-choices-wrp")).forEach(n => n.remove());
 						const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
@@ -3367,7 +3367,7 @@ export class CharacterBuilder extends BuilderBase {
 
 				nameRow.append(btnChangeFeat);
 				nameRow.append(spanFeatName);
-				ee`<span class="ve-muted ve-italic ve-no-shrink" style="font-size:.8em">ASI ${ix_ + 1}</span>`.appendTo(nameRow);
+				veT`<span class="ve-muted ve-italic ve-no-shrink" style="font-size:.8em">ASI ${ix_ + 1}</span>`.vee.appendTo(nameRow);
 
 				const name = getAsiChoice().featName;
 				const storageKey = name === "Ability Score Improvement" ? `Ability Score Improvement#${ix_}` : name;
@@ -3388,18 +3388,18 @@ export class CharacterBuilder extends BuilderBase {
 		};
 
 		const addRow = (name) => {
-			const card = ee`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.appendTo(wrpRows);
+			const card = veT`<div class="ve-mb-2 ve-p-2" style="border:1px solid var(--col-border-default,#ccc);border-radius:4px"></div>`.vee.appendTo(wrpRows);
 
-			const nameRow = ee`<div class="ve-flex-v-center"></div>`.appendTo(card);
+			const nameRow = veT`<div class="ve-flex-v-center"></div>`.vee.appendTo(card);
 			const _fh = _getFeatHover(name);
-			ee`<span class="ve-bold ve-mr-2" style="flex:1${_fh ? ";cursor:help" : ""}" ${_fh}>${name}</span>`.appendTo(nameRow);
-			const btnRemove = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Feat"><span class="glyphicon glyphicon-trash"></span></button>`
-				.onn("click", () => {
+			veT`<span class="ve-bold ve-mr-2" style="flex:1${_fh ? ";cursor:help" : ""}" ${_fh}>${name}</span>`.vee.appendTo(nameRow);
+			const btnRemove = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Feat"><span class="glyphicon glyphicon-trash"></span></button>`
+				.vee.onn("click", () => {
 					featRows.splice(featRows.indexOf(rowMeta), 1);
 					card.remove();
 					doUpdateState();
 				})
-				.appendTo(nameRow);
+				.vee.appendTo(nameRow);
 
 			this._buildFeatChoiceInputs(name, card, cb);
 
@@ -3409,9 +3409,9 @@ export class CharacterBuilder extends BuilderBase {
 
 		featsArr().forEach(f => addRow(f));
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Feat</button>`
-			.appendTo(wrp)
-			.onn("click", async () => {
+		veT`<button class="ve-btn ve-btn-xs ve-btn-default">Add Feat</button>`
+			.vee.appendTo(wrp)
+			.vee.onn("click", async () => {
 				if (!this._modalFilterFeats) {
 					this._modalFilterFeats = new _CharModalFilterFeats({
 						namespace: "charBuilder.feats",
@@ -3431,9 +3431,9 @@ export class CharacterBuilder extends BuilderBase {
 		this._buildStatGen(wrp, cb);
 
 		// -- ASI Choices (Background / Race) ----------------------------------
-		const choiceWrp = ee`<div class="ve-w-100 stripe-even"></div>`;
+		const choiceWrp = veT`<div class="ve-w-100 stripe-even"></div>`;
 		const onChoiceChange = () => {
-			choiceWrp.empty();
+			choiceWrp.vee.empty();
 			this._sg_buildAbilityChoices(choiceWrp, cb, onChoiceChange);
 			this._sg_syncAbilityScores();
 			if (this._sg_doRebuild) this._sg_doRebuild();
@@ -3452,42 +3452,42 @@ export class CharacterBuilder extends BuilderBase {
 		// Helper: adds a small reactive "From feats: …" label below a row that
 		// updates whenever the given feat state key changes.
 		const appendFeatGrantedLabel = (parentRow, featKey, prefix = "From feats", onRemove = null) => {
-			const lbl = ee`<div class="ve-pl-1 ve-mt-1"></div>`.appendTo(parentRow);
+			const lbl = veT`<div class="ve-pl-1 ve-mt-1"></div>`.vee.appendTo(parentRow);
 			const refresh = () => {
-				lbl.empty();
+				lbl.vee.empty();
 				const vals = this._state[featKey] || [];
-				lbl.toggleVe(vals.length > 0);
+				lbl.vee.toggle(vals.length > 0);
 				if (!vals.length) return;
 				if (onRemove) {
 					for (const val of vals) {
-						const chip = ee`<span class="ve-flex-v-center ve-gap-1 ve-mr-2" style="font-size:.85em"></span>`.appendTo(lbl);
-						chip.txt(val);
-						ee`<button class="ve-btn ve-btn-xxs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
-							.onn("click", () => onRemove(val))
-							.appendTo(chip);
+						const chip = veT`<span class="ve-flex-v-center ve-gap-1 ve-mr-2" style="font-size:.85em"></span>`.vee.appendTo(lbl);
+						chip.vee.txt(val);
+						veT`<button class="ve-btn ve-btn-xxs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+							.vee.onn("click", () => onRemove(val))
+							.vee.appendTo(chip);
 					}
 				} else {
-					lbl.addClass("ve-muted").addClass("ve-italic").txt(`${prefix}: ${vals.join(", ")}`);
+					lbl.vee.addClass("ve-muted").vee.addClass("ve-italic").vee.txt(`${prefix}: ${vals.join(", ")}`);
 				}
 			};
 			this._addHook("state", featKey, refresh);
 			refresh();
 		};
 
-		const langRow = BuilderUi.getStateIptStringArray("Languages", cb, this._state, {shortName: "Language", nullable: true}, "languages").appendTo(wrp);
+		const langRow = BuilderUi.getStateIptStringArray("Languages", cb, this._state, {shortName: "Language", nullable: true}, "languages").vee.appendTo(wrp);
 		appendFeatGrantedLabel(langRow, "featLanguages");
 
 		{
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Armor Prof.");
 			const _ARMOR_CATS = ["Light", "Medium", "Heavy", "Shields"];
-			const btnWrp = ee`<div class="ve-flex"></div>`;
+			const btnWrp = veT`<div class="ve-flex"></div>`;
 			_ARMOR_CATS.forEach(cat => {
-				const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${cat}</button>`;
+				const btn = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1">${cat}</button>`;
 				const hasArmor = () =>
 					(this._state.armorProfs     || []).includes(cat) ||
 					(this._state.featArmorProfs  || []).includes(cat);
-				const refresh = () => btn.toggleClass("ve-active", hasArmor());
-				btn.onn("click", () => {
+				const refresh = () => btn.vee.toggleClass("ve-active", hasArmor());
+				btn.vee.onn("click", () => {
 					const cur = this._state.armorProfs || [];
 					this._state.armorProfs = cur.includes(cat) ? cur.filter(v => v !== cat) : [...cur, cat];
 					cb();
@@ -3495,33 +3495,33 @@ export class CharacterBuilder extends BuilderBase {
 				this._addHook("state", "armorProfs",     refresh);
 				this._addHook("state", "featArmorProfs", refresh);
 				refresh();
-				btnWrp.appends(btn);
+				btnWrp.vee.appends(btn);
 			});
-			btnWrp.appendTo(rowInner);
-			row.appendTo(wrp);
+			btnWrp.vee.appendTo(rowInner);
+			row.vee.appendTo(wrp);
 		}
 
-		const weapRow = BuilderUi.getStateIptStringArray("Weapon Prof.", cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").appendTo(wrp);
+		const weapRow = BuilderUi.getStateIptStringArray("Weapon Prof.", cb, this._state, {shortName: "Weapon Proficiency", nullable: true}, "weaponProfs").vee.appendTo(wrp);
 		appendFeatGrantedLabel(weapRow, "featWeaponProfs");
 
-		const toolRow = BuilderUi.getStateIptStringArray("Tool Prof.", cb, this._state, {shortName: "Tool Proficiency", nullable: true}, "toolProfs").appendTo(wrp);
+		const toolRow = BuilderUi.getStateIptStringArray("Tool Prof.", cb, this._state, {shortName: "Tool Proficiency", nullable: true}, "toolProfs").vee.appendTo(wrp);
 		appendFeatGrantedLabel(toolRow, "featToolProfs");
 		// Background-granted tool chips — each has a trash button to exclude it
-		const bgToolChipWrp = ee`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-pl-1 ve-mt-1"></div>`.appendTo(toolRow);
+		const bgToolChipWrp = veT`<div class="ve-flex ve-flex-wrap ve-gap-1 ve-pl-1 ve-mt-1"></div>`.vee.appendTo(toolRow);
 		const refreshBgToolChips = () => {
-			bgToolChipWrp.empty();
+			bgToolChipWrp.vee.empty();
 			const tools = this._state.bgToolProfs || [];
-			bgToolChipWrp.toggleVe(tools.length > 0);
+			bgToolChipWrp.vee.toggle(tools.length > 0);
 			tools.forEach(tool => {
-				const chip = ee`<span class="ve-flex-v-center ve-gap-1" style="font-size:.85em"></span>`;
-				chip.txt(tool);
-				ee`<button class="ve-btn ve-btn-xxs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
-					.onn("click", () => {
+				const chip = veT`<span class="ve-flex-v-center ve-gap-1" style="font-size:.85em"></span>`;
+				chip.vee.txt(tool);
+				veT`<button class="ve-btn ve-btn-xxs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+					.vee.onn("click", () => {
 						this._state.excludedBgToolProfs = [...(this._state.excludedBgToolProfs || []), tool];
 						this._applyBackgroundData();
 						cb();
 					})
-					.appendTo(chip);
+					.vee.appendTo(chip);
 				bgToolChipWrp.append(chip);
 			});
 		};
@@ -3531,12 +3531,12 @@ export class CharacterBuilder extends BuilderBase {
 		// Class-granted any-tool choice slots (e.g. Bard's musical instruments, Monk's artisan's tools)
 		{
 			const [clsToolRow, clsToolRowInner] = BuilderUi.getLabelledRowTuple("Class Tool Choices");
-			const wrpClsToolSels = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(clsToolRowInner);
+			const wrpClsToolSels = veT`<div class="ve-flex-wrap ve-gap-1"></div>`.vee.appendTo(clsToolRowInner);
 
 			const buildClsToolUI = () => {
-				wrpClsToolSels.empty();
+				wrpClsToolSels.vee.empty();
 				const slots = this._state._classToolSlots || [];
-				clsToolRow.toggleVe(slots.length > 0);
+				clsToolRow.vee.toggle(slots.length > 0);
 				if (!slots.length) return;
 
 				const isNew = (this._state.styleHint ?? SITE_STYLE__ONE) !== SITE_STYLE__CLASSIC;
@@ -3555,19 +3555,19 @@ export class CharacterBuilder extends BuilderBase {
 					.filter(it => isNew ? !SourceUtil.isClassicSource(it.source) : SourceUtil.isClassicSource(it.source));
 					const label = typeCode === "INS" ? "Musical Instrument" : "Artisan's Tool";
 
-					ee`<span class="ve-muted ve-bold" style="font-size:.8em;margin-right:4px">${label}:</span>`.appendTo(wrpClsToolSels);
+					veT`<span class="ve-muted ve-bold" style="font-size:.8em;margin-right:4px">${label}:</span>`.vee.appendTo(wrpClsToolSels);
 
 					for (let i = 0; i < slot.count; i++) {
 						const idx = slotIdx++;
 						const savedVal = (saved[idx] && opts.find(it => it.name === saved[idx])) ? saved[idx] : "";
-						const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:160px">
+						const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="min-width:160px">
 							<option value="">- Choose -</option>
 							${opts.map(it => `<option value="${it.name}"${it.name === savedVal ? " selected" : ""}>${it.name}</option>`).join("")}
 						</select>`;
-						sel.onn("change", () => {
+						sel.vee.onn("change", () => {
 							const cur = [...(this._state.classToolChoices || [])];
 							while (cur.length <= idx) cur.push("");
-							cur[idx] = sel.val();
+							cur[idx] = sel.vee.val();
 							this._state.classToolChoices = cur;
 							cb();
 						});
@@ -3580,7 +3580,7 @@ export class CharacterBuilder extends BuilderBase {
 			buildClsToolUI();
 			this._addHook("state", "_classToolSlots", buildClsToolUI);
 			this._addHook("state", "styleHint",       buildClsToolUI);
-			clsToolRow.appendTo(wrp);
+			clsToolRow.vee.appendTo(wrp);
 		}
 	}
 
@@ -3598,38 +3598,38 @@ export class CharacterBuilder extends BuilderBase {
 		];
 
 		// -- Roll controls (visible only in roll mode) ---------------------
-		const rollRow = ee`<div class="ve-flex-col ve-mt-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
-		const rollsDisp = ee`<span class="ve-muted ve-mt-1" style="font-size:.85em"></span>`;
-		rollRow.appends(
-			ee`<button class="ve-btn ve-btn-xs ve-btn-success ve-w-100">Roll 4d6×6</button>`
-				.onn("click", () => {
+		const rollRow = veT`<div class="ve-flex-col ve-mt-1 ${this._state.sg_mode !== "roll" ? "ve-hidden" : ""}">`;
+		const rollsDisp = veT`<span class="ve-muted ve-mt-1" style="font-size:.85em"></span>`;
+		rollRow.vee.appends(
+			veT`<button class="ve-btn ve-btn-xs ve-btn-success ve-w-100">Roll 4d6×6</button>`
+				.vee.onn("click", () => {
 					const rolls = Array.from({length: 6}, () => {
 						const d = Array.from({length: 4}, () => Math.ceil(Math.random() * 6)).sort((a, b) => b - a);
 						return d[0] + d[1] + d[2];
 					}).sort((a, b) => b - a);
 					this._state.sg_rolls = rolls;
 					_ABILITIES.forEach(abl => { this._state[`sg_roll_${abl}`] = null; });
-					rollsDisp.txt(`Rolled: ${rolls.join(", ")}`);
+					rollsDisp.vee.txt(`Rolled: ${rolls.join(", ")}`);
 					doRebuild();
 				}),
 			rollsDisp,
 		);
 
 		// -- Point buy info (visible only in pointbuy mode) ----------------
-		const pbRow = ee`<div class="ve-mt-1 ${this._state.sg_mode !== "pointbuy" ? "ve-hidden" : ""}">`;
-		this._sg_pbSpentDisp = ee`<b>0</b>`;
-		pbRow.appends(ee`<span class="ve-muted" style="font-size:.85em">Points spent: ${this._sg_pbSpentDisp} / ${_SG_PB_BUDGET}</span>`);
+		const pbRow = veT`<div class="ve-mt-1 ${this._state.sg_mode !== "pointbuy" ? "ve-hidden" : ""}">`;
+		this._sg_pbSpentDisp = veT`<b>0</b>`;
+		pbRow.vee.appends(veT`<span class="ve-muted" style="font-size:.85em">Points spent: ${this._sg_pbSpentDisp} / ${_SG_PB_BUDGET}</span>`);
 
 		// -- Layout: [buttons col] | [grid + choices col] ------------------
 		this._sg_rollsDisp = rollsDisp;
-		const btnCol    = ee`<div class="ve-flex-col ve-no-shrink ve-mr-2" style="width:80px">`;
-		const gridWrp   = ee`<div class="ve-mb-2"></div>`;
+		const btnCol    = veT`<div class="ve-flex-col ve-no-shrink ve-mr-2" style="width:80px">`;
+		const gridWrp   = veT`<div class="ve-mb-2"></div>`;
 		// Single rebuild function used by mode buttons and roll
 		const doRebuild = () => {
-			gridWrp.empty();
+			gridWrp.vee.empty();
 			this._sg_buildGrid(gridWrp, cb);
-			pbRow.toggleVe(this._state.sg_mode === "pointbuy");
-			rollRow.toggleVe(this._state.sg_mode === "roll");
+			pbRow.vee.toggle(this._state.sg_mode === "pointbuy");
+			rollRow.vee.toggle(this._state.sg_mode === "roll");
 			// Sync state so the PDF / output reflects the new totals immediately
 			this._sg_syncAbilityScores();
 			cb();
@@ -3637,8 +3637,8 @@ export class CharacterBuilder extends BuilderBase {
 		this._sg_doRebuild = doRebuild;
 
 		modeList.forEach(({key, label}) => {
-			const btn = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-w-100 ve-mb-1">${label}</button>`
-				.onn("click", () => {
+			const btn = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-w-100 ve-mb-1">${label}</button>`
+				.vee.onn("click", () => {
 					if (this._state.sg_mode === key) return;
 					this._state.sg_mode = key;
 					this._sg_updateModeBtns(modeBtns);
@@ -3650,13 +3650,13 @@ export class CharacterBuilder extends BuilderBase {
 		btnCol.append(rollRow);
 		btnCol.append(pbRow);
 
-		modeRowInner.appends(ee`<div class="ve-flex ve-w-100">${btnCol}<div class="ve-flex-col" style="flex:1">${gridWrp}</div></div>`);
+		modeRowInner.vee.appends(veT`<div class="ve-flex ve-w-100">${btnCol}<div class="ve-flex-col" style="flex:1">${gridWrp}</div></div>`);
 		wrp.append(modeRow);
 
 		this._sg_updateModeBtns(modeBtns);
 
 		if (this._state.sg_mode === "roll" && (this._state.sg_rolls || []).length) {
-			rollsDisp.txt(`Rolled: ${this._state.sg_rolls.join(", ")}`);
+			rollsDisp.vee.txt(`Rolled: ${this._state.sg_rolls.join(", ")}`);
 		}
 
 		this._sg_buildGrid(gridWrp, cb);
@@ -3665,7 +3665,7 @@ export class CharacterBuilder extends BuilderBase {
 	_sg_updateModeBtns (btns) {
 		const mode = this._state.sg_mode || "manual";
 		Object.entries(btns).forEach(([k, btn]) => {
-			btn.toggleClass("ve-btn-primary", k === mode).toggleClass("ve-btn-default", k !== mode);
+			btn.vee.toggleClass("ve-btn-primary", k === mode).vee.toggleClass("ve-btn-default", k !== mode);
 		});
 	}
 
@@ -3832,23 +3832,23 @@ export class CharacterBuilder extends BuilderBase {
 		const showExtra     = !isManual || hasAsi || hasFeat || hasClassAsi;
 
 		// -- Header row ---------------------------------------------------
-		const hdr = ee`<div class="ve-flex-v-center ve-mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
-		hdr.appends(ee`<span style="width:46px"> </span>`);
+		const hdr = veT`<div class="ve-flex-v-center ve-mb-1" style="font-size:.78em;font-weight:bold;color:var(--col-heading-grey,#888)">`;
+		hdr.vee.appends(veT`<span style="width:46px"> </span>`);
 		const baseLabel = {manual: "Score", roll: "Assign", array: "Array", pointbuy: "Score"}[mode];
-		hdr.appends(ee`<span class="ve-text-center" style="width:80px">${baseLabel}</span>`);
+		hdr.vee.appends(veT`<span class="ve-text-center" style="width:80px">${baseLabel}</span>`);
 		if (showExtra) {
-			hdr.appends(ee`<span class="ve-text-center" style="width:46px">${_isNew ? "+BG" : "+Race"}</span>`);
-			if (hasFeat)     hdr.appends(ee`<span class="ve-text-center" style="width:42px">+Feat</span>`);
-			if (hasClassAsi) hdr.appends(ee`<span class="ve-text-center" style="width:42px">+ASI</span>`);
-			hdr.appends(ee`<span class="ve-text-center" style="width:46px">Total</span>`);
+			hdr.vee.appends(veT`<span class="ve-text-center" style="width:46px">${_isNew ? "+BG" : "+Race"}</span>`);
+			if (hasFeat)     hdr.vee.appends(veT`<span class="ve-text-center" style="width:42px">+Feat</span>`);
+			if (hasClassAsi) hdr.vee.appends(veT`<span class="ve-text-center" style="width:42px">+ASI</span>`);
+			hdr.vee.appends(veT`<span class="ve-text-center" style="width:46px">Total</span>`);
 		}
-		hdr.appends(ee`<span class="ve-text-center" style="width:36px">Mod</span>`);
-		container.appends(hdr);
+		hdr.vee.appends(veT`<span class="ve-text-center" style="width:36px">Mod</span>`);
+		container.vee.appends(hdr);
 
 		// -- One row per ability ------------------------------------------
 		_ABILITIES.forEach((abl, ablIdx) => {
-			const row = ee`<div class="ve-flex-v-center ve-mb-1">`;
-			row.appends(ee`<span class="bold" style="width:46px">${abl.toUpperCase()}</span>`);
+			const row = veT`<div class="ve-flex-v-center ve-mb-1">`;
+			row.vee.appends(veT`<span class="bold" style="width:46px">${abl.toUpperCase()}</span>`);
 
 			const getScore = () => {
 				const base = isManual ? (this._state[abl] ?? 10) : this._sg_getBase(abl);
@@ -3856,18 +3856,18 @@ export class CharacterBuilder extends BuilderBase {
 			};
 
 			let dispTotal = null;
-			const dispMod = ee`<span class="ve-text-center ve-muted" style="width:36px">${_fmtMod(_abilMod(getScore()))}</span>`;
+			const dispMod = veT`<span class="ve-text-center ve-muted" style="width:36px">${_fmtMod(_abilMod(getScore()))}</span>`;
 			if (showExtra) {
-				dispTotal = ee`<span class="ve-text-center ve-bold" style="width:46px">${getScore()}</span>`;
+				dispTotal = veT`<span class="ve-text-center ve-bold" style="width:46px">${getScore()}</span>`;
 			}
 
 			const doUpdate = () => {
 				const score = getScore();
 				if (!isManual) this._state[abl] = score;
-				if (dispTotal) dispTotal.txt(String(score));
-				dispMod.txt(_fmtMod(_abilMod(score)));
+				if (dispTotal) dispTotal.vee.txt(String(score));
+				dispMod.vee.txt(_fmtMod(_abilMod(score)));
 				if (mode === "pointbuy" && this._sg_pbSpentDisp) {
-					this._sg_pbSpentDisp.txt(String(this._sg_getPbSpent()));
+					this._sg_pbSpentDisp.vee.txt(String(this._sg_getPbSpent()));
 				}
 				cb();
 			};
@@ -3876,80 +3876,80 @@ export class CharacterBuilder extends BuilderBase {
 			let baseCell;
 			switch (mode) {
 				case "manual": {
-					const ipt = ee`<input class="ve-form-control form-control--minimal ve-input-xs ve-text-center" style="width:80px">`
-						.val(this._state[abl] ?? 10)
-						.onn("change", () => {
-							const v = Math.min(30, Math.max(1, UiUtil.strToInt(ipt.val(), 10, {fallbackOnNaN: 10})));
+					const ipt = veT`<input class="ve-form-control form-control--minimal ve-input-xs ve-text-center" style="width:80px">`
+						.vee.val(this._state[abl] ?? 10)
+						.vee.onn("change", () => {
+							const v = Math.min(30, Math.max(1, UiUtil.strToInt(ipt.vee.val(), 10, {fallbackOnNaN: 10})));
 							this._state[abl] = v;
-							ipt.val(v);
+							ipt.vee.val(v);
 							doUpdate();
 						});
-					baseCell = ee`<span style="width:80px">${ipt}</span>`;
+					baseCell = veT`<span style="width:80px">${ipt}</span>`;
 					break;
 				}
 				case "roll": {
 					const rolls = this._state.sg_rolls || [];
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
+					const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
 						<option value="">- assign -</option>
 						${rolls.map((v, i) => `<option value="${i}">${v}</option>`).join("")}
 					</select>`;
 					const cur = this._state[`sg_roll_${abl}`];
-					if (cur != null) sel.val(String(cur));
-					sel.onn("change", () => {
-						const v = sel.val();
+					if (cur != null) sel.vee.val(String(cur));
+					sel.vee.onn("change", () => {
+						const v = sel.vee.val();
 						this._state[`sg_roll_${abl}`] = v === "" ? null : Number(v);
 						doUpdate();
 					});
-					baseCell = ee`<span style="width:80px">${sel}</span>`;
+					baseCell = veT`<span style="width:80px">${sel}</span>`;
 					break;
 				}
 				case "array": {
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
+					const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
 						<option value="">- assign -</option>
 						${_STANDARD_ARRAY.map(v => `<option value="${v}">${v}</option>`).join("")}
 					</select>`;
 					const cur = this._state[`sg_arr_${abl}`];
-					if (cur != null) sel.val(String(cur));
-					sel.onn("change", () => {
-						const v = sel.val();
+					if (cur != null) sel.vee.val(String(cur));
+					sel.vee.onn("change", () => {
+						const v = sel.vee.val();
 						this._state[`sg_arr_${abl}`] = v === "" ? null : Number(v);
 						doUpdate();
 					});
-					baseCell = ee`<span style="width:80px">${sel}</span>`;
+					baseCell = veT`<span style="width:80px">${sel}</span>`;
 					break;
 				}
 				case "pointbuy": {
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
+					const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal" style="width:80px">
 						${_SG_PB_SCORES.map(v => `<option value="${v}">${v} (${_SG_PB_COSTS[v]}pts)</option>`).join("")}
 					</select>`;
-					sel.val(String(this._state[`sg_pb_${abl}`] ?? 8));
-					sel.onn("change", () => {
-						this._state[`sg_pb_${abl}`] = Number(sel.val());
+					sel.vee.val(String(this._state[`sg_pb_${abl}`] ?? 8));
+					sel.vee.onn("change", () => {
+						this._state[`sg_pb_${abl}`] = Number(sel.vee.val());
 						doUpdate();
 					});
-					baseCell = ee`<span style="width:80px">${sel}</span>`;
+					baseCell = veT`<span style="width:80px">${sel}</span>`;
 					break;
 				}
 			}
 
-			row.appends(baseCell);
+			row.vee.appends(baseCell);
 
 			if (showExtra) {
 				const aB  = asiBonus[ablIdx];
 				const fB  = featBonus[ablIdx];
 				const cAB = classAsiBonus[ablIdx];
-				row.appends(ee`<span class="ve-text-center ve-muted" style="width:46px">${aB >= 0 ? "+" : ""}${aB}</span>`);
-				if (hasFeat)     row.appends(ee`<span class="ve-text-center ve-muted" style="width:42px">${fB >= 0 ? "+" : ""}${fB}</span>`);
-				if (hasClassAsi) row.appends(ee`<span class="ve-text-center ve-muted" style="width:42px">${cAB >= 0 ? "+" : ""}${cAB}</span>`);
-				row.appends(dispTotal);
+				row.vee.appends(veT`<span class="ve-text-center ve-muted" style="width:46px">${aB >= 0 ? "+" : ""}${aB}</span>`);
+				if (hasFeat)     row.vee.appends(veT`<span class="ve-text-center ve-muted" style="width:42px">${fB >= 0 ? "+" : ""}${fB}</span>`);
+				if (hasClassAsi) row.vee.appends(veT`<span class="ve-text-center ve-muted" style="width:42px">${cAB >= 0 ? "+" : ""}${cAB}</span>`);
+				row.vee.appends(dispTotal);
 			}
-			row.appends(dispMod);
-			container.appends(row);
+			row.vee.appends(dispMod);
+			container.vee.appends(row);
 		});
 
 		// Initial PB point display
 		if (mode === "pointbuy" && this._sg_pbSpentDisp) {
-			this._sg_pbSpentDisp.txt(String(this._sg_getPbSpent()));
+			this._sg_pbSpentDisp.vee.txt(String(this._sg_getPbSpent()));
 		}
 
 		// Cross-validate: prevent duplicate picks and enforce PB budget
@@ -4021,17 +4021,17 @@ export class CharacterBuilder extends BuilderBase {
 					if (obj.choose?.weighted) parts.push(`choose ${obj.choose.weighted.weights.map(w=>`+${w}`).join("/")} from ${obj.choose.weighted.from.map(a=>a.toUpperCase()).join("/")}`);
 					return `(${String.fromCharCode(97 + i)}) ${parts.join(", ") || "(none)"}`;
 				});
-				const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mb-1">
+				const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mb-1">
 					${optLabels.map((l, i) => `<option value="${i}">${l.qq()}</option>`).join("")}
 				</select>`;
-				sel.val(String(this._state[ixSetProp] || 0));
-				sel.onn("change", () => {
-					this._state[ixSetProp]    = Number(sel.val());
+				sel.vee.val(String(this._state[ixSetProp] || 0));
+				sel.vee.onn("change", () => {
+					this._state[ixSetProp]    = Number(sel.vee.val());
 					this._state[choiceFrom]   = [];
 					this._state[choiceWeight] = [];
 					onChoiceChange();
 				});
-				secRowInner.appends(sel);
+				secRowInner.vee.appends(sel);
 			}
 
 			const ixSet = Math.min(this._state[ixSetProp] || 0, abilArr.length - 1);
@@ -4041,7 +4041,7 @@ export class CharacterBuilder extends BuilderBase {
 			// Static bonuses summary (read-only info line)
 			const staticParts = _ABILITIES.filter(a => typeof abilObj[a] === "number" && abilObj[a]).map(a => `${a.toUpperCase()} +${abilObj[a]}`);
 			if (staticParts.length) {
-				secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">${staticParts.join(", ")}</div>`);
+				secRowInner.vee.appends(veT`<div class="ve-muted ve-mb-1" style="font-size:.85em">${staticParts.join(", ")}</div>`);
 			}
 
 			// -- choose.from (pick N abilities each getting +amount) -------
@@ -4051,28 +4051,28 @@ export class CharacterBuilder extends BuilderBase {
 				const count  = abilObj.choose.count  ?? 1;
 				const stored = () => this._state[choiceFrom] || [];
 
-				secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">Choose ${count} ×+${amount} from: ${from.map(a=>a.toUpperCase()).join(", ")}</div>`);
+				secRowInner.vee.appends(veT`<div class="ve-muted ve-mb-1" style="font-size:.85em">Choose ${count} ×+${amount} from: ${from.map(a=>a.toUpperCase()).join(", ")}</div>`);
 
 				const sels = Array.from({length: count}, (_, slotIx) => {
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:90px">
+					const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:90px">
 						<option value="">-</option>
 						${from.map(a => `<option value="${a}">${a.toUpperCase()}</option>`).join("")}
 					</select>`;
 					// Restore saved choice for this slot
 					const saved = stored().filter(c => c._slot === slotIx)[0];
-					if (saved) sel.val(saved.ability);
-					sel.onn("change", () => {
+					if (saved) sel.vee.val(saved.ability);
+					sel.vee.onn("change", () => {
 						// Replace this slot's entry
 						const next = stored().filter(c => c._slot !== slotIx);
-						if (sel.val()) next.push({ability: sel.val(), amount, _slot: slotIx});
+						if (sel.vee.val()) next.push({ability: sel.vee.val(), amount, _slot: slotIx});
 						this._state[choiceFrom] = next;
 						onChoiceChange();
 					});
 					return sel;
 				});
-				const slotWrp = ee`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
-				sels.forEach(s => slotWrp.appends(s));
-				secRowInner.appends(slotWrp);
+				const slotWrp = veT`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
+				sels.forEach(s => slotWrp.vee.appends(s));
+				secRowInner.vee.appends(slotWrp);
 			}
 
 			// -- choose.weighted (one ability per weight column) -----------
@@ -4086,32 +4086,32 @@ export class CharacterBuilder extends BuilderBase {
 				if (isAutoApply) {
 					const w = weights[0];
 					/** @type {any} */ (this.__state)[choiceWeight] = from.map((ability, ix) => ({ability, amount: w, ix}));
-					secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">${from.map(a => `${a.toUpperCase()} +${w}`).join(", ")}</div>`);
+					secRowInner.vee.appends(veT`<div class="ve-muted ve-mb-1" style="font-size:.85em">${from.map(a => `${a.toUpperCase()} +${w}`).join(", ")}</div>`);
 				} else {
-					secRowInner.appends(ee`<div class="ve-muted ve-mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
+					secRowInner.vee.appends(veT`<div class="ve-muted ve-mb-1" style="font-size:.85em">Assign each bonus to a different ability (${from.map(a=>a.toUpperCase()).join(", ")})</div>`);
 
-					const slotWrp = ee`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
+					const slotWrp = veT`<div class="ve-flex ve-flex-wrap ve-mb-1">`;
 					weights.forEach((weight, slotIx) => {
-						const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:110px">
+						const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1 ve-mb-1" style="width:110px">
 							<option value="">+${weight}: -</option>
 							${from.map(a => `<option value="${a}">+${weight}: ${a.toUpperCase()}</option>`).join("")}
 						</select>`;
 						const saved = stored().filter(c => c.ix === slotIx)[0];
-						if (saved) sel.val(saved.ability);
-						sel.onn("change", () => {
+						if (saved) sel.vee.val(saved.ability);
+						sel.vee.onn("change", () => {
 							// Clear same ability chosen in other slots + this slot
-							const next = stored().filter(c => c.ix !== slotIx && (sel.val() ? c.ability !== sel.val() : true));
-							if (sel.val()) next.push({ability: sel.val(), amount: weight, ix: slotIx});
+							const next = stored().filter(c => c.ix !== slotIx && (sel.vee.val() ? c.ability !== sel.vee.val() : true));
+							if (sel.vee.val()) next.push({ability: sel.vee.val(), amount: weight, ix: slotIx});
 							this._state[choiceWeight] = next;
 							// Deselect any sibling that had the same ability
 							slotWrp.findAll("select").forEach(other => {
-								if (other !== sel && other.value === sel.val() && sel.val()) other.value = "";
+								if (other !== sel && other.value === sel.vee.val() && sel.vee.val()) other.value = "";
 							});
 							onChoiceChange();
 						});
-						slotWrp.appends(sel);
+						slotWrp.vee.appends(sel);
 					});
-					secRowInner.appends(slotWrp);
+					secRowInner.vee.appends(slotWrp);
 				}
 			}
 
@@ -4131,30 +4131,30 @@ export class CharacterBuilder extends BuilderBase {
 				return mod + (isSaveProficient() ? pb : 0);
 			};
 
-			const dispBonus = ee`<div class="ve-text-center ve-muted" style="font-size:.85em;min-width:28px">${_fmtMod(getBonus())}</div>`;
+			const dispBonus = veT`<div class="ve-text-center ve-muted" style="font-size:.85em;min-width:28px">${_fmtMod(getBonus())}</div>`;
 
-			const btnProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Saving Throw Proficiency">Prof.</button>`
-				.onn("click", () => {
+			const btnProf = veT`<button class="ve-btn ve-btn-xs ve-btn-default" title="Saving Throw Proficiency">Prof.</button>`
+				.vee.onn("click", () => {
 					const profs = [...(this._state.savingThrowProfs || [])];
 					const idx   = profs.indexOf(abl);
 					if (idx >= 0) profs.splice(idx, 1); else profs.push(abl);
 					this._state.savingThrowProfs = profs;
-					btnProf.toggleClass("ve-active", isSaveProficient());
-					dispBonus.txt(_fmtMod(getBonus()));
+					btnProf.vee.toggleClass("ve-active", isSaveProficient());
+					dispBonus.vee.txt(_fmtMod(getBonus()));
 					cb();
 				});
-			if (isSaveProficient()) btnProf.addClass("ve-active");
+			if (isSaveProficient()) btnProf.vee.addClass("ve-active");
 
-			this._addHook("state", abl,                    () => dispBonus.txt(_fmtMod(getBonus())));
-			this._addHook("state", "classes",              () => dispBonus.txt(_fmtMod(getBonus())));
-			this._addHook("state", "profBonusOverride",    () => dispBonus.txt(_fmtMod(getBonus())));
-			this._addHook("state", "featSavingThrowProfs", () => { btnProf.toggleClass("ve-active", isSaveProficient()); dispBonus.txt(_fmtMod(getBonus())); });
+			this._addHook("state", abl,                    () => dispBonus.vee.txt(_fmtMod(getBonus())));
+			this._addHook("state", "classes",              () => dispBonus.vee.txt(_fmtMod(getBonus())));
+			this._addHook("state", "profBonusOverride",    () => dispBonus.vee.txt(_fmtMod(getBonus())));
+			this._addHook("state", "featSavingThrowProfs", () => { btnProf.vee.toggleClass("ve-active", isSaveProficient()); dispBonus.vee.txt(_fmtMod(getBonus())); });
 
-			ee`<div class="ve-flex-col ve-flex-vh-center ve-mb-2 ve-mr-2">
+			veT`<div class="ve-flex-col ve-flex-vh-center ve-mb-2 ve-mr-2">
 				<span class="ve-mb-1 ve-bold ve-text-center">${abl.toUpperCase()}</span>
 				${dispBonus}
 				${btnProf}
-			</div>`.appendTo(rowInner);
+			</div>`.vee.appendTo(rowInner);
 		});
 
 		wrp.append(row);
@@ -4164,11 +4164,11 @@ export class CharacterBuilder extends BuilderBase {
 		// -- Class Skill Choices ------------------------------------------------
 		{
 			const [choiceRow, choiceRowInner] = BuilderUi.getLabelledRowTuple("Class Skills");
-			choiceRowInner.css("flex-direction", "column");
+			choiceRowInner.vee.css("flex-direction", "column");
 
 			// -- Skills sub-section ------------------------------------------
-			ee`<span class="ve-muted ve-bold" style="font-size:.8em">Skills</span>`.appendTo(choiceRowInner);
-			const wrpSkillSels = ee`<div class="ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.appendTo(choiceRowInner);
+			veT`<span class="ve-muted ve-bold" style="font-size:.8em">Skills</span>`.vee.appendTo(choiceRowInner);
+			const wrpSkillSels = veT`<div class="ve-flex-wrap ve-gap-1 ve-mb-1"></div>`.vee.appendTo(choiceRowInner);
 
 			const count = this._state._skillChoiceCount || 0;
 			const allowedFrom = this._state._skillChoiceFrom;
@@ -4177,15 +4177,15 @@ export class CharacterBuilder extends BuilderBase {
 				: [..._SKILLS];
 
 			if (!count) {
-				wrpSkillSels.appends(ee`<span class="ve-muted ve-italic" style="font-size:.85em">No class skill choices available.</span>`);
+				wrpSkillSels.vee.appends(veT`<span class="ve-muted ve-italic" style="font-size:.85em">No class skill choices available.</span>`);
 			} else {
 				const sels = [];
 				const savedChoices = this._state.classSkillChoices || [];
 
 				const refreshDisabled = () => {
-					const taken = new Set(sels.map(s => s.val()).filter(Boolean));
+					const taken = new Set(sels.map(s => s.vee.val()).filter(Boolean));
 					sels.forEach(sel => {
-						const myVal = sel.val();
+						const myVal = sel.vee.val();
 						Array.from(sel.options).forEach(opt => {
 							if (!opt.value) return;
 							opt.disabled = taken.has(opt.value) && opt.value !== myVal;
@@ -4195,31 +4195,31 @@ export class CharacterBuilder extends BuilderBase {
 
 				for (let i = 0; i < count; i++) {
 					const saved = skillOptions.find(s => s.name === savedChoices[i]) ? savedChoices[i] : "";
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:130px">
+					const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:130px">
 						<option value="">- None -</option>
 						${skillOptions.map(({name}) => `<option value="${name}"${name === saved ? " selected" : ""}>${name}</option>`).join("")}
 					</select>`;
-					sel.onn("change", () => {
-						this._state.classSkillChoices = sels.map(s => s.val());
+					sel.vee.onn("change", () => {
+						this._state.classSkillChoices = sels.map(s => s.vee.val());
 						refreshDisabled();
 						cb();
 					});
 					sels.push(sel);
-					wrpSkillSels.appends(sel);
+					wrpSkillSels.vee.appends(sel);
 				}
 
 				refreshDisabled();
 			}
 
 			// -- Expertise sub-section (TODO [TEMPORARY - HARDCODED]: Replace with general class feature parser) --
-			const expertHeading  = ee`<span class="ve-muted ve-bold" style="font-size:.8em">Expertise</span>`.appendTo(choiceRowInner);
-			const wrpExpertSels  = ee`<div class="ve-flex-wrap ve-gap-1"></div>`.appendTo(choiceRowInner);
+			const expertHeading  = veT`<span class="ve-muted ve-bold" style="font-size:.8em">Expertise</span>`.vee.appendTo(choiceRowInner);
+			const wrpExpertSels  = veT`<div class="ve-flex-wrap ve-gap-1"></div>`.vee.appendTo(choiceRowInner);
 
 			const buildExpertiseDropdowns = () => {
-				wrpExpertSels.empty();
+				wrpExpertSels.vee.empty();
 				const expertCount = this._state._classExpertiseCount || 0;
-				expertHeading.toggleVe(expertCount > 0);
-				wrpExpertSels.toggleVe(expertCount > 0);
+				expertHeading.vee.toggle(expertCount > 0);
+				wrpExpertSels.vee.toggle(expertCount > 0);
 				if (!expertCount) return;
 
 				const allProfSkills = _SKILLS.filter(s =>
@@ -4232,9 +4232,9 @@ export class CharacterBuilder extends BuilderBase {
 				const sels  = [];
 
 				const refreshDisabled = () => {
-					const taken = new Set([...sels.map(s => s.val()).filter(Boolean), ...(this._state.featExpertise || [])]);
+					const taken = new Set([...sels.map(s => s.vee.val()).filter(Boolean), ...(this._state.featExpertise || [])]);
 					sels.forEach(sel => {
-						const myVal = sel.val();
+						const myVal = sel.vee.val();
 						Array.from(sel.options).forEach(opt => {
 							if (!opt.value) return;
 							opt.disabled = taken.has(opt.value) && opt.value !== myVal;
@@ -4244,12 +4244,12 @@ export class CharacterBuilder extends BuilderBase {
 
 				for (let i = 0; i < expertCount; i++) {
 					const savedVal = allProfSkills.find(s => s.name === saved[i]) ? saved[i] : "";
-					const sel = ee`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:130px">
+					const sel = veT`<select class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" style="min-width:130px">
 						<option value="">- None -</option>
 						${allProfSkills.map(({name}) => `<option value="${name}"${name === savedVal ? " selected" : ""}>${name}</option>`).join("")}
 					</select>`;
-					sel.onn("change", () => {
-						this._state.classExpertise = sels.map(s => s.val()).filter(Boolean);
+					sel.vee.onn("change", () => {
+						this._state.classExpertise = sels.map(s => s.vee.val()).filter(Boolean);
 						refreshDisabled();
 						cb();
 					});
@@ -4290,15 +4290,15 @@ export class CharacterBuilder extends BuilderBase {
 				return mod;
 			};
 
-			const dispBonus = ee`<span class="ve-muted ve-mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
-			const updateBonus = () => dispBonus.txt(_fmtMod(getBonus()));
+			const dispBonus = veT`<span class="ve-muted ve-mr-2" style="min-width:30px;font-size:.9em">${_fmtMod(getBonus())}</span>`;
+			const updateBonus = () => dispBonus.vee.txt(_fmtMod(getBonus()));
 			this._addHook("state", ability,            updateBonus);
 			this._addHook("state", "classes",          updateBonus);
 			this._addHook("state", "skillHalfProfs",   updateBonus);
 			this._addHook("state", "profBonusOverride", updateBonus);
 
-			const btnProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="Proficient">Prof.</button>`
-				.onn("click", () => {
+			const btnProf = veT`<button class="ve-btn ve-btn-xs ve-btn-default" title="Proficient">Prof.</button>`
+				.vee.onn("click", () => {
 					if (isProficient()) {
 						this._state.skillProfs     = (this._state.skillProfs     || []).filter(s => s !== name);
 					} else {
@@ -4306,15 +4306,15 @@ export class CharacterBuilder extends BuilderBase {
 						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
-					btnProf.toggleClass("ve-active",   isProficient());
-					btnExpert.toggleClass("ve-active", isExpert());
+					btnProf.vee.toggleClass("ve-active",   isProficient());
+					btnExpert.vee.toggleClass("ve-active", isExpert());
 					updateBonus();
 					cb();
 				});
-			if (isProficient()) btnProf.addClass("ve-active");
+			if (isProficient()) btnProf.vee.addClass("ve-active");
 
-			const btnExpert = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Expertise">Expert.</button>`
-				.onn("click", () => {
+			const btnExpert = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Expertise">Expert.</button>`
+				.vee.onn("click", () => {
 					if (isExpert()) {
 						this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 					} else {
@@ -4322,32 +4322,32 @@ export class CharacterBuilder extends BuilderBase {
 						this._state.skillProfs     = (this._state.skillProfs     || []).filter(s => s !== name);
 						this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 					}
-					btnProf.toggleClass("ve-active",   isProficient());
-					btnExpert.toggleClass("ve-active", isExpert());
+					btnProf.vee.toggleClass("ve-active",   isProficient());
+					btnExpert.vee.toggleClass("ve-active", isExpert());
 					updateBonus();
 					cb();
 				});
-			if (isExpert()) btnExpert.addClass("ve-active");
-			this._addHook("state", "featSkillProfs",    () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
-			this._addHook("state", "speciesSkillProfs", () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
-			this._addHook("state", "featExpertise",     () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
-			this._addHook("state", "classSkillChoices", () => { btnProf.toggleClass("ve-active",   isProficient()); updateBonus(); });
-			this._addHook("state", "classExpertise",    () => { btnExpert.toggleClass("ve-active", isExpert());     updateBonus(); });
-			const btnHalfProf = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Half Proficiency">Half.</button>`;
-			if (isHalfProf()) btnHalfProf.addClass("ve-active");
+			if (isExpert()) btnExpert.vee.addClass("ve-active");
+			this._addHook("state", "featSkillProfs",    () => { btnProf.vee.toggleClass("ve-active",   isProficient()); updateBonus(); });
+			this._addHook("state", "speciesSkillProfs", () => { btnProf.vee.toggleClass("ve-active",   isProficient()); updateBonus(); });
+			this._addHook("state", "featExpertise",     () => { btnExpert.vee.toggleClass("ve-active", isExpert());     updateBonus(); });
+			this._addHook("state", "classSkillChoices", () => { btnProf.vee.toggleClass("ve-active",   isProficient()); updateBonus(); });
+			this._addHook("state", "classExpertise",    () => { btnExpert.vee.toggleClass("ve-active", isExpert());     updateBonus(); });
+			const btnHalfProf = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Half Proficiency">Half.</button>`;
+			if (isHalfProf()) btnHalfProf.vee.addClass("ve-active");
 			halfProfBtns.push({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus});
 
-			ee`<div class="ve-flex-v-center ve-mb-1">
+			veT`<div class="ve-flex-v-center ve-mb-1">
 				<span class="ve-mr-2 mkbru__sub-name--33">${name}</span>
 				<span class="ve-muted ve-mr-2" style="font-size:.8em;width:28px">(${ability.toUpperCase()})</span>
 				${dispBonus}${btnProf}${btnExpert}
-			</div>`.appendTo(rowInner);
+			</div>`.vee.appendTo(rowInner);
 		});
 
 		// Insert half-prof buttons into DOM and wire up click handlers
 		halfProfBtns.forEach(({btnHalfProf, btnProf, btnExpert, name, isHalfProf, isProficient, isExpert, updateBonus}) => {
-			btnHalfProf.insertAfter(btnProf);
-			btnHalfProf.onn("click", () => {
+			btnHalfProf.vee.insertAfter(btnProf);
+			btnHalfProf.vee.onn("click", () => {
 				if (isHalfProf()) {
 					this._state.skillHalfProfs = (this._state.skillHalfProfs || []).filter(s => s !== name);
 				} else {
@@ -4355,13 +4355,13 @@ export class CharacterBuilder extends BuilderBase {
 					this._state.skillProfs     = (this._state.skillProfs || []).filter(s => s !== name);
 					this._state.skillExpertise = (this._state.skillExpertise || []).filter(s => s !== name);
 				}
-				btnHalfProf.toggleClass("ve-active", isHalfProf());
-				btnProf.toggleClass("ve-active",     isProficient());
-				btnExpert.toggleClass("ve-active",   isExpert());
+				btnHalfProf.vee.toggleClass("ve-active", isHalfProf());
+				btnProf.vee.toggleClass("ve-active",     isProficient());
+				btnExpert.vee.toggleClass("ve-active",   isExpert());
 				updateBonus();
 				cb();
 			});
-			this._addHook("state", "skillHalfProfs", () => btnHalfProf.toggleClass("ve-active", isHalfProf()));
+			this._addHook("state", "skillHalfProfs", () => btnHalfProf.vee.toggleClass("ve-active", isHalfProf()));
 		});
 
 		wrp.append(row);
@@ -4373,8 +4373,8 @@ export class CharacterBuilder extends BuilderBase {
 		const PB_COSTS = {8:0, 9:1, 10:2, 11:3, 12:4, 13:5, 14:7, 15:9};
 		const MAX_POINTS = 27;
 
-		const dispPoints = ee`<span class="ve-mr-2 ve-muted">Points remaining: <b>--</b></span>`;
-		const btnApply = ee`<button class="ve-btn ve-btn-xs ve-btn-default">Apply Standard Array</button>`;
+		const dispPoints = veT`<span class="ve-mr-2 ve-muted">Points remaining: <b>--</b></span>`;
+		const btnApply = veT`<button class="ve-btn ve-btn-xs ve-btn-default">Apply Standard Array</button>`;
 
 		const updatePointDisplay = () => {
 			const used = _ABILITIES.reduce((acc, abl) => {
@@ -4382,17 +4382,17 @@ export class CharacterBuilder extends BuilderBase {
 				return acc + (PB_COSTS[score] ?? 0);
 			}, 0);
 			const rem = MAX_POINTS - used;
-			dispPoints.find("b").txt(`${rem}`);
-			dispPoints.toggleClass("ve-error", rem < 0);
+			dispPoints.vee.find("b").vee.txt(`${rem}`);
+			dispPoints.vee.toggleClass("ve-error", rem < 0);
 		};
 		updatePointDisplay();
 
-		btnApply.onn("click", () => {
+		btnApply.vee.onn("click", () => {
 			const arr = [15, 14, 13, 12, 10, 8];
 			_ABILITIES.forEach((abl, i) => {
 				this._state[abl] = arr[i];
-				scoreDisplays[abl].iptScore.val(arr[i]);
-				scoreDisplays[abl].modDisp.txt(_fmtMod(_abilMod(arr[i])));
+				scoreDisplays[abl].iptScore.vee.val(arr[i]);
+				scoreDisplays[abl].modDisp.vee.txt(_fmtMod(_abilMod(arr[i])));
 			});
 			updatePointDisplay();
 			cb();
@@ -4406,7 +4406,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._addHook("state", "wis", updatePointDisplay);
 		this._addHook("state", "cha", updatePointDisplay);
 
-		ee`<div class="ve-flex-v-center">${dispPoints}${btnApply}</div>`.appendTo(rowInner);
+		veT`<div class="ve-flex-v-center">${dispPoints}${btnApply}</div>`.vee.appendTo(rowInner);
 		wrp.append(row);
 	}
 
@@ -4415,10 +4415,10 @@ export class CharacterBuilder extends BuilderBase {
 	_buildCombatTab (wrp, cb) {
 		// HP - dynamic section that rebuilds when class/level changes
 		const [hpRow, hpRowInner] = BuilderUi.getLabelledRowTuple("Hit Points");
-		const wrpHpContent = ee`<div class="ve-flex-col ve-w-100"></div>`.appendTo(hpRowInner);
+		const wrpHpContent = veT`<div class="ve-flex-col ve-w-100"></div>`.vee.appendTo(hpRowInner);
 
 		const buildHpSection = () => {
-			wrpHpContent.empty();
+			wrpHpContent.vee.empty();
 			const classEntries = this._getClassEntries();
 			const totalLevel  = this._getTotalLevel();
 			const conMod      = _abilMod(this._state.con || 10);
@@ -4435,11 +4435,11 @@ export class CharacterBuilder extends BuilderBase {
 				for (let i = 0; i < clsLvl; i++) _levelDice.push(faces);
 			});
 
-			const btnAuto   = ee`<button class="ve-btn ve-btn-xs ${isAuto  ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">Auto</button>`;
-			const btnRolled = ee`<button class="ve-btn ve-btn-xs ${!isAuto ? "ve-btn-primary" : "ve-btn-default"}">Rolled</button>`;
-			btnAuto  .onn("click", () => { this._state.hpMode = "auto";   buildHpSection(); cb(); });
-			btnRolled.onn("click", () => { this._state.hpMode = "rolled"; buildHpSection(); cb(); });
-			ee`<div class="ve-btn-group ve-mb-1">${btnAuto}${btnRolled}</div>`.appendTo(wrpHpContent);
+			const btnAuto   = veT`<button class="ve-btn ve-btn-xs ${isAuto  ? "ve-btn-primary" : "ve-btn-default"} ve-mr-1">Auto</button>`;
+			const btnRolled = veT`<button class="ve-btn ve-btn-xs ${!isAuto ? "ve-btn-primary" : "ve-btn-default"}">Rolled</button>`;
+			btnAuto  .vee.onn("click", () => { this._state.hpMode = "auto";   buildHpSection(); cb(); });
+			btnRolled.vee.onn("click", () => { this._state.hpMode = "rolled"; buildHpSection(); cb(); });
+			veT`<div class="ve-btn-group ve-mb-1">${btnAuto}${btnRolled}</div>`.vee.appendTo(wrpHpContent);
 
 			let calcMax = 0;
 			let iptHp = null;
@@ -4459,51 +4459,51 @@ export class CharacterBuilder extends BuilderBase {
 						parts.push(`(${f != null ? Math.floor(f / 2) + 1 : "?"}${conStr})`);
 					}
 					if (this._state.featHpBonus) parts.push(`${this._state.featHpBonus} (feats)`);
-					ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">${parts.join("+")}</div>`.appendTo(wrpHpContent);
+					veT`<div class="ve-muted ve-mb-1" style="font-size:.8em">${parts.join("+")}</div>`.vee.appendTo(wrpHpContent);
 				} else {
-					ee`<div class="ve-muted ve-mb-1" style="font-size:.8em">Select a class first</div>`.appendTo(wrpHpContent);
+					veT`<div class="ve-muted ve-mb-1" style="font-size:.8em">Select a class first</div>`.vee.appendTo(wrpHpContent);
 				}
 			} else {
 				if (!Array.isArray(this._state.hpRolls)) this._state.hpRolls = [];
 				const hpRolls = this._state.hpRolls;
 				const lvl1Max = _levelDice[0] ?? 0;
 
-				const wrpRolls    = ee`<div class="ve-flex ve-flex-wrap ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpHpContent);
-				const dispBreakdown = ee`<div class="ve-muted ve-mb-1" style="font-size:.8em"></div>`.appendTo(wrpHpContent);
+				const wrpRolls    = veT`<div class="ve-flex ve-flex-wrap ve-flex-v-center ve-mb-1"></div>`.vee.appendTo(wrpHpContent);
+				const dispBreakdown = veT`<div class="ve-muted ve-mb-1" style="font-size:.8em"></div>`.vee.appendTo(wrpHpContent);
 
-				ee`<span class="ve-muted ve-mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.appendTo(wrpRolls);
+				veT`<span class="ve-muted ve-mr-2" style="font-size:.8em">L1:<b>${lvl1Max}</b></span>`.vee.appendTo(wrpRolls);
 
 				const recalc = () => {
 					calcMax = lvl1Max + hpRolls.slice(0, totalLevel - 1).reduce((s, v) => s + (v || 0), 0) + conMod * totalLevel + (this._state.featHpBonus || 0);
 					const parts = [`(${lvl1Max}${conStr})`];
 					for (let i = 0; i < totalLevel - 1; i++) parts.push(`(${hpRolls[i] ?? "?"}${conStr})`);
-					dispBreakdown.txt(parts.join("+"));
+					dispBreakdown.vee.txt(parts.join("+"));
 					this._state.hpMax = calcMax;
-					if (iptHp) iptHp.val(calcMax);
+					if (iptHp) iptHp.vee.val(calcMax);
 				};
 
 				for (let i = 0; i < totalLevel - 1; i++) {
 					const rollDie = _levelDice[i + 1];
-					const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" max="${rollDie || 20}" style="width:42px" placeholder="${rollDie != null ? Math.floor(rollDie / 2) + 1 : "?"}">`;
-					if (hpRolls[i] != null) ipt.val(hpRolls[i]);
-					ipt.onn("change", () => { hpRolls[i] = UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN: 0}) || null; recalc(); cb(); });
-					ee`<span class="ve-muted" style="font-size:.75em;margin-right:1px">L${i + 2}</span>`.appendTo(wrpRolls);
-					ipt.appendTo(wrpRolls);
+					const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" max="${rollDie || 20}" style="width:42px" placeholder="${rollDie != null ? Math.floor(rollDie / 2) + 1 : "?"}">`;
+					if (hpRolls[i] != null) ipt.vee.val(hpRolls[i]);
+					ipt.vee.onn("change", () => { hpRolls[i] = UiUtil.strToInt(ipt.vee.val(), 0, {fallbackOnNaN: 0}) || null; recalc(); cb(); });
+					veT`<span class="ve-muted" style="font-size:.75em;margin-right:1px">L${i + 2}</span>`.vee.appendTo(wrpRolls);
+					ipt.vee.appendTo(wrpRolls);
 				}
 				recalc();
 			}
 
-			iptHp = ee`<input class="ve-form-control ve-input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Max HP">`.val(calcMax);
-			iptHp.onn("change", () => {
-				const raw = iptHp.val().trim();
+			iptHp = veT`<input class="ve-form-control ve-input-xs form-control--minimal" type="number" min="0" style="width:60px" title="Max HP">`.vee.val(calcMax);
+			iptHp.vee.onn("change", () => {
+				const raw = iptHp.vee.val().trim();
 				this._state.hpMax = raw === "" ? calcMax : UiUtil.strToInt(raw, calcMax, {fallbackOnNaN: calcMax});
 				cb();
 			});
 			this._state.hpMax = calcMax;
-			ee`<div class="ve-flex-v-center ve-mt-1">
+			veT`<div class="ve-flex-v-center ve-mt-1">
 				<span class="ve-muted ve-mr-1" style="font-size:.8em">Max HP</span>
 				${iptHp}
-			</div>`.appendTo(wrpHpContent);
+			</div>`.vee.appendTo(wrpHpContent);
 		};
 
 		this._rebuildHpSection = buildHpSection;
@@ -4512,14 +4512,14 @@ export class CharacterBuilder extends BuilderBase {
 		wrp.append(hpRow);
 
 		{
-			const acRow = BuilderUi.getStateIptNumber("Armor Class", cb, this._state, {nullable: true, placeholder: "Auto"}, "ac").appendTo(wrp);
-			const btnReset = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Reset to automatic calculation">Auto</button>`
-				.onn("click", () => { this._state.ac = null; cb(); });
+			const acRow = BuilderUi.getStateIptNumber("Armor Class", cb, this._state, {nullable: true, placeholder: "Auto"}, "ac").vee.appendTo(wrp);
+			const btnReset = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-ml-1" title="Reset to automatic calculation">Auto</button>`
+				.vee.onn("click", () => { this._state.ac = null; cb(); });
 			acRow.querySelector(".mkbru__wrp-row").append(btnReset);
-			const acLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(acRow);
+			const acLbl = veT`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.vee.appendTo(acRow);
 			const refreshAcLbl = () => {
 				const bonus = this._state._speciesAcBonus || 0;
-				acLbl.toggleVe(bonus !== 0);
+				acLbl.vee.toggle(bonus !== 0);
 			};
 			this._addHook("state", "_speciesAcBonus", refreshAcLbl);
 			this._addHook("state", "ac",              refreshAcLbl);
@@ -4527,8 +4527,8 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		{
-			const speedRow = BuilderUi.getStateIptNumber("Speed (ft.)", cb, this._state, {nullable: false, placeholder: "30"}, "speed").appendTo(wrp);
-			const speedLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(speedRow);
+			const speedRow = BuilderUi.getStateIptNumber("Speed (ft.)", cb, this._state, {nullable: false, placeholder: "30"}, "speed").vee.appendTo(wrp);
+			const speedLbl = veT`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.vee.appendTo(speedRow);
 			const refreshSpeed = () => {
 				const featBonus  = this._state.featSpeedBonus  || 0;
 				const classBonus = this._state._classSpeedBonus || 0;
@@ -4536,8 +4536,8 @@ export class CharacterBuilder extends BuilderBase {
 				const parts = [];
 				if (featBonus)  parts.push(`feats: +${featBonus} ft.`);
 				if (classBonus) parts.push(`Unarmored Movement: +${classBonus} ft.`);
-				speedLbl.toggleVe(totalBonus !== 0);
-				speedLbl.txt(parts.length ? `${parts.join(", ")} (total ${(this._state.speed || 30) + totalBonus} ft.)` : "");
+				speedLbl.vee.toggle(totalBonus !== 0);
+				speedLbl.vee.txt(parts.length ? `${parts.join(", ")} (total ${(this._state.speed || 30) + totalBonus} ft.)` : "");
 			};
 			this._addHook("state", "featSpeedBonus",   refreshSpeed);
 			this._addHook("state", "_classSpeedBonus", refreshSpeed);
@@ -4546,19 +4546,19 @@ export class CharacterBuilder extends BuilderBase {
 		}
 
 		{
-			const initRow = BuilderUi.getStateIptNumber("Initiative Override", cb, this._state, {nullable: true, placeholder: "Auto (Dex mod)"}, "initiative").appendTo(wrp);
-			const initLbl = ee`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.appendTo(initRow);
+			const initRow = BuilderUi.getStateIptNumber("Initiative Override", cb, this._state, {nullable: true, placeholder: "Auto (Dex mod)"}, "initiative").vee.appendTo(wrp);
+			const initLbl = veT`<div class="ve-muted ve-italic ve-pl-1" style="font-size:.8em"></div>`.vee.appendTo(initRow);
 			const refreshInit = () => {
 				const bonus = this._state.featInitiativeBonus || 0;
-				initLbl.toggleVe(bonus !== 0);
-				initLbl.txt(bonus ? `From feats: +${bonus} to initiative` : "");
+				initLbl.vee.toggle(bonus !== 0);
+				initLbl.vee.txt(bonus ? `From feats: +${bonus} to initiative` : "");
 			};
 			this._addHook("state", "featInitiativeBonus", refreshInit);
 			refreshInit();
 		}
 
 		// Prof bonus
-		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._getTotalLevel())})`}, "profBonusOverride").appendTo(wrp);
+		BuilderUi.getStateIptNumber("Proficiency Bonus Override", cb, this._state, {nullable: true, placeholder: `Auto (+${_profBonus(this._getTotalLevel())})`}, "profBonusOverride").vee.appendTo(wrp);
 
 		// Spell attack / save DC overrides
 		{
@@ -4568,8 +4568,8 @@ export class CharacterBuilder extends BuilderBase {
 			const autoAtk = () => { const m = spellMod(); return m != null ? `Auto (${m + pb() >= 0 ? "+" : ""}${m + pb()})` : "Auto"; };
 			const autoDC  = () => { const m = spellMod(); return m != null ? `Auto (${8 + pb() + m})` : "Auto"; };
 
-			const atkRow = BuilderUi.getStateIptNumber("Spell Attack Bonus", cb, this._state, {nullable: true, placeholder: autoAtk()}, "spellAtkOverride").appendTo(wrp);
-			const dcRow  = BuilderUi.getStateIptNumber("Spell Save DC",      cb, this._state, {nullable: true, placeholder: autoDC()},  "spellDCOverride").appendTo(wrp);
+			const atkRow = BuilderUi.getStateIptNumber("Spell Attack Bonus", cb, this._state, {nullable: true, placeholder: autoAtk()}, "spellAtkOverride").vee.appendTo(wrp);
+			const dcRow  = BuilderUi.getStateIptNumber("Spell Save DC",      cb, this._state, {nullable: true, placeholder: autoDC()},  "spellDCOverride").vee.appendTo(wrp);
 
 			const refreshPlaceholders = () => {
 				const atkIpt = atkRow.querySelector("input");
@@ -4587,13 +4587,13 @@ export class CharacterBuilder extends BuilderBase {
 		const [wpnRow, wpnRowInner] = BuilderUi.getLabelledRowTuple("Weapons & Cantrips", {isMarked: true});
 
 		// -- Weapons & Cantrips (unified, reorderable) -------------------------
-		const wrpAllWpns = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(wpnRowInner);
+		const wrpAllWpns = veT`<div class="ve-flex-col ve-mb-1"></div>`.vee.appendTo(wpnRowInner);
 
 		let _wpnDragSrcKey = null;
 		let _renderedWpnKeys = [];
 
 		const buildWpnSection = () => {
-			wrpAllWpns.empty();
+			wrpAllWpns.vee.empty();
 			_renderedWpnKeys = [];
 			const hidden = new Set(this._state.weaponHidden || []);
 			const order  = this._state.weaponOrder || [];
@@ -4628,42 +4628,42 @@ export class CharacterBuilder extends BuilderBase {
 			for (const entry of allEntries) {
 				const {type, key, name} = entry;
 				const isHidden = hidden.has(name);
-				const handle = ee`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
+				const handle = veT`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
 
 				let inner;
 				if (type === "auto") {
 					const ov = (this._state.weaponOverrides || {})[name] || {};
-					const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(ov.atkBonus || "");
-					const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(ov.damage || "");
-					const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(ov.notes || "");
+					const iptAtk  = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.vee.val(ov.atkBonus || "");
+					const iptDmg  = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.vee.val(ov.damage || "");
+					const iptNote = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.vee.val(ov.notes || "");
 					const doUpdateOv = () => {
 						const cur = MiscUtil.copy(this._state.weaponOverrides || {});
-						const atk = iptAtk.val().trim(), dmg = iptDmg.val().trim(), notes = iptNote.val().trim();
+						const atk = iptAtk.vee.val().trim(), dmg = iptDmg.vee.val().trim(), notes = iptNote.vee.val().trim();
 						if (atk || dmg || notes) cur[name] = {atkBonus: atk, damage: dmg, notes};
 						else delete cur[name];
 						this._state.weaponOverrides = cur;
 						cb();
 					};
-					iptAtk.onn("input", doUpdateOv);
-					iptDmg.onn("input", doUpdateOv);
-					iptNote.onn("input", doUpdateOv);
-					const btnEye = ee`<button class="ve-btn ve-btn-xs ve-btn-default" title="${isHidden ? "Show in PDF" : "Hide from PDF"}"><span class="glyphicon ${isHidden ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`
-						.onn("click", () => {
+					iptAtk.vee.onn("input", doUpdateOv);
+					iptDmg.vee.onn("input", doUpdateOv);
+					iptNote.vee.onn("input", doUpdateOv);
+					const btnEye = veT`<button class="ve-btn ve-btn-xs ve-btn-default" title="${isHidden ? "Show in PDF" : "Hide from PDF"}"><span class="glyphicon ${isHidden ? "glyphicon-eye-close" : "glyphicon-eye-open"}"></span></button>`
+						.vee.onn("click", () => {
 							const cur = new Set(this._state.weaponHidden || []);
 							if (cur.has(name)) cur.delete(name); else cur.add(name);
 							this._state.weaponHidden = [...cur];
 							cb();
 							buildWpnSection();
 						});
-					inner = ee`<div class="ve-flex-v-center" style="flex:1;min-width:0"><span style="flex:2;font-size:.85em;min-width:0" class="${isHidden ? "ve-muted ve-strikethrough" : ""}">${name}</span>${iptAtk}${iptDmg}${iptNote}${btnEye}</div>`;
+					inner = veT`<div class="ve-flex-v-center" style="flex:1;min-width:0"><span style="flex:2;font-size:.85em;min-width:0" class="${isHidden ? "ve-muted ve-strikethrough" : ""}">${name}</span>${iptAtk}${iptDmg}${iptNote}${btnEye}</div>`;
 				} else {
 					const {data, idx} = entry;
-					const iptName = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Name" style="flex:2">`.val(data?.name || "");
-					const iptAtk  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.val(data?.atkBonus || "");
-					const iptDmg  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.val(data?.damage || "");
-					const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(data?.notes || "");
-					const btnRm   = ee`<button class="ve-btn ve-btn-xs ve-btn-danger"><span class="glyphicon glyphicon-trash"></span></button>`
-						.onn("click", () => {
+					const iptName = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Name" style="flex:2">`.vee.val(data?.name || "");
+					const iptAtk  = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Atk/DC" style="width:65px">`.vee.val(data?.atkBonus || "");
+					const iptDmg  = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Dmg" style="width:80px">`.vee.val(data?.damage || "");
+					const iptNote = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.vee.val(data?.notes || "");
+					const btnRm   = veT`<button class="ve-btn ve-btn-xs ve-btn-danger"><span class="glyphicon glyphicon-trash"></span></button>`
+						.vee.onn("click", () => {
 							const cur = [...(this._state.weapons || [])];
 							cur.splice(idx, 1);
 							this._state.weapons = cur;
@@ -4672,45 +4672,45 @@ export class CharacterBuilder extends BuilderBase {
 						});
 					const doSave = () => {
 						const cur = [...(this._state.weapons || [])];
-						cur[idx] = {name: iptName.val().trim(), atkBonus: iptAtk.val().trim(), damage: iptDmg.val().trim(), notes: iptNote.val().trim()};
+						cur[idx] = {name: iptName.vee.val().trim(), atkBonus: iptAtk.vee.val().trim(), damage: iptDmg.vee.val().trim(), notes: iptNote.vee.val().trim()};
 						this._state.weapons = cur;
 						cb();
 					};
-					iptName.onn("change", doSave);
-					iptAtk.onn("change", doSave);
-					iptDmg.onn("change", doSave);
-					iptNote.onn("change", doSave);
-					inner = ee`<div class="ve-flex-v-center" style="flex:1;min-width:0">${iptName}${iptAtk}${iptDmg}${iptNote}${btnRm}</div>`;
+					iptName.vee.onn("change", doSave);
+					iptAtk.vee.onn("change", doSave);
+					iptDmg.vee.onn("change", doSave);
+					iptNote.vee.onn("change", doSave);
+					inner = veT`<div class="ve-flex-v-center" style="flex:1;min-width:0">${iptName}${iptAtk}${iptDmg}${iptNote}${btnRm}</div>`;
 				}
 
-				const row = ee`<div class="ve-flex-v-center ve-mb-1">${handle}${inner}</div>`;
+				const row = veT`<div class="ve-flex-v-center ve-mb-1">${handle}${inner}</div>`;
 				_renderedWpnKeys.push(key);
 
 				let _fromHandle = false;
-				handle.onn("mousedown", () => {
+				handle.vee.onn("mousedown", () => {
 					_fromHandle = true;
 					document.addEventListener("mouseup", () => { _fromHandle = false; }, {once: true});
 				});
-				row.attr("draggable", "true")
-					.onn("dragstart", e => {
+				row.vee.attr("draggable", "true")
+					.vee.onn("dragstart", e => {
 						if (!_fromHandle) { e.preventDefault(); return; }
 						_wpnDragSrcKey = key;
 						e.dataTransfer.effectAllowed = "move";
 						e.dataTransfer.setData("text/plain", key);
-						setTimeout(() => row.css("opacity", "0.4"), 0);
+						setTimeout(() => row.vee.css("opacity", "0.4"), 0);
 					})
-					.onn("dragend", () => { row.css("opacity", ""); _wpnDragSrcKey = null; })
-					.onn("dragover", e => {
+					.vee.onn("dragend", () => { row.vee.css("opacity", ""); _wpnDragSrcKey = null; })
+					.vee.onn("dragover", e => {
 						if (_wpnDragSrcKey && _wpnDragSrcKey !== key) {
 							e.preventDefault();
 							e.dataTransfer.dropEffect = "move";
-							row.css("outline", "1px dashed #6c9ef8");
+							row.vee.css("outline", "1px dashed #6c9ef8");
 						}
 					})
-					.onn("dragleave", () => row.css("outline", ""))
-					.onn("drop", e => {
+					.vee.onn("dragleave", () => row.vee.css("outline", ""))
+					.vee.onn("drop", e => {
 						e.preventDefault();
-						row.css("outline", "");
+						row.vee.css("outline", "");
 						const srcKey = e.dataTransfer.getData("text/plain");
 						if (!srcKey || srcKey === key) return;
 						const si = _renderedWpnKeys.indexOf(srcKey), ti = _renderedWpnKeys.indexOf(key);
@@ -4723,7 +4723,7 @@ export class CharacterBuilder extends BuilderBase {
 						buildWpnSection();
 					});
 
-				row.appendTo(wrpAllWpns);
+				row.vee.appendTo(wrpAllWpns);
 			}
 		};
 
@@ -4732,7 +4732,7 @@ export class CharacterBuilder extends BuilderBase {
 		this._addHook("state", "magicEquipment", buildWpnSection);
 		this._addHook("state", "spells",         buildWpnSection);
 
-		ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Weapon / Cantrip</button>`.appendTo(ee`<div></div>`.appendTo(wpnRowInner)).onn("click", () => {
+		veT`<button class="ve-btn ve-btn-xs ve-btn-default">Add Weapon / Cantrip</button>`.vee.appendTo(veT`<div></div>`.vee.appendTo(wpnRowInner)).vee.onn("click", () => {
 			const cur = [...(this._state.weapons || [])];
 			cur.push({name: "", atkBonus: "", damage: "", notes: ""});
 			this._state.weapons = cur;
@@ -4816,10 +4816,10 @@ export class CharacterBuilder extends BuilderBase {
 			// -- Currency --------------------------------------------------------
 			const [currRow, currRowInner] = BuilderUi.getLabelledRowTuple("Currency");
 			const currencies = [{k:"cp",l:"CP"},{k:"sp",l:"SP"},{k:"ep",l:"EP"},{k:"gp",l:"GP"},{k:"pp",l:"PP"}];
-			const currEles = ee`<div class="ve-flex ve-flex-wrap ve-w-100">`;
+			const currEles = veT`<div class="ve-flex ve-flex-wrap ve-w-100">`;
 			currencies.forEach(({k, l}) => {
-				const ipt = ee`<input class="ve-form-control ve-input-xs form-control--minimal" type="number" min="0" style="width:60px">`.val(this._state[k] || 0).onn("change", () => { this._state[k] = Math.max(0, UiUtil.strToInt(ipt.val(), 0, {fallbackOnNaN:0})); cb(); });
-				currEles.appends(ee`<div class="ve-flex-v-center ve-mr-3 ve-mb-1"><span class="ve-mr-1 ve-muted" style="font-size:.8em">${l}</span>${ipt}</div>`);
+				const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" type="number" min="0" style="width:60px">`.vee.val(this._state[k] || 0).vee.onn("change", () => { this._state[k] = Math.max(0, UiUtil.strToInt(ipt.vee.val(), 0, {fallbackOnNaN:0})); cb(); });
+				currEles.vee.appends(veT`<div class="ve-flex-v-center ve-mr-3 ve-mb-1"><span class="ve-mr-1 ve-muted" style="font-size:.8em">${l}</span>${ipt}</div>`);
 			});
 			currRowInner.append(currEles);
 			wrp.append(currRow);
@@ -4832,7 +4832,7 @@ export class CharacterBuilder extends BuilderBase {
 
 								const renderChoiceGroups = (groups, prefix, sourceName) => {
 					if (!groups?.length) return;
-					ee`<div class="ve-muted ve-italic ve-mb-1" style="font-size:.85em">${sourceName}:</div>`.appendTo(seRowInner);
+					veT`<div class="ve-muted ve-italic ve-mb-1" style="font-size:.85em">${sourceName}:</div>`.vee.appendTo(seRowInner);
 					groups.forEach((group, idx) => {
 						const choiceKey = `${prefix}_${idx}`;
 						const choiceKeys = Object.keys(group).filter(k => k !== "_");
@@ -4840,7 +4840,7 @@ export class CharacterBuilder extends BuilderBase {
 						// Mandatory block
 						if (group._) {
 							const lbl = CharacterBuilder._fmtEquipChoiceLabel(group._);
-							if (lbl) ee`<div class="ve-mb-1 ve-ml-1" style="font-size:.85em">${lbl}</div>`.appendTo(seRowInner);
+							if (lbl) veT`<div class="ve-mb-1 ve-ml-1" style="font-size:.85em">${lbl}</div>`.vee.appendTo(seRowInner);
 						}
 
 						// Choice dropdown
@@ -4885,12 +4885,12 @@ export class CharacterBuilder extends BuilderBase {
 				this._syncEquippedItems();
 				cb();
 			};
-			const wrpEqRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(eqRowInner);
+			const wrpEqRows = veT`<div class="ve-flex-col ve-mb-1"></div>`.vee.appendTo(eqRowInner);
 
 			const _setItemHoverAttrs = (span, entry) => {
 				if (!entry) return;
 				const hash = (/** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER))[UrlUtil.PG_ITEMS](entry);
-				span.attr("data-vet-page", UrlUtil.PG_ITEMS).attr("data-vet-source", entry.source).attr("data-vet-hash", hash);
+				span.vee.attr("data-vet-page", UrlUtil.PG_ITEMS).vee.attr("data-vet-source", entry.source).vee.attr("data-vet-hash", hash);
 				span.style.cursor = "help";
 				span.onmouseover = (/** @type {MouseEvent} */ evt) => Renderer.hover.pHandleLinkMouseOver(evt, span);
 				span.onmouseleave = (/** @type {MouseEvent} */ evt) => Renderer.hover.handleLinkMouseLeave(evt, span);
@@ -4902,23 +4902,23 @@ export class CharacterBuilder extends BuilderBase {
 				const entry = this._getItemEntry(item.name);
 				const _eqTypeAbv0 = (entry?.type || "").split("|")[0];
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv0 === "S" || _eqTypeAbv0 === "M" || _eqTypeAbv0 === "R" || _eqTypeAbv0 === "LA" || _eqTypeAbv0 === "MA" || _eqTypeAbv0 === "HA"));
-				const row = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
+				const row = veT`<div class="ve-flex-v-center ve-mb-1"></div>`.vee.appendTo(wrpEqRows);
 				if (isEquippable) {
-					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(row);
-					const cbEle = ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!item.equipped);
-					cbEle.onn("change", () => { item.equipped = !!cbEle.prop("checked"); cb(); });
-					cbEle.appendTo(row);
+					veT`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.vee.appendTo(row);
+					const cbEle = veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!item.equipped);
+					cbEle.vee.onn("change", () => { item.equipped = !!cbEle.prop("checked"); cb(); });
+					cbEle.vee.appendTo(row);
 				}
-				ee`<span class="ve-mr-2" style="flex:1">${item.name}${item.qty > 1 ? ` ×${item.qty}` : ""}</span>`.appendTo(row);
-				ee`<span class="ve-muted ve-italic ve-mr-2" style="font-size:.85em;flex:1">${item.note || ""}</span>`.appendTo(row);
-				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
-					.onn("click", () => {
+				veT`<span class="ve-mr-2" style="flex:1">${item.name}${item.qty > 1 ? ` ×${item.qty}` : ""}</span>`.vee.appendTo(row);
+				veT`<span class="ve-muted ve-italic ve-mr-2" style="font-size:.85em;flex:1">${item.note || ""}</span>`.vee.appendTo(row);
+				veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`
+					.vee.onn("click", () => {
 						this._state.equipment = (this._state.equipment || []).filter(e => e !== item);
 						row.remove();
 						this._syncEquippedItems();
 						cb();
 					})
-					.appendTo(row);
+					.vee.appendTo(row);
 			});
 
 			// Equipment items (auto-granted + user-added)
@@ -4930,14 +4930,14 @@ export class CharacterBuilder extends BuilderBase {
 				const entry = this._getItemEntry(initial?.name || "");
 				const _eqTypeAbv1 = (entry?.type || "").split("|")[0];
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv1 === "S" || _eqTypeAbv1 === "M" || _eqTypeAbv1 === "R" || _eqTypeAbv1 === "LA" || _eqTypeAbv1 === "MA" || _eqTypeAbv1 === "HA"));
-				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateEqState);
-				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateEqState);
-				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				const iptQty  = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.vee.val(initial?.qty || 1).vee.onn("change", doUpdateEqState);
+				const iptNote = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.vee.val(initial?.note || "").vee.onn("input", doUpdateEqState);
+				const nameSpan = veT`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				_setItemHoverAttrs(nameSpan, entry);
 				const cbEquip = isEquippable
-					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateEqState)
+					? veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).vee.onn("change", doUpdateEqState)
 					: null;
-				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
+				const btnRm = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.vee.onn("click", () => {
 					if (initial?.autoGranted) {
 						// Mark as excluded so sync won't re-add it; remove from eqRows so doUpdateEqState won't re-include it as active
 						initial.excluded = true;
@@ -4949,41 +4949,41 @@ export class CharacterBuilder extends BuilderBase {
 					}
 					doUpdateEqState();
 				});
-				const handle = ee`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
-				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpEqRows);
-				handle.appendTo(rowEle);
+				const handle = veT`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
+				const rowEle = veT`<div class="ve-flex-v-center ve-mb-1"></div>`.vee.appendTo(wrpEqRows);
+				handle.vee.appendTo(rowEle);
 				if (isEquippable) {
-					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
-					cbEquip.appendTo(rowEle);
+					veT`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.vee.appendTo(rowEle);
+					cbEquip.vee.appendTo(rowEle);
 				}
-				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})}), _ele: rowEle};
+				rowEle.vee.appends(nameSpan).vee.appends(iptQty).vee.appends(iptNote).vee.appends(btnRm);
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.vee.val(), 1, {fallbackOnNaN:1}), note: iptNote.vee.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})}), _ele: rowEle};
 				eqRows.push(rowMeta);
 
 				let _fromHandle = false;
-				handle.onn("mousedown", () => {
+				handle.vee.onn("mousedown", () => {
 					_fromHandle = true;
 					document.addEventListener("mouseup", () => { _fromHandle = false; }, {once: true});
 				});
-				rowEle.attr("draggable", "true")
-					.onn("dragstart", e => {
+				rowEle.vee.attr("draggable", "true")
+					.vee.onn("dragstart", e => {
 						if (!_fromHandle) { e.preventDefault(); return; }
 						_eqDragSrcIdx = eqRows.indexOf(rowMeta);
 						e.dataTransfer.effectAllowed = "move";
-						setTimeout(() => rowEle.css("opacity", "0.4"), 0);
+						setTimeout(() => rowEle.vee.css("opacity", "0.4"), 0);
 					})
-					.onn("dragend", () => { rowEle.css("opacity", ""); _eqDragSrcIdx = -1; })
-					.onn("dragover", e => {
+					.vee.onn("dragend", () => { rowEle.vee.css("opacity", ""); _eqDragSrcIdx = -1; })
+					.vee.onn("dragover", e => {
 						if (_eqDragSrcIdx !== -1 && eqRows[_eqDragSrcIdx] !== rowMeta) {
 							e.preventDefault();
 							e.dataTransfer.dropEffect = "move";
-							rowEle.css("outline", "1px dashed #6c9ef8");
+							rowEle.vee.css("outline", "1px dashed #6c9ef8");
 						}
 					})
-					.onn("dragleave", () => rowEle.css("outline", ""))
-					.onn("drop", e => {
+					.vee.onn("dragleave", () => rowEle.vee.css("outline", ""))
+					.vee.onn("drop", e => {
 						e.preventDefault();
-						rowEle.css("outline", "");
+						rowEle.vee.css("outline", "");
 						const si = _eqDragSrcIdx, ti = eqRows.indexOf(rowMeta);
 						if (si === -1 || ti === -1 || si === ti) return;
 						rowEle.before(eqRows[si]._ele);
@@ -4994,9 +4994,9 @@ export class CharacterBuilder extends BuilderBase {
 			};
 			(this._state.equipment || []).forEach(item => addEqRow(item));
 
-			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Item</button>`
-				.appendTo(ee`<div></div>`.appendTo(eqRowInner))
-				.onn("click", async () => {
+			veT`<button class="ve-btn ve-btn-xs ve-btn-default">Add Item</button>`
+				.vee.appendTo(veT`<div></div>`.vee.appendTo(eqRowInner))
+				.vee.onn("click", async () => {
 					if (!this._modalFilterItems) {
 						this._modalFilterItems = new _CharModalFilterEquipment({
 							namespace: "charBuilder.items",
@@ -5018,7 +5018,7 @@ export class CharacterBuilder extends BuilderBase {
 				this._syncEquippedItems();
 				cb();
 			};
-			const wrpMgRows = ee`<div class="ve-flex-col ve-mb-1"></div>`.appendTo(mgRowInner);
+			const wrpMgRows = veT`<div class="ve-flex-col ve-mb-1"></div>`.vee.appendTo(mgRowInner);
 
 			let _mgDragSrcIdx = -1;
 			const addMgRow = (initial) => {
@@ -5026,64 +5026,64 @@ export class CharacterBuilder extends BuilderBase {
 				const _eqTypeAbv2 = (entry?.type || "").split("|")[0];
 				const isEquippable = !!(entry && (entry.weapon || entry.armor || _eqTypeAbv2 === "S" || _eqTypeAbv2 === "M" || _eqTypeAbv2 === "R" || _eqTypeAbv2 === "LA" || _eqTypeAbv2 === "MA" || _eqTypeAbv2 === "HA"));
 				const needsAttune = !!(entry?.reqAttune);
-				const iptQty  = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.val(initial?.qty || 1).onn("change", doUpdateMgState);
-				const iptNote = ee`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.val(initial?.note || "").onn("input", doUpdateMgState);
-				const nameSpan = ee`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
+				const iptQty  = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" type="number" min="1" placeholder="Qty" style="width:50px">`.vee.val(initial?.qty || 1).vee.onn("change", doUpdateMgState);
+				const iptNote = veT`<input class="ve-form-control ve-input-xs form-control--minimal ve-mr-1" placeholder="Notes" style="flex:1">`.vee.val(initial?.note || "").vee.onn("input", doUpdateMgState);
+				const nameSpan = veT`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				_setItemHoverAttrs(nameSpan, entry);
 				const cbEquip = isEquippable
-					? ee`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).onn("change", doUpdateMgState)
+					? veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).vee.onn("change", doUpdateMgState)
 					: null;
 				const btnAttune = needsAttune
-					? ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Requires attunement">Att.</button>`
+					? veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Requires attunement">Att.</button>`
 					: null;
 				if (btnAttune) {
-					if (initial?.attuned) btnAttune.addClass("ve-active");
-					btnAttune.onn("click", () => { btnAttune.toggleClass("ve-active"); doUpdateMgState(); });
+					if (initial?.attuned) btnAttune.vee.addClass("ve-active");
+					btnAttune.vee.onn("click", () => { btnAttune.vee.toggleClass("ve-active"); doUpdateMgState(); });
 				}
-				const btnRm = ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.onn("click", () => {
+				const btnRm = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.vee.onn("click", () => {
 					mgRows.splice(mgRows.indexOf(rowMeta), 1);
 					rowEle.remove();
 					doUpdateMgState();
 				});
-				const handle = ee`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
-				const rowEle = ee`<div class="ve-flex-v-center ve-mb-1"></div>`.appendTo(wrpMgRows);
-				handle.appendTo(rowEle);
+				const handle = veT`<span style="cursor:grab;padding:0 4px 0 0;color:#aaa;flex-shrink:0;user-select:none">&#x283f;</span>`;
+				const rowEle = veT`<div class="ve-flex-v-center ve-mb-1"></div>`.vee.appendTo(wrpMgRows);
+				handle.vee.appendTo(rowEle);
 				if (isEquippable) {
-					ee`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.appendTo(rowEle);
-					cbEquip.appendTo(rowEle);
+					veT`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.vee.appendTo(rowEle);
+					cbEquip.vee.appendTo(rowEle);
 				}
-				if (btnAttune) btnAttune.appendTo(rowEle);
-				rowEle.appends(nameSpan).appends(iptQty).appends(iptNote).appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.val(), 1, {fallbackOnNaN:1}), note: iptNote.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.hasClass("ve-active") : false}), _ele: rowEle};
+				if (btnAttune) btnAttune.vee.appendTo(rowEle);
+				rowEle.vee.appends(nameSpan).vee.appends(iptQty).vee.appends(iptNote).vee.appends(btnRm);
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.vee.val(), 1, {fallbackOnNaN:1}), note: iptNote.vee.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.vee.hasClass("ve-active") : false}), _ele: rowEle};
 				mgRows.push(rowMeta);
 
 				let _fromHandle = false;
-				handle.onn("mousedown", () => {
+				handle.vee.onn("mousedown", () => {
 					_fromHandle = true;
 					document.addEventListener("mouseup", () => { _fromHandle = false; }, {once: true});
 				});
-				rowEle.attr("draggable", "true")
+				rowEle.vee.attr("draggable", "true")
 					// @ts-ignore
-					.onn("dragstart", e => {
+					.vee.onn("dragstart", e => {
 						if (!_fromHandle) { e.preventDefault(); return; }
 						_mgDragSrcIdx = mgRows.indexOf(rowMeta);
 						e.dataTransfer.effectAllowed = "move";
-						setTimeout(() => rowEle.css("opacity", "0.4"), 0);
+						setTimeout(() => rowEle.vee.css("opacity", "0.4"), 0);
 					})
-					.onn("dragend", () => { rowEle.css("opacity", ""); _mgDragSrcIdx = -1; })
+					.vee.onn("dragend", () => { rowEle.vee.css("opacity", ""); _mgDragSrcIdx = -1; })
 					// @ts-ignore
-					.onn("dragover", e => {
+					.vee.onn("dragover", e => {
 						if (_mgDragSrcIdx !== -1 && mgRows[_mgDragSrcIdx] !== rowMeta) {
 							e.preventDefault();
 							e.dataTransfer.dropEffect = "move";
-							rowEle.css("outline", "1px dashed #6c9ef8");
+							rowEle.vee.css("outline", "1px dashed #6c9ef8");
 						}
 					})
-					.onn("dragleave", () => rowEle.css("outline", ""))
+					.vee.onn("dragleave", () => rowEle.vee.css("outline", ""))
 					// @ts-ignore
-					.onn("drop", e => {
+					.vee.onn("drop", e => {
 						e.preventDefault();
-						rowEle.css("outline", "");
+						rowEle.vee.css("outline", "");
 						const si = _mgDragSrcIdx, ti = mgRows.indexOf(rowMeta);
 						if (si === -1 || ti === -1 || si === ti) return;
 						rowEle.before(mgRows[si]._ele);
@@ -5094,9 +5094,9 @@ export class CharacterBuilder extends BuilderBase {
 			};
 			(this._state.magicEquipment || []).forEach(item => addMgRow(item));
 
-			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Magic Item</button>`
-				.appendTo(ee`<div></div>`.appendTo(mgRowInner))
-				.onn("click", async () => {
+			veT`<button class="ve-btn ve-btn-xs ve-btn-default">Add Magic Item</button>`
+				.vee.appendTo(veT`<div></div>`.vee.appendTo(mgRowInner))
+				.vee.onn("click", async () => {
 					if (!this._modalFilterItemsMagic) {
 						this._modalFilterItemsMagic = new _CharModalFilterMagic({
 							namespace: "charBuilder.itemsMagic",
@@ -5111,7 +5111,7 @@ export class CharacterBuilder extends BuilderBase {
 			wrp.append(mgRow);
 		};
 
-		this._rebuildEquipmentTab = () => { wrp.empty(); buildContent(); };
+		this._rebuildEquipmentTab = () => { wrp.vee.empty(); buildContent(); };
 		buildContent();
 	}
 
@@ -5272,12 +5272,12 @@ export class CharacterBuilder extends BuilderBase {
 	_buildSpellsTab (wrp, cb) {
 		const buildContent = () => {
 			// -- Spellcasting info block (cantrips / spells known / prepared) ----
-			const infoWrp = ee`<div></div>`.appendTo(wrp);
+			const infoWrp = veT`<div></div>`.vee.appendTo(wrp);
 			const refreshInfo = () => {
-				infoWrp.empty();
+				infoWrp.vee.empty();
 				const info = this._computeSpellcastingCounts();
 				if (!info.length) return;
-				const inner = ee`<div class="ve-mb-2 ve-pb-2" style="border-bottom:1px solid var(--col-border-default,#333)"></div>`.appendTo(infoWrp);
+				const inner = veT`<div class="ve-mb-2 ve-pb-2" style="border-bottom:1px solid var(--col-border-default,#333)"></div>`.vee.appendTo(infoWrp);
 				const multiClass = info.length > 1;
 				info.forEach(({className, level, cantrips, spellsKnown, spellsPrepared, preparedFormula}) => {
 					const parts = [];
@@ -5285,9 +5285,9 @@ export class CharacterBuilder extends BuilderBase {
 					if (spellsKnown  != null) parts.push(`Spells known: ${spellsKnown}`);
 					if (spellsPrepared != null) parts.push(`Spells prepared: ${spellsPrepared}${preparedFormula ? ` (${preparedFormula})` : ""}`);
 					if (!parts.length) return;
-					const row = ee`<div class="ve-muted ve-mb-1" style="font-size:.85em"></div>`.appendTo(inner);
-					if (multiClass) ee`<span class="ve-bold ve-mr-2">${className} L${level}:</span>`.appendTo(row);
-					row.appends(document.createTextNode(parts.join("   |   ")));
+					const row = veT`<div class="ve-muted ve-mb-1" style="font-size:.85em"></div>`.vee.appendTo(inner);
+					if (multiClass) veT`<span class="ve-bold ve-mr-2">${className} L${level}:</span>`.vee.appendTo(row);
+					row.vee.appends(document.createTextNode(parts.join("   |   ")));
 				});
 			};
 			this._addHook("state", "wis",     refreshInfo);
@@ -5310,11 +5310,11 @@ export class CharacterBuilder extends BuilderBase {
 			const LEVEL_LABELS = ["Cantrip", "1st Level", "2nd Level", "3rd Level", "4th Level", "5th Level", "6th Level", "7th Level", "8th Level", "9th Level"];
 
 			// Pre-create all level sections; hide until populated
-			const wrpSections = ee`<div class="ve-flex-col ve-mb-2"></div>`.appendTo(wrp);
+			const wrpSections = veT`<div class="ve-flex-col ve-mb-2"></div>`.vee.appendTo(wrp);
 			const sections = LEVEL_LABELS.map((label) => {
-				const wrpSection = ee`<div class="ve-mb-2"></div>`.hideVe().appendTo(wrpSections);
-				ee`<div class="ve-bold ve-mb-1" style="font-size:.85em;border-bottom:1px solid var(--col-border-default,#555);padding-bottom:2px">${label}</div>`.appendTo(wrpSection);
-				const wrpRows = ee`<div class="ve-flex-col"></div>`.appendTo(wrpSection);
+				const wrpSection = veT`<div class="ve-mb-2"></div>`.vee.hide().vee.appendTo(wrpSections);
+				veT`<div class="ve-bold ve-mb-1" style="font-size:.85em;border-bottom:1px solid var(--col-border-default,#555);padding-bottom:2px">${label}</div>`.vee.appendTo(wrpSection);
+				const wrpRows = veT`<div class="ve-flex-col"></div>`.vee.appendTo(wrpSection);
 				return {wrpSection, wrpRows, rowCount: 0};
 			});
 
@@ -5329,17 +5329,17 @@ export class CharacterBuilder extends BuilderBase {
 				const level     = Math.min(spellData?.level ?? 0, 9);
 				const section   = sections[level];
 
-				if (section.rowCount === 0) section.wrpSection.showVe();
+				if (section.rowCount === 0) section.wrpSection.vee.show();
 				section.rowCount++;
 
-				const row = ee`<div class="ve-flex-v-center ve-py-1" style="gap:6px;border-bottom:1px solid var(--col-border-default,#333)"></div>`.appendTo(section.wrpRows);
+				const row = veT`<div class="ve-flex-v-center ve-py-1" style="gap:6px;border-bottom:1px solid var(--col-border-default,#333)"></div>`.vee.appendTo(section.wrpRows);
 				const _spellHover = spellData ? Renderer.hover.getHoverElementAttributes({page: UrlUtil.PG_SPELLS, source: spellData.source, hash: (/** @type {any} */ (UrlUtil.URL_TO_HASH_BUILDER))[UrlUtil.PG_SPELLS](spellData)}) : "";
-				ee`<span class="ve-bold" style="min-width:140px;flex:0 0 auto${_spellHover ? ";cursor:help" : ""}" ${_spellHover}>${name}</span>`.appendTo(row);
-				const iptNotes = ee`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.val(initial?.notes || "").onn("input", doUpdateState).appendTo(row);
-				ee`<span class="ve-muted" style="font-size:.8em;white-space:nowrap">Prep</span>`.appendTo(row);
-				const cbPrep = ee`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.prop("checked", !!(initial?.prepared)).onn("change", doUpdateState).appendTo(row);
-				ee`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
-					.onn("click", () => {
+				veT`<span class="ve-bold" style="min-width:140px;flex:0 0 auto${_spellHover ? ";cursor:help" : ""}" ${_spellHover}>${name}</span>`.vee.appendTo(row);
+				const iptNotes = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.vee.val(initial?.notes || "").vee.onn("input", doUpdateState).vee.appendTo(row);
+				veT`<span class="ve-muted" style="font-size:.8em;white-space:nowrap">Prep</span>`.vee.appendTo(row);
+				const cbPrep = veT`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.prop("checked", !!(initial?.prepared)).vee.onn("change", doUpdateState).vee.appendTo(row);
+				veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
+					.vee.onn("click", () => {
 						if (isAuto) {
 							// Mark as excluded so sync won't re-add it
 							initial.excluded = true;
@@ -5348,16 +5348,16 @@ export class CharacterBuilder extends BuilderBase {
 						}
 						row.remove();
 						section.rowCount--;
-						if (section.rowCount === 0) section.wrpSection.hideVe();
+						if (section.rowCount === 0) section.wrpSection.vee.hide();
 						doUpdateState();
 					})
-					.appendTo(row);
+					.vee.appendTo(row);
 
 				const rowMeta = {
 					getState: () => ({
 						name,
 						prepared: !!cbPrep.prop("checked"),
-						notes: iptNotes.val().trim(),
+						notes: iptNotes.vee.val().trim(),
 						...(isAuto ? {autoGranted: true} : {}),
 					}),
 				};
@@ -5366,9 +5366,9 @@ export class CharacterBuilder extends BuilderBase {
 
 			spellsArr().forEach(sp => addRow(sp));
 
-			ee`<button class="ve-btn ve-btn-xs ve-btn-default">Add Spell</button>`
-				.appendTo(wrp)
-				.onn("click", async () => {
+			veT`<button class="ve-btn ve-btn-xs ve-btn-default">Add Spell</button>`
+				.vee.appendTo(wrp)
+				.vee.onn("click", async () => {
 					if (!this._modalFilterSpells) {
 						this._modalFilterSpells = new _CharModalFilterSpells({
 							namespace: "charBuilder.spells",
@@ -5381,26 +5381,26 @@ export class CharacterBuilder extends BuilderBase {
 				});
 		};
 
-		this._rebuildSpellsTab = () => { wrp.empty(); buildContent(); };
+		this._rebuildSpellsTab = () => { wrp.vee.empty(); buildContent(); };
 		buildContent();
 	}
 
 	// -- Personality tab -------------------------------------------------------
 
 	_buildPersonalityTab (wrp, cb) {
-		BuilderUi.getStateIptEntries("Personality Traits", cb, this._state, {placeholder: "Describe your personality..."}, "personalityTraits").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Ideals",             cb, this._state, {placeholder: "What drives you?"}, "ideals").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Bonds",              cb, this._state, {placeholder: "Who or what do you care about?"}, "bonds").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Flaws",              cb, this._state, {placeholder: "What are your weaknesses?"}, "flaws").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Backstory",          cb, this._state, {placeholder: "Character history and backstory..."}, "backstory").appendTo(wrp);
-		BuilderUi.getStateIptString("Age",    cb, this._state, {placeholder: "e.g. 30"}, "age").appendTo(wrp);
-		BuilderUi.getStateIptString("Height", cb, this._state, {placeholder: "e.g. 5'10\""}, "height").appendTo(wrp);
-		BuilderUi.getStateIptString("Weight", cb, this._state, {placeholder: "e.g. 160 lbs"}, "weight").appendTo(wrp);
-		BuilderUi.getStateIptString("Eyes",   cb, this._state, {placeholder: "e.g. Brown"}, "eyes").appendTo(wrp);
-		BuilderUi.getStateIptString("Skin",   cb, this._state, {placeholder: "e.g. Tan"}, "skin").appendTo(wrp);
-		BuilderUi.getStateIptString("Hair",   cb, this._state, {placeholder: "e.g. Black"}, "hair").appendTo(wrp);
-		BuilderUi.getStateIptEnum("Size", cb, this._state, {nullable: false, vals: _SIZES, fnDisplay: v => String(v)}, "size").appendTo(wrp);
-		BuilderUi.getStateIptEntries("Appearance Notes", cb, this._state, {placeholder: "Physical description..."}, "appearance").appendTo(wrp);
+		BuilderUi.getStateIptEntries("Personality Traits", cb, this._state, {placeholder: "Describe your personality..."}, "personalityTraits").vee.appendTo(wrp);
+		BuilderUi.getStateIptEntries("Ideals",             cb, this._state, {placeholder: "What drives you?"}, "ideals").vee.appendTo(wrp);
+		BuilderUi.getStateIptEntries("Bonds",              cb, this._state, {placeholder: "Who or what do you care about?"}, "bonds").vee.appendTo(wrp);
+		BuilderUi.getStateIptEntries("Flaws",              cb, this._state, {placeholder: "What are your weaknesses?"}, "flaws").vee.appendTo(wrp);
+		BuilderUi.getStateIptEntries("Backstory",          cb, this._state, {placeholder: "Character history and backstory..."}, "backstory").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Age",    cb, this._state, {placeholder: "e.g. 30"}, "age").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Height", cb, this._state, {placeholder: "e.g. 5'10\""}, "height").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Weight", cb, this._state, {placeholder: "e.g. 160 lbs"}, "weight").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Eyes",   cb, this._state, {placeholder: "e.g. Brown"}, "eyes").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Skin",   cb, this._state, {placeholder: "e.g. Tan"}, "skin").vee.appendTo(wrp);
+		BuilderUi.getStateIptString("Hair",   cb, this._state, {placeholder: "e.g. Black"}, "hair").vee.appendTo(wrp);
+		BuilderUi.getStateIptEnum("Size", cb, this._state, {nullable: false, vals: _SIZES, fnDisplay: v => String(v)}, "size").vee.appendTo(wrp);
+		BuilderUi.getStateIptEntries("Appearance Notes", cb, this._state, {placeholder: "Physical description..."}, "appearance").vee.appendTo(wrp);
 	}
 
 	// -------------------------------------------------------------------------
@@ -5410,12 +5410,12 @@ export class CharacterBuilder extends BuilderBase {
 	renderOutput () { this._renderOutputDebounced(); }
 
 	_renderOutput () {
-		const wrp = this._ui.wrpOutput.empty();
+		const wrp = this._ui.wrpOutput.vee.empty();
 
 		if (!this._isDataLoaded) {
-			ee`<div class="ve-flex-vh-center ve-w-100 ve-h-100 ve-py-4">
+			veT`<div class="ve-flex-vh-center ve-w-100 ve-h-100 ve-py-4">
 				<span class="ve-muted ve-italic">Loading character data...</span>
-			</div>`.appendTo(wrp);
+			</div>`.vee.appendTo(wrp);
 			return;
 		}
 
@@ -5428,14 +5428,14 @@ export class CharacterBuilder extends BuilderBase {
 			{tabGroup: "output", cbTabChange: this.doUiSave.bind(this)},
 		);
 		const [previewTab, dataTab] = tabs;
-		ee`<div class="ve-flex-v-center ve-w-100 ve-no-shrink">${tabs.map(it => it.btnTab)}</div>`.appendTo(wrp);
-		tabs.forEach(it => it.wrpTab.appendTo(wrp));
+		veT`<div class="ve-flex-v-center ve-w-100 ve-no-shrink">${tabs.map(it => it.btnTab)}</div>`.vee.appendTo(wrp);
+		tabs.forEach(it => it.wrpTab.vee.appendTo(wrp));
 
 		// -- PDF Preview tab --------------------------------------------------
 		this._renderPdfPreview(previewTab.wrpTab);
 
 		// -- Data tab ---------------------------------------------------------
-		const tblData = ee`<table class="ve-w-100 stats stats--book mkbru__wrp-output-tab-data"></table>`.appendTo(dataTab.wrpTab);
+		const tblData = veT`<table class="ve-w-100 stats stats--book mkbru__wrp-output-tab-data"></table>`.vee.appendTo(dataTab.wrpTab);
 		const asCode = Renderer.get().render({
 			type: "entries",
 			entries: [{
@@ -5444,9 +5444,9 @@ export class CharacterBuilder extends BuilderBase {
 				preformatted: JSON.stringify(DataUtil.cleanJson(MiscUtil.copy(this._state)), null, "\t"),
 			}],
 		});
-		tblData.appends(Renderer.utils.getBorderTr());
-		tblData.appends(`<tr><td colspan="6">${asCode}</td></tr>`);
-		tblData.appends(Renderer.utils.getBorderTr());
+		tblData.vee.appends(Renderer.utils.getBorderTr());
+		tblData.vee.appends(`<tr><td colspan="6">${asCode}</td></tr>`);
+		tblData.vee.appends(Renderer.utils.getBorderTr());
 
 		// Download buttons (JSON + PDF) rendered in the sheet tab header
 	}
@@ -5465,56 +5465,56 @@ export class CharacterBuilder extends BuilderBase {
 		const s = this._state;
 
 		// Toolbar
-		const btnJson = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1"><span class="glyphicon glyphicon-download-alt ve-mr-1"></span>JSON</button>`
-			.onn("click", () => {
+		const btnJson = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1"><span class="glyphicon glyphicon-download-alt ve-mr-1"></span>JSON</button>`
+			.vee.onn("click", () => {
 				const out = this._ui._getJsonOutputTemplate();
 				out.character = [DataUtil.cleanJson(MiscUtil.copy(s))];
 				DataUtil.userDownload(DataUtil.getCleanFilename(s.name || "character"), out);
 			});
-		const btnPdf = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1"><span class="glyphicon glyphicon-print ve-mr-1"></span>PDF</button>`
-			.onn("click", () => this._doExportPdf());
-		const btnStatblock = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Export as creature statblock (Markdown)"><span class="glyphicon glyphicon-list-alt ve-mr-1"></span>Statblock</button>`
-			.onn("click", () => this._doExportStatblock());
-		const btnCards = ee`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th ve-mr-1"></span>Cards</button>`
-			.onn("click", () => this._doExportCards());
+		const btnPdf = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1"><span class="glyphicon glyphicon-print ve-mr-1"></span>PDF</button>`
+			.vee.onn("click", () => this._doExportPdf());
+		const btnStatblock = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Export as creature statblock (Markdown)"><span class="glyphicon glyphicon-list-alt ve-mr-1"></span>Statblock</button>`
+			.vee.onn("click", () => this._doExportStatblock());
+		const btnCards = veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Send spells, items, feats, species and background to Card Builder"><span class="glyphicon glyphicon-th ve-mr-1"></span>Cards</button>`
+			.vee.onn("click", () => this._doExportCards());
 
 		if (this._pdfSheetMode == null) this._pdfSheetMode = localStorage.getItem(CharacterBuilder._STORAGE_KEY_PDF_SHEET_MODE) || "standard";
-		const btnStandard  = ee`<button class="ve-btn ve-btn-xs ve-mr-1" title="Standard class features layout">Standard</button>`;
-		const btnExtended  = ee`<button class="ve-btn ve-btn-xs" title="Extended class features layout">Extended</button>`;
+		const btnStandard  = veT`<button class="ve-btn ve-btn-xs ve-mr-1" title="Standard class features layout">Standard</button>`;
+		const btnExtended  = veT`<button class="ve-btn ve-btn-xs" title="Extended class features layout">Extended</button>`;
 		const applySheetMode = (mode) => {
 			this._pdfSheetMode = mode;
 			localStorage.setItem(CharacterBuilder._STORAGE_KEY_PDF_SHEET_MODE, mode);
-			btnStandard.toggleClass("ve-btn-primary", mode === "standard").toggleClass("ve-btn-default", mode !== "standard");
-			btnExtended.toggleClass("ve-btn-primary", mode === "extended").toggleClass("ve-btn-default", mode !== "extended");
+			btnStandard.vee.toggleClass("ve-btn-primary", mode === "standard").vee.toggleClass("ve-btn-default", mode !== "standard");
+			btnExtended.vee.toggleClass("ve-btn-primary", mode === "extended").vee.toggleClass("ve-btn-default", mode !== "extended");
 		};
-		btnStandard.onn("click", () => { applySheetMode("standard"); regenerate(); });
-		btnExtended.onn("click", () => { applySheetMode("extended"); regenerate(); });
+		btnStandard.vee.onn("click", () => { applySheetMode("standard"); regenerate(); });
+		btnExtended.vee.onn("click", () => { applySheetMode("extended"); regenerate(); });
 		applySheetMode(this._pdfSheetMode);
 
-		ee`<div class="ve-flex-v-center ve-mb-2 ve-pb-1" style="border-bottom:1px solid var(--rgb-border-grey)">
+		veT`<div class="ve-flex-v-center ve-mb-2 ve-pb-1" style="border-bottom:1px solid var(--rgb-border-grey)">
 			<span class="ve-muted ve-italic ve-mr-2" style="font-size:.75em">${(s.styleHint === "classic") ? "D&D 2014 (5e)" : "D&D 2024 (5.5e)"}</span>
 			<div class="ve-btn-group ve-mr-2">${btnStandard}${btnExtended}</div>
 			<div class="ve-ml-auto">${btnJson}${btnPdf}${btnStatblock}${btnCards}</div>
-		</div>`.appendTo(wrp);
+		</div>`.vee.appendTo(wrp);
 
 		// Status / iframe
-		const dispStatus = ee`<div class="ve-flex-vh-center ve-w-100 ve-py-3"><span class="ve-muted ve-italic">Generating PDF preview\u2026</span></div>`.appendTo(wrp);
-		const iframe = ee`<iframe class="ve-w-100 ve-hidden" style="height:800px;border:none"></iframe>`.appendTo(wrp);
+		const dispStatus = veT`<div class="ve-flex-vh-center ve-w-100 ve-py-3"><span class="ve-muted ve-italic">Generating PDF preview\u2026</span></div>`.vee.appendTo(wrp);
+		const iframe = veT`<iframe class="ve-w-100 ve-hidden" style="height:800px;border:none"></iframe>`.vee.appendTo(wrp);
 
 		const regenerate = () => {
-			dispStatus.showVe(); iframe.hideVe();
+			dispStatus.vee.show(); iframe.vee.hide();
 			if (this._pdfBlobUrl) { URL.revokeObjectURL(this._pdfBlobUrl); this._pdfBlobUrl = null; }
 			const genId = ++this._pdfGenId;
 			this._pBuildPdf(this._pdfSheetMode).then(doc => {
 				if (genId !== this._pdfGenId) return;
 				const url = doc.output("bloburl");
 				this._pdfBlobUrl = url;
-				iframe.attr("src", url);
-				dispStatus.hideVe();
-				iframe.showVe();
+				iframe.vee.attr("src", url);
+				dispStatus.vee.hide();
+				iframe.vee.show();
 			}).catch(err => {
 				if (genId !== this._pdfGenId) return;
-				dispStatus.empty().appends(`<span class="ve-error">PDF preview failed - use the Download PDF button above.</span>`);
+				dispStatus.vee.empty().vee.appends(`<span class="ve-error">PDF preview failed - use the Download PDF button above.</span>`);
 				console.error("PDF preview:", err);
 			});
 		};
@@ -5527,12 +5527,12 @@ export class CharacterBuilder extends BuilderBase {
 			if (genId !== this._pdfGenId) return; // stale render
 			const url = doc.output("bloburl");
 			this._pdfBlobUrl = url;
-			iframe.attr("src", url);
-			dispStatus.hideVe();
-			iframe.showVe();
+			iframe.vee.attr("src", url);
+			dispStatus.vee.hide();
+			iframe.vee.show();
 		}).catch(err => {
 			if (genId !== this._pdfGenId) return;
-			dispStatus.empty().appends(`<span class="ve-error">PDF preview failed - use the Download PDF button above.</span>`);
+			dispStatus.vee.empty().vee.appends(`<span class="ve-error">PDF preview failed - use the Download PDF button above.</span>`);
 			console.error("PDF preview:", err);
 		});
 	}
@@ -6380,10 +6380,10 @@ class _CharModalFilterEquipment extends ModalFilterItems {
 		const glassEle = filterCache.wrpModalInner.querySelector(".ve-lst__wrp-search-glass");
 		if (!glassEle) return;
 		const iptSearch = filterCache.iptSearch;
-		glassEle.addEventListener("click", () => iptSearch.val("").trigger("change").trigger("keydown").trigger("keyup").focuse());
+		glassEle.addEventListener("click", () => iptSearch.vee.val("").vee.trigger("change").vee.trigger("keydown").vee.trigger("keyup").vee.focus());
 		const _handleSearchChange = () => {
 			setTimeout(() => {
-				const hasText = !!iptSearch.val().length;
+				const hasText = !!iptSearch.vee.val().length;
 				glassEle.classList.toggle("ve-no-events", !hasText);
 				glassEle.classList.toggle("ve-clickable", hasText);
 				if (hasText) glassEle.setAttribute("title", "Clear");
@@ -6391,7 +6391,7 @@ class _CharModalFilterEquipment extends ModalFilterItems {
 				glassEle.innerHTML = `<span class="glyphicon ${hasText ? "glyphicon-remove" : "glyphicon-search"}"></span>`;
 			});
 		};
-		iptSearch.onn("keydown", MiscUtil.throttle(_handleSearchChange, 50));
+		iptSearch.vee.onn("keydown", MiscUtil.throttle(_handleSearchChange, 50));
 	}
 
 	static _fixScrollbarAlignment (filterCache) {

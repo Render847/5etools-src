@@ -1,4 +1,4 @@
-import {BuilderBase} from "./makebrew/makebrew-builder-base.js";
+﻿import {BuilderBase} from "./makebrew/makebrew-builder-base.js";
 import { CharacterBuilder } from "./character/character-builder.js";
 import {TagCondition, TaggerUtils} from "./converter/converterutils-tags.js";
 
@@ -50,9 +50,9 @@ class PageUi {
 	async init () {
 		this._settings = await StorageUtil.pGetForPage(PageUi._STORAGE_SETTINGS) || {};
 
-		this._wrpLoad = es(`#page_loading`);
-		this._wrpSource = es(`#page_source`);
-		this._wrpMain = es(`#page_main`);
+		this._wrpLoad = veEs(`#page_loading`);
+		this._wrpSource = veEs(`#page_source`);
+		this._wrpMain = veEs(`#page_main`);
 
 		this._settings.activeBuilder = this._settings.activeBuilder || PageUi._DEFAULT_ACTIVE_BUILDER;
 
@@ -77,19 +77,19 @@ class PageUi {
 	}
 
 	__setStageMain () {
-		this._wrpLoad.hideVe();
-		this._wrpSource.hideVe();
-		this._wrpMain.showVe();
+		this._wrpLoad.vee.hide();
+		this._wrpSource.vee.hide();
+		this._wrpMain.vee.show();
 	}
 
 
 	_initLhs () {
-		this._wrpInput = es(`#content_input`);
-		this._wrpInputControls = es(`#content_input_controls`);
+		this._wrpInput = veEs(`#content_input`);
+		this._wrpInputControls = veEs(`#content_input_controls`);
 	}
 
 	_initRhs () {
-		this._wrpOutput = es(`#content_output`);
+		this._wrpOutput = veEs(`#content_output`);
 	}
 
 	getBuilderById (id) {
