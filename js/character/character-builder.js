@@ -5211,8 +5211,20 @@ export class CharacterBuilder extends BuilderBase {
 		const all    = [...(this._state.equipment || []), ...(this._state.magicEquipment || [])];
 		const equipped = all.filter(it => it.equipped && !it.excluded);
 
-		let equippedAC   = null;
+		// Collect all active optional feature names (covers fighting styles, invocations, etc.)
+		const _activeOptFeats = new Set(
+			Object.values(this._state.optionalFeatureChoices || {}).flat().map((/** @type {string} */ n) => n.toLowerCase()),
+		);
+		const _hasArchery = _activeOptFeats.has("archery");
+		const _hasDueling = _activeOptFeats.has("dueling");
+		const _hasDefense = _activeOptFeats.has("defense");
+
+		// Parse magic-item bonus strings like "+1", "2", etc.
+		const _parseMagicBonus = (/** @type {string|undefined} */ s) => { const n = parseInt(s || "0"); return isNaN(n) ? 0 : n; };
+
+		let equippedAC   = null; // armor AC only; shield bonus is added separately by the statblock code
 		let equippedShield = false;
+		let bonusAcTotal = 0;    // sum of bonusAc from all equipped items
 		const equippedWeapons = [];
 
 		const _DMG_TYPE = {S:"slashing",P:"piercing",B:"bludgeoning",F:"fire",C:"cold",
@@ -5234,25 +5246,38 @@ export class CharacterBuilder extends BuilderBase {
 			} else if (entryType === "S") {
 				equippedShield = true;
 			}
+			// Sum bonusAc from all equipped items (magic armor, shields, rings, cloaks, etc.)
+			bonusAcTotal += _parseMagicBonus(entry.bonusAc);
 			if (entry.weapon || entryType === "M" || entryType === "R") {
-				const propAbvs = (entry.property || []).map((/** @type {any} */ p) => (p?.uid || p || "").split("|")[0]);
-				const isFinesse = propAbvs.includes("F");
-				const isRanged  = entryType === "R" || entryType === "A";
-				const abilMod   = isFinesse ? Math.max(strMod, dexMod) : (isRanged ? dexMod : strMod);
-				const atkBonus  = _fmtMod(abilMod + prof);
-				const dmgType   = _DMG_TYPE[entry.dmgType] || entry.dmgType || "";
-				const dmgMod    = abilMod !== 0 ? ` ${_fmtMod(abilMod)}` : "";
-				const damage    = `${entry.dmg1 || "-"}${dmgMod}${dmgType ? " " + dmgType : ""}`;
+				const propAbvs  = (entry.property || []).map((/** @type {any} */ p) => (p?.uid || p || "").split("|")[0]);
+				const isFinesse   = propAbvs.includes("F");
+				const isRanged    = entryType === "R" || entryType === "A";
+				const isTwoHanded = propAbvs.includes("T");
+				const abilMod     = isFinesse ? Math.max(strMod, dexMod) : (isRanged ? dexMod : strMod);
+				// Magic weapon bonuses: bonusWeapon applies to both atk+dmg; bonusWeaponAttack/Damage are separate
+				const magicAtk    = _parseMagicBonus(entry.bonusWeapon) + _parseMagicBonus(entry.bonusWeaponAttack);
+				const magicDmg    = _parseMagicBonus(entry.bonusWeapon) + _parseMagicBonus(entry.bonusWeaponDamage);
+				// Fighting style bonuses
+				const archeryAtk  = (_hasArchery && isRanged) ? 2 : 0;
+				const duelingDmg  = (_hasDueling && !isRanged && !isTwoHanded) ? 2 : 0;
+				const atkBonus    = _fmtMod(abilMod + prof + magicAtk + archeryAtk);
+				const dmgType     = _DMG_TYPE[/** @type {keyof typeof _DMG_TYPE} */ (entry.dmgType)] || entry.dmgType || "";
+				const totalDmgMod = abilMod + magicDmg + duelingDmg;
+				const dmgMod      = totalDmgMod !== 0 ? ` ${_fmtMod(totalDmgMod)}` : "";
+				const damage      = `${entry.dmg1 || "-"}${dmgMod}${dmgType ? " " + dmgType : ""}`;
 				equippedWeapons.push({name: it.name, atkBonus, damage, notes: it.note || ""});
 			}
 		}
 
-		// Combine armor AC + shield bonus into a single effective AC.
-		// Only set equippedAC when at least one piece of equipment affects it,
-		// so the manual AC field is still used when nothing is equipped.
+		// Defense fighting style: +1 AC when wearing armor.
+		const _defenseBonus = (_hasDefense && equippedAC !== null) ? 1 : 0;
+		// Shield bonus (+2) is NOT stored in equippedAC — the statblock code at line 5617 adds
+		// it separately via the equippedShield flag, so we must not include it here or it doubles.
 		const hasArmorOrShield = equippedAC !== null || equippedShield;
-		const baseAC = equippedAC ?? (this._state.ac || 10);
-		this._state.equippedAC      = hasArmorOrShield ? baseAC + (equippedShield ? 2 : 0) : null;
+		const baseAC = equippedAC ?? (this._state.ac || 10); // armor AC, or unarmored base
+		this._state.equippedAC = hasArmorOrShield
+			? baseAC + bonusAcTotal + _defenseBonus
+			: null;
 		this._state.equippedShield  = equippedShield;
 		this._state.equippedWeapons = equippedWeapons;
 	}
@@ -5696,7 +5721,11 @@ export class CharacterBuilder extends BuilderBase {
 			const e = _pick(this._allItems.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_ITEMS, "item", "#696969", "crossed-swords");
 		});
-		[...(s.bgFeat ? [s.bgFeat] : []), ...(s.feats || [])].filter(Boolean).forEach(name => {
+		[
+			...(s.bgFeat ? [s.bgFeat] : []),
+			...(s.feats || []),
+			...(s.asiChoices || []).filter((/** @type {any} */ c) => c.featName && c.featName !== "Ability Score Improvement").map((/** @type {any} */ c) => c.featName),
+		].filter(Boolean).forEach(name => {
 			const nm = name.toLowerCase();
 			const e = _pick(this._allFeats.filter(x => x.name.toLowerCase() === nm));
 			if (e) _push(e, UrlUtil.PG_FEATS, "feat", "#aca300", "mighty-force");
@@ -5792,8 +5821,20 @@ export class CharacterBuilder extends BuilderBase {
 		// Barbarian Unarmored Defense: 10+DEX+CON (no armor; shield still adds separately).
 		const _DMG_TYPES = {S:"slashing",P:"piercing",B:"bludgeoning",F:"fire",C:"cold",L:"lightning",N:"necrotic",R:"radiant",T:"thunder",A:"acid"};
 		const _allEquip = [...(s.equipment||[]), ...(s.magicEquipment||[])].filter(it => it.equipped && !it.excluded);
+		// Fighting styles and magic weapon bonuses
+		const _activeOptFeats = new Set(
+			Object.values(s.optionalFeatureChoices || {}).flat().map((/** @type {string} */ n) => n.toLowerCase()),
+		);
+		const _hasArcheryPdf = _activeOptFeats.has("archery");
+		const _hasDuelingPdf = _activeOptFeats.has("dueling");
+		const _hasDefensePdf = _activeOptFeats.has("defense");
+		const _parseMagicBonusPdf = (/** @type {string|undefined} */ b) => { const n = parseInt(b || "0"); return isNaN(n) ? 0 : n; };
 		let _armorAC = null;
 		let _hasEquippedShield = false;
+		let _bonusAcTotalPdf = 0;      // sum of bonusAc from all equipped items
+		let _bonusSpellAtkPdf = 0;     // sum of bonusSpellAttack from all equipped items
+		let _bonusSpellDcPdf  = 0;     // sum of bonusSpellSaveDc from all equipped items
+		let _bonusSavePdf     = 0;     // sum of bonusSavingThrow from all equipped items
 		const _equippedWeapons = [];
 		for (const _it of _allEquip) {
 			const _e = this._getItemEntry(_it.name);
@@ -5803,16 +5844,27 @@ export class CharacterBuilder extends BuilderBase {
 			else if (_eType === "MA") _armorAC = Math.max(_armorAC ?? 0, (_e.ac || 13) + Math.min(abilMods.dex, 2));
 			else if (_eType === "HA") _armorAC = Math.max(_armorAC ?? 0, _e.ac || 16);
 			else if (_eType === "S")  _hasEquippedShield = true;
+			// Accumulate magic item bonuses from all equipped items
+			_bonusAcTotalPdf  += _parseMagicBonusPdf(_e.bonusAc);
+			_bonusSpellAtkPdf += _parseMagicBonusPdf(_e.bonusSpellAttack);
+			_bonusSpellDcPdf  += _parseMagicBonusPdf(_e.bonusSpellSaveDc);
+			_bonusSavePdf     += _parseMagicBonusPdf(_e.bonusSavingThrow);
 			if (_e.weapon || _eType === "M" || _eType === "R") {
-				const _props     = _e.property || [];
-				const _propAbvs  = _props.map(p => (p?.uid || p || "").split("|")[0]);
-				const _finesse   = _propAbvs.includes("F");
-				const _ranged    = _eType === "R" || _eType === "A";
-				const _amod      = _finesse ? Math.max(abilMods.str, abilMods.dex) : (_ranged ? abilMods.dex : abilMods.str);
-				const _atkBonus  = fmod(_amod + profBonus);
-				const _dmgType   = _DMG_TYPES[_e.dmgType] || _e.dmgType || "";
-				const _dmgMod    = _amod !== 0 ? ` ${fmod(_amod)}` : "";
-				const _dmgBase   = (_propAbvs.includes("V") && _e.dmg2) ? `${_e.dmg1 || "-"}/${_e.dmg2}` : (_e.dmg1 || "-");
+				const _props      = _e.property || [];
+				const _propAbvs   = _props.map((/** @type {any} */ p) => (p?.uid || p || "").split("|")[0]);
+				const _finesse    = _propAbvs.includes("F");
+				const _ranged     = _eType === "R" || _eType === "A";
+				const _twoHanded  = _propAbvs.includes("T");
+				const _amod       = _finesse ? Math.max(abilMods.str, abilMods.dex) : (_ranged ? abilMods.dex : abilMods.str);
+				const _magicAtk   = _parseMagicBonusPdf(_e.bonusWeapon) + _parseMagicBonusPdf(_e.bonusWeaponAttack);
+				const _magicDmg   = _parseMagicBonusPdf(_e.bonusWeapon) + _parseMagicBonusPdf(_e.bonusWeaponDamage);
+				const _archeryAtk = (_hasArcheryPdf && _ranged) ? 2 : 0;
+				const _duelingDmg = (_hasDuelingPdf && !_ranged && !_twoHanded) ? 2 : 0;
+				const _atkBonus   = fmod(_amod + profBonus + _magicAtk + _archeryAtk);
+				const _dmgType    = _DMG_TYPES[/** @type {keyof typeof _DMG_TYPES} */ (_e.dmgType)] || _e.dmgType || "";
+				const _totalDmgMod = _amod + _magicDmg + _duelingDmg;
+				const _dmgMod     = _totalDmgMod !== 0 ? ` ${fmod(_totalDmgMod)}` : "";
+				const _dmgBase    = (_propAbvs.includes("V") && _e.dmg2) ? `${_e.dmg1 || "-"}/${_e.dmg2}` : (_e.dmg1 || "-");
 				_equippedWeapons.push({name: _it.name, atkBonus: _atkBonus, damage: `${_dmgBase}${_dmgMod}${_dmgType ? " " + _dmgType : ""}`, notes: _it.note || ""});
 			}
 		}
@@ -5824,7 +5876,12 @@ export class CharacterBuilder extends BuilderBase {
 		                       : _hasBarbUD                 ? 10 + abilMods.dex + abilMods.con
 		                       : _hasMonkUD                 ? 10 + abilMods.dex + abilMods.wis
 		                       :                             10 + abilMods.dex;
-		const effectiveAC = (s.ac != null ? s.ac : (_armorAC ?? _baseUnarmoredAC) + (_hasEquippedShield ? 2 : 0)) + (s._speciesAcBonus || 0);
+		const _defenseBonusPdf = (_hasDefensePdf && _armorAC !== null) ? 1 : 0;
+		const effectiveAC = (s.ac != null ? s.ac : (_armorAC ?? _baseUnarmoredAC) + (_hasEquippedShield ? 2 : 0) + _bonusAcTotalPdf + _defenseBonusPdf) + (s._speciesAcBonus || 0);
+		// Effective spell/save values: base values + magic item bonuses (only when not overridden)
+		const spellDCEff  = spellDC  != null ? spellDC  + _bonusSpellDcPdf  : null;
+		const spellAtkEff = spellAtk != null ? spellAtk + _bonusSpellAtkPdf : null;
+		const saveBonusEff = (/** @type {string} */ abl) => saveBonus(abl) + _bonusSavePdf;
 
 		if (!window.jspdf) await new Promise((res,rej) => {
 			const el = document.createElement("script");
@@ -5981,31 +6038,31 @@ export class CharacterBuilder extends BuilderBase {
 			if (profLevel === 0.5 || profLevel === 2) pipSlash(pipCx, pipCy);
 		};
 		// STR
-		sk(fmod(saveBonus("str")),           27.9,263.8, 45.5,276.8, 21.9,272.6, hasSave("str") ? 1 : 0);
+		sk(fmod(saveBonusEff("str")),           27.9,263.8, 45.5,276.8, 21.9,272.6, hasSave("str") ? 1 : 0);
 		sk(fmod(skillBonus("Athletics")),    28.1,283.7, 45.5,296.7, 22.0,292.4, skillPL("Athletics"));
 		// DEX
-		sk(fmod(saveBonus("dex")),           27.7,383.3, 45.1,396.3, 21.8,392.1, hasSave("dex") ? 1 : 0);
+		sk(fmod(saveBonusEff("dex")),           27.7,383.3, 45.1,396.3, 21.8,392.1, hasSave("dex") ? 1 : 0);
 		sk(fmod(skillBonus("Acrobatics")),   27.9,403.2, 45.2,416.2, 21.6,411.9, skillPL("Acrobatics"));
 		sk(fmod(skillBonus("Sleight of Hand")),27.8,417.4, 45.2,430.4, 21.7,426.1, skillPL("Sleight of Hand"));
 		sk(fmod(skillBonus("Stealth")),      27.9,431.5, 45.3,444.5, 21.5,440.5, skillPL("Stealth"));
 		// CON
-		sk(fmod(saveBonus("con")),           27.9,531.5, 45.3,544.5, 21.9,540.2, hasSave("con") ? 1 : 0);
+		sk(fmod(saveBonusEff("con")),           27.9,531.5, 45.3,544.5, 21.9,540.2, hasSave("con") ? 1 : 0);
 		// INT
-		sk(fmod(saveBonus("int")),          135.7,185.4,153.1,198.4, 129.7,194.2, hasSave("int") ? 1 : 0);
+		sk(fmod(saveBonusEff("int")),          135.7,185.4,153.1,198.4, 129.7,194.2, hasSave("int") ? 1 : 0);
 		sk(fmod(skillBonus("Arcana")),      135.7,205.1,153.0,218.2, 129.6,214.0, skillPL("Arcana"));
 		sk(fmod(skillBonus("History")),     135.9,219.4,153.3,232.4, 129.6,228.2, skillPL("History"));
 		sk(fmod(skillBonus("Investigation")),135.9,233.5,153.3,246.6, 129.4,242.6, skillPL("Investigation"));
 		sk(fmod(skillBonus("Nature")),      135.7,247.7,153.1,260.7, 129.8,256.8, skillPL("Nature"));
 		sk(fmod(skillBonus("Religion")),    135.5,261.9,152.9,274.9, 129.8,270.9, skillPL("Religion"));
 		// WIS
-		sk(fmod(saveBonus("wis")),          135.7,361.6,153.1,374.7, 129.7,370.7, hasSave("wis") ? 1 : 0);
+		sk(fmod(saveBonusEff("wis")),          135.7,361.6,153.1,374.7, 129.7,370.7, hasSave("wis") ? 1 : 0);
 		sk(fmod(skillBonus("Animal Handling")),135.7,381.6,153.1,394.6, 129.8,390.5, skillPL("Animal Handling"));
 		sk(fmod(skillBonus("Insight")),     135.7,395.6,153.1,408.6, 129.7,404.7, skillPL("Insight"));
 		sk(fmod(skillBonus("Medicine")),    135.7,409.8,153.0,422.9, 129.7,419.1, skillPL("Medicine"));
 		sk(fmod(skillBonus("Perception")),  135.6,424.2,153.0,437.2, 129.9,433.3, skillPL("Perception"));
 		sk(fmod(skillBonus("Survival")),    135.6,438.4,153.0,451.4, 129.8,447.4, skillPL("Survival"));
 		// CHA
-		sk(fmod(saveBonus("cha")),          135.8,538.2,153.2,551.2, 129.7,547.2, hasSave("cha") ? 1 : 0);
+		sk(fmod(saveBonusEff("cha")),          135.8,538.2,153.2,551.2, 129.7,547.2, hasSave("cha") ? 1 : 0);
 		sk(fmod(skillBonus("Deception")),   135.7,558.1,153.1,571.1, 129.5,567.0, skillPL("Deception"));
 		sk(fmod(skillBonus("Intimidation")),135.7,572.4,153.0,585.4, 129.7,581.2, skillPL("Intimidation"));
 		sk(fmod(skillBonus("Performance")), 135.7,586.6,153.1,599.6, 129.4,595.6, skillPL("Performance"));
@@ -6072,8 +6129,8 @@ export class CharacterBuilder extends BuilderBase {
 				const dmgType = data.damageInflict[0] || "";
 				const damage = die ? `${die} ${dmgType}` : dmgType;
 				let atkBonus = "";
-				if (data.spellAttack?.length) atkBonus = spellAtk != null ? fmod(spellAtk) : "";
-				else if (data.savingThrow?.length) atkBonus = spellDC != null ? `DC ${spellDC}` : "";
+				if (data.spellAttack?.length) atkBonus = spellAtkEff != null ? fmod(spellAtkEff) : "";
+				else if (data.savingThrow?.length) atkBonus = spellDCEff != null ? `DC ${spellDCEff}` : "";
 				const ov = _wpnOv[sp.name];
 				return {
 					name:     sp.name,
@@ -6210,8 +6267,8 @@ export class CharacterBuilder extends BuilderBase {
 		if (spellAbilList.length <= 1) {
 			inFieldAtY(spellAbilList[0] ? _ABILITY_FULL[spellAbilList[0]] : "", 24.9, 135.1, 27.8, 8, true);
 			inFieldAtY(spellMod!=null ? fmod(spellMod+profBonus) : "", 13, 48, 63.5, 9, true);
-			inFieldAtY(spellDC!=null  ? String(spellDC) : "",         13, 48, 91.7, 9, true);
-			inFieldAtY(spellAtk!=null ? fmod(spellAtk)  : "",         13, 48, 119.8, 9, true);
+			inFieldAtY(spellDCEff!=null  ? String(spellDCEff) : "",    13, 48, 91.7, 9, true);
+			inFieldAtY(spellAtkEff!=null ? fmod(spellAtkEff)  : "",    13, 48, 119.8, 9, true);
 		} else {
 			// Multiple spellcasting abilities - join with " / ", shrink font to fit
 			const abilNames = spellAbilList.map(a => _ABILITY_FULL[a] || a).join(" / ");
