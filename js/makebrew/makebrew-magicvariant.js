@@ -947,8 +947,8 @@ export class MagicVariantBuilder extends BuilderBase {
 
 		const doUpdate = () => {
 			const bonus = sel.vee.val();
-			const isAtk = cbAtk.prop("checked");
-			const isDmg = cbDmg.prop("checked");
+			const isAtk = cbAtk.vee.prop("checked");
+			const isDmg = cbDmg.vee.prop("checked");
 			delete inh.bonusWeapon; delete inh.bonusWeaponAttack; delete inh.bonusWeaponDamage;
 			if (bonus && (isAtk || isDmg)) {
 				if (isAtk && isDmg)  inh.bonusWeapon       = bonus;
@@ -963,8 +963,8 @@ export class MagicVariantBuilder extends BuilderBase {
 			${_BONUS_VALS.map(v => `<option value="${v}">${v}</option>`).join("")}
 		</select>`.vee.val(existingBonus).vee.onn("change", doUpdate);
 
-		const cbAtk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", initAtk).vee.onn("change", doUpdate);
-		const cbDmg = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", initDmg).vee.onn("change", doUpdate);
+		const cbAtk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", initAtk).vee.onn("change", doUpdate);
+		const cbDmg = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", initDmg).vee.onn("change", doUpdate);
 
 		rowInner
 			.vee.appends(sel)
@@ -1152,9 +1152,9 @@ export class MagicVariantBuilder extends BuilderBase {
 
 		const checkboxes = _DAMAGE_TYPES.map(({abv, name}) => {
 			const chk = veT`<input type="checkbox" class="ve-mr-1">`
-				.prop("checked", cur.has(abv))
+				.vee.prop("checked", cur.has(abv))
 				.vee.onn("change", () => {
-					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.abv);
+					const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.abv);
 					if (selected.length) inh[prop] = selected;
 					else delete inh[prop];
 					cb();
@@ -1177,9 +1177,9 @@ export class MagicVariantBuilder extends BuilderBase {
 
 		const checkboxes = _CONDITIONS.map(cond => {
 			const chk = veT`<input type="checkbox" class="ve-mr-1">`
-				.prop("checked", cur.has(cond))
+				.vee.prop("checked", cur.has(cond))
 				.vee.onn("change", () => {
-					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.cond);
+					const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.cond);
 					if (selected.length) inh.conditionImmune = selected;
 					else delete inh.conditionImmune;
 					cb();
@@ -1219,9 +1219,9 @@ export class MagicVariantBuilder extends BuilderBase {
 	_buildInheritsCheckboxRow (label, wrp, cb, key) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
 		const inh = this.__state.inherits;
-		const chk = veT`<input type="checkbox">`.prop("checked", !!inh[key])
+		const chk = veT`<input type="checkbox">`.vee.prop("checked", !!inh[key])
 			.vee.onn("change", () => {
-				if (chk.prop("checked")) inh[key] = true;
+				if (chk.vee.prop("checked")) inh[key] = true;
 				else delete inh[key];
 				cb();
 			});
@@ -1280,21 +1280,21 @@ export class MagicVariantBuilder extends BuilderBase {
 
 			const wrpClass = veT`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.vee.appendTo(rowInner);
 
-			const cbAll = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", isAll);
+			const cbAll = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", isAll);
 			veT`<label class="ve-flex-v-center ve-w-100 ve-mb-1" style="font-weight:bold;cursor:pointer">${cbAll}<span>All Spellcasters</span></label>`.vee.appendTo(rowInner);
 
 			const classChecks = _SPELLCASTER_CLASSES.map(cls => {
-				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", curArr.includes(cls));
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", curArr.includes(cls));
 				return {cls, chk,
 					ele: veT`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.vee.appendTo(wrpClass),
 				};
 			});
 
 			const doUpdate = () => {
-				if (cbAll.prop("checked")) {
+				if (cbAll.vee.prop("checked")) {
 					inh.focus = true;
 				} else {
-					const selected = classChecks.filter(c => c.chk.prop("checked")).map(c => c.cls);
+					const selected = classChecks.filter(c => c.chk.vee.prop("checked")).map(c => c.cls);
 					if (selected.length) inh.focus = selected;
 					else delete inh.focus;
 				}
@@ -1348,9 +1348,9 @@ export class MagicVariantBuilder extends BuilderBase {
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Misc Tags", {isRow: false});
 			const cur = new Set(inh.miscTags || []);
 			const checkboxes = _MISC_TAGS.map(({v, label}) => {
-				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", cur.has(v))
 					.vee.onn("change", () => {
-						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
+						const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.v);
 						if (selected.length) inh.miscTags = selected;
 						else delete inh.miscTags;
 						cb();
@@ -1366,9 +1366,9 @@ export class MagicVariantBuilder extends BuilderBase {
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Poison Types", {isRow: false});
 			const cur = new Set(inh.poisonTypes || []);
 			const checkboxes = _POISON_TYPES.map(({v, label}) => {
-				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", cur.has(v))
 					.vee.onn("change", () => {
-						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
+						const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.v);
 						if (selected.length) inh.poisonTypes = selected;
 						else delete inh.poisonTypes;
 						cb();
@@ -1421,16 +1421,16 @@ export class MagicVariantBuilder extends BuilderBase {
 
 		const save = () => {
 			const tags = [];
-			if (cbSpellcasting.prop("checked")) tags.push({spellcasting: true});
-			if (cbPsionics.prop("checked"))     tags.push({psionics: true});
-			classChecks.filter(c => c.chk.prop("checked")).forEach(c => tags.push({class: c.cls.toLowerCase()}));
+			if (cbSpellcasting.vee.prop("checked")) tags.push({spellcasting: true});
+			if (cbPsionics.vee.prop("checked"))     tags.push({psionics: true});
+			classChecks.filter(c => c.chk.vee.prop("checked")).forEach(c => tags.push({class: c.cls.toLowerCase()}));
 			if (tags.length) inh.reqAttuneTags = tags;
 			else delete inh.reqAttuneTags;
 			cb();
 		};
 
-		const cbSpellcasting = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasSpellcasting).vee.onn("change", save);
-		const cbPsionics     = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasPsionics).vee.onn("change", save);
+		const cbSpellcasting = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", hasSpellcasting).vee.onn("change", save);
+		const cbPsionics     = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", hasPsionics).vee.onn("change", save);
 
 		veT`<div class="ve-flex ve-flex-wrap ve-mb-1" style="gap:4px"></div>`
 			.vee.appends(veT`<label class="ve-flex-v-center ve-mr-3" style="font-weight:normal;cursor:pointer">${cbSpellcasting}<span>Any Spellcaster</span></label>`)
@@ -1440,7 +1440,7 @@ export class MagicVariantBuilder extends BuilderBase {
 		const ALL_CLASSES = ["Artificer", "Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"];
 		const wrpClasses = veT`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.vee.appendTo(rowInner);
 		const classChecks = ALL_CLASSES.map(cls => {
-			const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", curClasses.has(cls.toLowerCase())).vee.onn("change", save);
+			const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", curClasses.has(cls.toLowerCase())).vee.onn("change", save);
 			return {cls, chk, ele: veT`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.vee.appendTo(wrpClasses)};
 		});
 

@@ -163,7 +163,14 @@ export class CharacterBuilder extends BuilderBase {
 		const pLoadClasses = () => Promise.all([
 			DataUtil.class.loadJSON().catch(() => ({class: [], subclass: []})),
 			DataUtil.class.loadRawJSON().catch(() => ({subclassFeature: []})),
-		]).then(([resolved, raw]) => ({...resolved, subclassFeature: raw.subclassFeature || []}));
+			DataUtil.class.loadBrew().catch(() => ({class: [], subclass: []})),
+			DataLoader.pCacheAndGetAllBrew("classFeature").catch(() => []),
+			DataLoader.pCacheAndGetAllBrew("subclassFeature").catch(() => []),
+		]).then(([resolved, raw, brew, , brewSubclassFeatures]) => ({
+			class: [...(resolved.class || []), ...(brew.class || [])],
+			subclass: [...(resolved.subclass || []), ...(brew.subclass || [])],
+			subclassFeature: [...(raw.subclassFeature || []), ...(brewSubclassFeatures || [])],
+		}));
 
 		const [classData, raceDataAll, bgData, featDataAll, optFeatData, spellData, brewSpells, prereleaseSpells, items, brewItems, prereleaseItems] = await Promise.all([
 			pLoadClasses(),
@@ -4104,7 +4111,7 @@ export class CharacterBuilder extends BuilderBase {
 							if (sel.vee.val()) next.push({ability: sel.vee.val(), amount: weight, ix: slotIx});
 							this._state[choiceWeight] = next;
 							// Deselect any sibling that had the same ability
-							slotWrp.findAll("select").forEach(other => {
+							slotWrp.vee.findAll("select").forEach(other => {
 								if (other !== sel && other.value === sel.vee.val() && sel.vee.val()) other.value = "";
 							});
 							onChoiceChange();
@@ -4905,8 +4912,8 @@ export class CharacterBuilder extends BuilderBase {
 				const row = veT`<div class="ve-flex-v-center ve-mb-1"></div>`.vee.appendTo(wrpEqRows);
 				if (isEquippable) {
 					veT`<span class="ve-muted ve-mr-1" style="font-size:.75em" title="Equipped">E</span>`.vee.appendTo(row);
-					const cbEle = veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!item.equipped);
-					cbEle.vee.onn("change", () => { item.equipped = !!cbEle.prop("checked"); cb(); });
+					const cbEle = veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.vee.prop("checked", !!item.equipped);
+					cbEle.vee.onn("change", () => { item.equipped = !!cbEle.vee.prop("checked"); cb(); });
 					cbEle.vee.appendTo(row);
 				}
 				veT`<span class="ve-mr-2" style="flex:1">${item.name}${item.qty > 1 ? ` ×${item.qty}` : ""}</span>`.vee.appendTo(row);
@@ -4935,7 +4942,7 @@ export class CharacterBuilder extends BuilderBase {
 				const nameSpan = veT`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				_setItemHoverAttrs(nameSpan, entry);
 				const cbEquip = isEquippable
-					? veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).vee.onn("change", doUpdateEqState)
+					? veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.vee.prop("checked", !!initial?.equipped).vee.onn("change", doUpdateEqState)
 					: null;
 				const btnRm = veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove"><span class="glyphicon glyphicon-trash"></span></button>`.vee.onn("click", () => {
 					if (initial?.autoGranted) {
@@ -4957,7 +4964,7 @@ export class CharacterBuilder extends BuilderBase {
 					cbEquip.vee.appendTo(rowEle);
 				}
 				rowEle.vee.appends(nameSpan).vee.appends(iptQty).vee.appends(iptNote).vee.appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.vee.val(), 1, {fallbackOnNaN:1}), note: iptNote.vee.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})}), _ele: rowEle};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.vee.val(), 1, {fallbackOnNaN:1}), note: iptNote.vee.val().trim(), equipped: isEquippable ? !!cbEquip.vee.prop("checked") : false, ...(initial?.autoGranted ? {autoGranted: true} : {})}), _ele: rowEle};
 				eqRows.push(rowMeta);
 
 				let _fromHandle = false;
@@ -5031,7 +5038,7 @@ export class CharacterBuilder extends BuilderBase {
 				const nameSpan = veT`<span class="ve-bold ve-mr-2" style="flex:2">${initial?.name || ""}</span>`;
 				_setItemHoverAttrs(nameSpan, entry);
 				const cbEquip = isEquippable
-					? veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.prop("checked", !!initial?.equipped).vee.onn("change", doUpdateMgState)
+					? veT`<input type="checkbox" class="mkbru__ipt-cb ve-mr-2" title="Equip">`.vee.prop("checked", !!initial?.equipped).vee.onn("change", doUpdateMgState)
 					: null;
 				const btnAttune = needsAttune
 					? veT`<button class="ve-btn ve-btn-xs ve-btn-default ve-mr-1" title="Requires attunement">Att.</button>`
@@ -5054,7 +5061,7 @@ export class CharacterBuilder extends BuilderBase {
 				}
 				if (btnAttune) btnAttune.vee.appendTo(rowEle);
 				rowEle.vee.appends(nameSpan).vee.appends(iptQty).vee.appends(iptNote).vee.appends(btnRm);
-				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.vee.val(), 1, {fallbackOnNaN:1}), note: iptNote.vee.val().trim(), equipped: isEquippable ? !!cbEquip.prop("checked") : false, attuned: needsAttune ? !!btnAttune.vee.hasClass("ve-active") : false}), _ele: rowEle};
+				const rowMeta = {getState: () => ({name: (initial?.name || ""), qty: UiUtil.strToInt(iptQty.vee.val(), 1, {fallbackOnNaN:1}), note: iptNote.vee.val().trim(), equipped: isEquippable ? !!cbEquip.vee.prop("checked") : false, attuned: needsAttune ? !!btnAttune.vee.hasClass("ve-active") : false}), _ele: rowEle};
 				mgRows.push(rowMeta);
 
 				let _fromHandle = false;
@@ -5337,7 +5344,7 @@ export class CharacterBuilder extends BuilderBase {
 				veT`<span class="ve-bold" style="min-width:140px;flex:0 0 auto${_spellHover ? ";cursor:help" : ""}" ${_spellHover}>${name}</span>`.vee.appendTo(row);
 				const iptNotes = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="Notes..." style="flex:1;min-width:0">`.vee.val(initial?.notes || "").vee.onn("input", doUpdateState).vee.appendTo(row);
 				veT`<span class="ve-muted" style="font-size:.8em;white-space:nowrap">Prep</span>`.vee.appendTo(row);
-				const cbPrep = veT`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.prop("checked", !!(initial?.prepared)).vee.onn("change", doUpdateState).vee.appendTo(row);
+				const cbPrep = veT`<input type="checkbox" class="mkbru__ipt-cb" title="Prepared">`.vee.prop("checked", !!(initial?.prepared)).vee.onn("change", doUpdateState).vee.appendTo(row);
 				veT`<button class="ve-btn ve-btn-xs ve-btn-danger" title="Remove Spell"><span class="glyphicon glyphicon-trash"></span></button>`
 					.vee.onn("click", () => {
 						if (isAuto) {
@@ -5356,7 +5363,7 @@ export class CharacterBuilder extends BuilderBase {
 				const rowMeta = {
 					getState: () => ({
 						name,
-						prepared: !!cbPrep.prop("checked"),
+						prepared: !!cbPrep.vee.prop("checked"),
 						notes: iptNotes.vee.val().trim(),
 						...(isAuto ? {autoGranted: true} : {}),
 					}),

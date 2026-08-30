@@ -362,9 +362,9 @@ export class ItemBuilder extends BuilderBase {
 	_buildCheckboxRow (label, wrp, cb, prop) {
 		const [row, rowInner] = BuilderUi.getLabelledRowTuple(label, {isRow: true});
 		const input = veT`<input type="checkbox">`
-			.prop("checked", !!this._state[prop])
+			.vee.prop("checked", !!this._state[prop])
 			.vee.onn("change", () => {
-				if (input.prop("checked")) this._state[prop] = true;
+				if (input.vee.prop("checked")) this._state[prop] = true;
 				else delete this._state[prop];
 				cb();
 			});
@@ -626,9 +626,9 @@ export class ItemBuilder extends BuilderBase {
 
 			const checkboxes = _WEAPON_PROPS.map(({uid, label}) => {
 				const cb_ = veT`<input type="checkbox" class="ve-mr-1">`
-					.prop("checked", curProps.has(uid))
+					.vee.prop("checked", curProps.has(uid))
 					.vee.onn("change", () => {
-						if (uid === "V") rowVersatileDmg.vee.toggle(cb_.prop("checked"));
+						if (uid === "V") rowVersatileDmg.vee.toggle(cb_.vee.prop("checked"));
 						doUpdate();
 						if (uid === "T") this._refreshRangeVisibility();
 					});
@@ -638,7 +638,7 @@ export class ItemBuilder extends BuilderBase {
 			});
 
 			const doUpdate = () => {
-				const selected = checkboxes.filter(c => c.cb_.prop("checked")).map(c => c.uid);
+				const selected = checkboxes.filter(c => c.cb_.vee.prop("checked")).map(c => c.uid);
 				if (selected.length) this._state.property = selected;
 				else delete this._state.property;
 				cb();
@@ -801,8 +801,8 @@ export class ItemBuilder extends BuilderBase {
 
 		const doUpdate = () => {
 			const bonus = sel.vee.val();
-			const isAtk = cbAtk.prop("checked");
-			const isDmg = cbDmg.prop("checked");
+			const isAtk = cbAtk.vee.prop("checked");
+			const isDmg = cbDmg.vee.prop("checked");
 			delete this._state.bonusWeapon;
 			delete this._state.bonusWeaponAttack;
 			delete this._state.bonusWeaponDamage;
@@ -821,11 +821,11 @@ export class ItemBuilder extends BuilderBase {
 			.vee.onn("change", () => doUpdate());
 
 		const cbAtk = veT`<input type="checkbox" class="ve-mr-1">`
-			.prop("checked", initAtk)
+			.vee.prop("checked", initAtk)
 			.vee.onn("change", () => doUpdate());
 
 		const cbDmg = veT`<input type="checkbox" class="ve-mr-1">`
-			.prop("checked", initDmg)
+			.vee.prop("checked", initDmg)
 			.vee.onn("change", () => doUpdate());
 
 		sel.vee.appendTo(rowInner);
@@ -1032,9 +1032,9 @@ export class ItemBuilder extends BuilderBase {
 
 		const checkboxes = _DAMAGE_TYPES.map(({abv, name}) => {
 			const chk = veT`<input type="checkbox" class="ve-mr-1">`
-				.prop("checked", cur.has(abv))
+				.vee.prop("checked", cur.has(abv))
 				.vee.onn("change", () => {
-					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.abv);
+					const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.abv);
 					if (selected.length) this._state[prop] = selected;
 					else delete this._state[prop];
 					cb();
@@ -1056,9 +1056,9 @@ export class ItemBuilder extends BuilderBase {
 
 		const checkboxes = _CONDITIONS.map(cond => {
 			const chk = veT`<input type="checkbox" class="ve-mr-1">`
-				.prop("checked", cur.has(cond))
+				.vee.prop("checked", cur.has(cond))
 				.vee.onn("change", () => {
-					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.cond);
+					const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.cond);
 					if (selected.length) this._state.conditionImmune = selected;
 					else delete this._state.conditionImmune;
 					cb();
@@ -1151,21 +1151,21 @@ export class ItemBuilder extends BuilderBase {
 
 			const wrpClass = veT`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.vee.appendTo(rowInner);
 
-			const cbAll = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", isAll);
+			const cbAll = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", isAll);
 			veT`<label class="ve-flex-v-center ve-w-100 ve-mb-1" style="font-weight:bold;cursor:pointer">${cbAll}<span>All Spellcasters</span></label>`.vee.appendTo(rowInner);
 
 			const classChecks = _SPELLCASTER_CLASSES.map(cls => {
-				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", curArr.includes(cls));
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", curArr.includes(cls));
 				return {cls, chk,
 					ele: veT`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.vee.appendTo(wrpClass),
 				};
 			});
 
 			const doUpdate = () => {
-				if (cbAll.prop("checked")) {
+				if (cbAll.vee.prop("checked")) {
 					this._state.focus = true;
 				} else {
-					const selected = classChecks.filter(c => c.chk.prop("checked")).map(c => c.cls);
+					const selected = classChecks.filter(c => c.chk.vee.prop("checked")).map(c => c.cls);
 					if (selected.length) this._state.focus = selected;
 					else delete this._state.focus;
 				}
@@ -1220,9 +1220,9 @@ export class ItemBuilder extends BuilderBase {
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Misc Tags", {isRow: false});
 			const cur = new Set(this._state.miscTags || []);
 			const checkboxes = _MISC_TAGS.map(({v, label}) => {
-				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", cur.has(v))
 					.vee.onn("change", () => {
-						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
+						const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.v);
 						if (selected.length) this._state.miscTags = selected;
 						else delete this._state.miscTags;
 						cb();
@@ -1239,9 +1239,9 @@ export class ItemBuilder extends BuilderBase {
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Poison Types", {isRow: false});
 			const cur = new Set(this._state.poisonTypes || []);
 			const checkboxes = _POISON_TYPES.map(({v, label}) => {
-				const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(v))
+				const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", cur.has(v))
 					.vee.onn("change", () => {
-						const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.v);
+						const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.v);
 						if (selected.length) this._state.poisonTypes = selected;
 						else delete this._state.poisonTypes;
 						cb();
@@ -1374,16 +1374,16 @@ export class ItemBuilder extends BuilderBase {
 
 		const save = () => {
 			const tags = [];
-			if (cbSpellcasting.prop("checked")) tags.push({spellcasting: true});
-			if (cbPsionics.prop("checked"))     tags.push({psionics: true});
-			classChecks.filter(c => c.chk.prop("checked")).forEach(c => tags.push({class: c.cls.toLowerCase()}));
+			if (cbSpellcasting.vee.prop("checked")) tags.push({spellcasting: true});
+			if (cbPsionics.vee.prop("checked"))     tags.push({psionics: true});
+			classChecks.filter(c => c.chk.vee.prop("checked")).forEach(c => tags.push({class: c.cls.toLowerCase()}));
 			if (tags.length) this._state.reqAttuneTags = tags;
 			else delete this._state.reqAttuneTags;
 			cb();
 		};
 
-		const cbSpellcasting = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasSpellcasting).vee.onn("change", save);
-		const cbPsionics     = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", hasPsionics).vee.onn("change", save);
+		const cbSpellcasting = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", hasSpellcasting).vee.onn("change", save);
+		const cbPsionics     = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", hasPsionics).vee.onn("change", save);
 
 		veT`<div class="ve-flex ve-flex-wrap ve-mb-1" style="gap:4px">
 		</div>`
@@ -1394,7 +1394,7 @@ export class ItemBuilder extends BuilderBase {
 		const wrpClasses = veT`<div class="ve-flex ve-flex-wrap" style="gap:4px"></div>`.vee.appendTo(rowInner);
 		const ALL_CLASSES = ["Artificer", "Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"];
 		const classChecks = ALL_CLASSES.map(cls => {
-			const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", curClasses.has(cls.toLowerCase())).vee.onn("change", save);
+			const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", curClasses.has(cls.toLowerCase())).vee.onn("change", save);
 			return {cls, chk, ele: veT`<label class="ve-flex-v-center ve-mr-2" style="font-weight:normal;cursor:pointer;font-size:.85em">${chk}<span>${cls}</span></label>`.vee.appendTo(wrpClasses)};
 		});
 
@@ -1487,9 +1487,9 @@ export class ItemBuilder extends BuilderBase {
 
 		const checkboxes = _LOOT_TABLES.map(tbl => {
 			const letter = tbl.slice(-1);
-			const chk = veT`<input type="checkbox" class="ve-mr-1">`.prop("checked", cur.has(tbl))
+			const chk = veT`<input type="checkbox" class="ve-mr-1">`.vee.prop("checked", cur.has(tbl))
 				.vee.onn("change", () => {
-					const selected = checkboxes.filter(c => c.chk.prop("checked")).map(c => c.tbl);
+					const selected = checkboxes.filter(c => c.chk.vee.prop("checked")).map(c => c.tbl);
 					if (selected.length) this._state.lootTables = selected;
 					else delete this._state.lootTables;
 					cb();
