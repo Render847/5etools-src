@@ -47,16 +47,17 @@ const _DAMAGE_TYPES = Object.entries(Parser.DMGTYPE_JSON_TO_FULL)
 	.map(([abv, name]) => ({abv, name: name.charAt(0).toUpperCase() + name.slice(1)}));
 
 const _WEAPON_PROPS = [
-	{uid: "2H", label: "Two-Handed"},
-	{uid: "A",  label: "Ammunition"},
-	{uid: "F",  label: "Finesse"},
-	{uid: "H",  label: "Heavy"},
-	{uid: "L",  label: "Light"},
-	{uid: "LD", label: "Loading"},
-	{uid: "R",  label: "Reach"},
-	{uid: "S",  label: "Special"},
-	{uid: "T",  label: "Thrown"},
-	{uid: "V",  label: "Versatile"},
+	{uid: "2H",  label: "Two-Handed"},
+	{uid: "A",   label: "Ammunition"},
+	{uid: "F",   label: "Finesse"},
+	{uid: "H",   label: "Heavy"},
+	{uid: "L",   label: "Light"},
+	{uid: "LD",  label: "Loading"},
+	{uid: "R",   label: "Reach"},
+	{uid: "RLD", label: "Reload"},
+	{uid: "S",   label: "Special"},
+	{uid: "T",   label: "Thrown"},
+	{uid: "V",   label: "Versatile"},
 ];
 
 const _BONUS_VALS = ["", "+1", "+2", "+3", "+4", "+5"];
@@ -165,7 +166,8 @@ export class ItemBuilder extends BuilderBase {
 	async pHandleClickLoadExisting () {
 		const [selected] = (await new ModalFilterItems({namespace: "makebrew.item.copy", isRadio: true}).pGetUserSelection()) ?? [];
 		if (!selected) return;
-		const item = MiscUtil.copy(await DataLoader.pCacheAndGet(UrlUtil.PG_ITEMS, selected.values.sourceJson, selected.values.hash));
+		const item = MiscUtil.copy(await DataLoader.pCacheAndGet(UrlUtil.PG_ITEMS, selected.values.sourceJson, selected.data.hash));
+		if (!item) return;
 		return this.pHandleLoadExistingData(item);
 	}
 
@@ -558,6 +560,8 @@ export class ItemBuilder extends BuilderBase {
 
 		// Versatile / secondary damage — hidden unless Versatile property is checked
 		let rowVersatileDmg;
+		let rowAmmoType = /** @type {any} */ (null);
+		let rowReloadCount = /** @type {any} */ (null);
 		{
 			const curPropsForInit = new Set((this._state.property || []).map(p => p.split("|")[0]));
 			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Versatile Damage", {isRow: true});
@@ -628,7 +632,9 @@ export class ItemBuilder extends BuilderBase {
 				const cb_ = veT`<input type="checkbox" class="ve-mr-1">`
 					.vee.prop("checked", curProps.has(uid))
 					.vee.onn("change", () => {
-						if (uid === "V") rowVersatileDmg.vee.toggle(cb_.vee.prop("checked"));
+						if (uid === "V")   rowVersatileDmg.vee.toggle(cb_.vee.prop("checked"));
+						if (uid === "A")   rowAmmoType?.vee.toggle(cb_.vee.prop("checked"));
+						if (uid === "RLD") rowReloadCount?.vee.toggle(cb_.vee.prop("checked"));
 						doUpdate();
 						if (uid === "T") this._refreshRangeVisibility();
 					});
@@ -637,8 +643,24 @@ export class ItemBuilder extends BuilderBase {
 				};
 			});
 
+			// Map short uids to their XPHB/XDMG equivalents, whose templates use {{prop_name}}
+			// (capitalized) instead of {{prop_name_lower}}, and include newer fields like ammoType.
+			const _PROP_UID_MAP = /** @type {Record<string, string>} */ ({
+				"2H":  "2H|XPHB",
+				"A":   "A|XPHB",
+				"F":   "F|XPHB",
+				"H":   "H|XPHB",
+				"L":   "L|XPHB",
+				"LD":  "LD|XPHB",
+				"R":   "R|XPHB",
+				"RLD": "RLD|XDMG",
+				"T":   "T|XPHB",
+				"V":   "V|XPHB",
+			});
 			const doUpdate = () => {
-				const selected = checkboxes.filter(c => c.cb_.vee.prop("checked")).map(c => c.uid);
+				const selected = checkboxes
+					.filter(c => c.cb_.vee.prop("checked"))
+					.map(c => _PROP_UID_MAP[c.uid] || c.uid);
 				if (selected.length) this._state.property = selected;
 				else delete this._state.property;
 				cb();
@@ -647,6 +669,40 @@ export class ItemBuilder extends BuilderBase {
 			rowInner.style.flexWrap = "wrap";
 			checkboxes.forEach(c => rowInner.vee.appends(c.ele));
 			row.vee.appendTo(wrp);
+		}
+
+		// Ammo Type — visible when Ammunition property is checked
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Ammo Type", {isRow: true,
+				title: "The type of ammunition this weapon requires (e.g. \"arrows\", \"bolts\")."});
+			rowAmmoType = row;
+			const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder='e.g. "arrows"'>`
+				.vee.val(this._state.ammoType || "")
+				.vee.onn("change", () => {
+					const v = ipt.vee.val().trim();
+					if (v) this._state.ammoType = v; else delete this._state.ammoType;
+					cb();
+				});
+			ipt.vee.appendTo(rowInner);
+			row.vee.appendTo(wrp);
+			row.vee.toggle((this._state.property || []).some((/** @type {string} */ p) => p.split("|")[0] === "A"));
+		}
+
+		// Reload Count — visible when Reload property is checked
+		{
+			const [row, rowInner] = BuilderUi.getLabelledRowTuple("Reload Count", {isRow: true,
+				title: "Number of times the weapon can be fired before it must be reloaded."});
+			rowReloadCount = row;
+			const ipt = veT`<input class="ve-form-control ve-input-xs form-control--minimal" placeholder="e.g. 6" style="max-width:80px">`
+				.vee.val(this._state.reload != null ? this._state.reload : "")
+				.vee.onn("change", () => {
+					const v = parseInt(ipt.vee.val());
+					if (!isNaN(v)) this._state.reload = v; else delete this._state.reload;
+					cb();
+				});
+			ipt.vee.appendTo(rowInner);
+			row.vee.appendTo(wrp);
+			row.vee.toggle((this._state.property || []).some((/** @type {string} */ p) => p.split("|")[0] === "RLD"));
 		}
 	}
 
