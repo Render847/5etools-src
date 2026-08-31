@@ -2873,6 +2873,7 @@ export class CharacterBuilder extends BuilderBase {
 		const featNames = [
 			...(this._state.bgFeat ? [this._state.bgFeat] : []),
 			...(this._state.feats || []),
+			...(this._state.asiChoices || []).filter((/** @type {any} */ c) => c.featName && c.featName !== "Ability Score Improvement").map((/** @type {any} */ c) => c.featName),
 		].filter(Boolean);
 		if (!featNames.length) return "";
 		const lines = [];
@@ -5794,7 +5795,11 @@ export class CharacterBuilder extends BuilderBase {
 		// Collect all unique spellcasting abilities: from class data, feat choices, fallback to primary
 		const spellAbilList = (() => {
 			const abils = new Set(s.spellcastingAbilities || []);
-			const activeFeatNames = new Set([...(s.bgFeat ? [s.bgFeat] : []), ...(s.feats || [])].filter(Boolean));
+			const activeFeatNames = new Set([
+				...(s.bgFeat ? [s.bgFeat] : []),
+				...(s.feats || []),
+				...(s.asiChoices || []).filter((/** @type {any} */ c) => c.featName && c.featName !== "Ability Score Improvement").map((/** @type {any} */ c) => c.featName),
+			].filter(Boolean));
 			Object.entries(s.featChoices || {}).forEach(([featName, chosen]) => {
 				if (!activeFeatNames.has(featName)) return;
 				if (chosen.spellcastingAbility) abils.add(chosen.spellcastingAbility);
@@ -6150,7 +6155,11 @@ export class CharacterBuilder extends BuilderBase {
 		const _allOptChoices = Object.values(s.optionalFeatureChoices || {}).flat().map(c => (c || "").toLowerCase());
 		const _hasUnarmedFighting = _allOptChoices.some(c => c.includes("unarmed fighting"));
 
-		const _allFeats = [...(s.feats || []), s.bgFeat || ""].map(f => f.toLowerCase());
+		const _allFeats = [
+			...(s.feats || []),
+			s.bgFeat || "",
+			...(s.asiChoices || []).filter((/** @type {any} */ c) => c.featName && c.featName !== "Ability Score Improvement").map((/** @type {any} */ c) => c.featName),
+		].map(f => f.toLowerCase());
 		const _hasTavernBrawler = _allFeats.some(f => f.includes("tavern brawler"));
 
 		const _bestUnarmedDie = Math.max(
